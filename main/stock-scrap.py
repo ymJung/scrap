@@ -19,7 +19,7 @@ def Get(name):
     return ""
 
 
-
+# day + code = +- result
 
 code = Get("삼성정밀화학")
 UP_DOWN = 12
