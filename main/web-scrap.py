@@ -1,30 +1,45 @@
 __author__ = 'YoungMin'
 
-# url +
-login_url = "http://m.ppomppu.co.kr/new/login.php?s_url=/new/"
-stock_url = "http://m.ppomppu.co.kr/new/bbs_list.php?id=stock"
+login_url = "http://www.ppomppu.co.kr/index.php"
+stock_url = "http://www.ppomppu.co.kr/zboard/zboard.php?id=stock"
+userId = ""
+password = ""
+value = "삼익악기"
 
-import urllib
-from bs4 import BeautifulSoup as bs
-import requests as req
-import urllib.request as ur
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
 
-import http.cookiejar as jar
+driver = webdriver.Firefox()
+# login
+driver.get(login_url)
+driver.find_element_by_id("user_id").send_keys(userId)
+driver.find_element_by_name("password").send_keys(password)
+form = driver.find_element_by_name("zb_login")
+form.submit()
 
-## login session, Html file reading ##
+driver.get(stock_url)
+search = driver.find_element_by_xpath("//*[@id='bbs_wrap']/div/table[6]/tbody/tr[2]/td/table/tbody/tr/td[2]/input")
+search.send_keys(value)
+search.send_keys(Keys.ENTER)
 
-url = "http://www.ppomppu.co.kr/zboard/login_check.php"
-login_form = {"user_id": "", "password": ""}
-session = req.session()
-session.post(url, data=login_form)
-cookie = session.cookies
+links = driver.find_elements_by_css_selector('#revolution_main_table > tbody > tr > .list_vspace >a')
+dataId = 0
+for link in links:
+    linkUrl = link.get_attribute('href')
+    driver.get(linkUrl)
+    title = driver.find_element_by_class_name(".view_title").text
+    content = driver.find_element_by_css_selector(
+        "#bbs_wrap > div:nth-child(1) > table:nth-child(13) > tbody > tr:nth-child(1) > td > table > tbody > tr > td > table > tbody > tr > td").text
+    writer = driver.find_element_by_xpath("//*[@id='wrap']/div[4]/div/h4/div/span[1]/a").text
+    date = driver.find_element_by_css_selector("#wrap > div.ct > div > h4 > div > span.hi").text
 
-cj = jar.LWPCookieJar()
-opener = ur.request.build_opener(ur.HTTPCookieProcessor(cj))
-urllib.request.install_opener(opener)
-params = urllib.parse.urlencode(login_form)
-params = params.encode('utf-8')
-req = ur.Request(login_url, params)
-res = opener.open(req)
-result = res.read()
-
+    dataId += 1
+    data = {"dataId": dataId, "title": title, "content": content, "writer": writer, "date": date}
+    print(data)
+    comments = driver.find_elements_by_id('*commentContent')
+    for comment in comments:
+        commentData = comment.text()
+        commentWriter = ''
+    comment = {"writer": commentWriter, "date": date, "content": commentData}
+    commentDatas = {"dataId": dataId, "comment": comment}
+driver.close()
