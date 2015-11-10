@@ -5,6 +5,7 @@ stock_url = "http://m.ppomppu.co.kr/new/bbs_list.php?id=stock"
 userId = ""
 password = ""
 value = "삼익악기"
+fileName = "text.txt"
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -24,8 +25,8 @@ search.send_keys(Keys.ENTER)
 
 links = driver.find_elements_by_class_name('noeffect')
 seq = 0
+sep = "|"
 
-file = open("test.txt", 'w')
 for link in links:
     linkUrl = link.get_attribute('href')
     driver.get(linkUrl)
@@ -39,12 +40,12 @@ for link in links:
     seq += 1
     data = {"dataId": seq, "title": title, "content": content, "writer": writer, "date": date}
 
-    comments = driver.find_elements_by_id('commentContent')  # do not work
-    for comment in comments:
-        commentData = comment.text()
+    comments = driver.find_element_by_css_selector('#wrap > div.ct > div > div.cmAr').text
+    comments = comments.split("덧글")
+    for commentData in comments:
         commentWriter = ''
-        comment = {"writer": commentWriter, "date": date, "content": commentData}
-        commentDatas = {"dataId": seq, "comment": comment}
+        comment = {"writer": commentWriter, "date": date, "content": comment}
+        commentData = {"dataId": seq, "comment": comment}
 
-file.close()
 driver.close()
+
