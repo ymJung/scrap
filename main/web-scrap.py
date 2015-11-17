@@ -90,5 +90,5 @@ class Ppomppu:
         return self.returnData
 
 
-result = Ppomppu().GetTrend("", "", "")
+result = Ppomppu().GetTrend("", "", "") #id , password , search
 print(result)
