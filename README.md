@@ -7,7 +7,7 @@ python 개인 공부
 'content', 'CREATE TABLE `content` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `title` varchar(512) DEFAULT NULL,
-  `content` varchar(4096) DEFAULT NULL,
+  `contentData` varchar(4096) DEFAULT NULL,
   `authorId` bigint(20) NOT NULL,
   `date` datetime DEFAULT NULL,
   `createdAt` datetime DEFAULT NULL,

@@ -1,9 +1,20 @@
 from selenium.common.exceptions import NoSuchElementException
+import time
 
 __author__ = 'YoungMin'
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+import datetime
+from dateutil.relativedelta import relativedelta
+
+SEQ = "seq"
+TITLE = "title"
+CONTENT_DATA = "contentData"
+DATE = "date"
+WRITER = "writer"
+COMMENT_LIST = "commentList"
+DATE_FORMAT = '%Y-%m-%d %H:%M'
 
 
 class Ppomppu:
@@ -11,10 +22,10 @@ class Ppomppu:
         print(self)
 
     def GetTrend(self, id, password, value):
-        global data, commentData
+        global data
+        LIMIT = datetime.datetime.now() - relativedelta(years=3)
         login_url = "http://m.ppomppu.co.kr/new/login.php?s_url=/new/"
         stock_url = "http://m.ppomppu.co.kr/new/bbs_list.php?id=stock"
-
         driver = webdriver.Firefox()
         # login
         driver.get(login_url)
@@ -29,8 +40,6 @@ class Ppomppu:
         search.send_keys(Keys.ENTER)
 
         data = []
-        commentData = []
-
 
         while True:
             listUrl = driver.current_url
@@ -49,20 +58,20 @@ class Ppomppu:
 
                     title = dataHtml.split('\n')[0]
                     writer = dataHtml.split('\n')[1]
-                    date = dataHtml.split('\n')[2].split('|')[2]
+                    date = dataHtml.split('\n')[2].split('|')[2].strip()
+                    if datetime.datetime.strptime(date, DATE_FORMAT) < LIMIT:
+                        break
+
                     content = driver.find_element_by_id('KH_Content').text
 
                     seq += 1
-                    dataMap = {"dataId": seq, "title": title, "content": content, "writer": writer, "date": date}
-                    data.append(dataMap)
-
                     comments = driver.find_element_by_css_selector('#wrap > div.ct > div > div.cmAr')
                     comments = comments.text
                     comments = comments.split("덧글")
                 except NoSuchElementException as e:
                     print(e)
                     continue
-
+                commentData = []
                 for comment in comments:
                     try:
                         comment = comment.strip()
@@ -70,25 +79,25 @@ class Ppomppu:
                             commentWriter = comment.split('추천')[0].strip()
                             commentContent = ''.join(comment.split('추천')[1].strip().split('\n')[0:-1])
                             date = comment.split('추천')[1].split('\n')[-1].replace('|', '').strip()
-                            commentMap = {"dataId": seq, "writer": commentWriter, "date": date,
-                                          "content": commentContent}
+                            commentMap = {SEQ: seq, WRITER: commentWriter, DATE: date, CONTENT_DATA: commentContent}
                             commentData.append(commentMap)
                     except NoSuchElementException as e:
                         print(e)
                         continue
-
-
+                dataMap = {SEQ: seq, TITLE: title, CONTENT_DATA: content, WRITER: writer, DATE: date,
+                           COMMENT_LIST: commentData}
+                data.append(dataMap)
             driver.get(listUrl)
-            try :
+            try:
                 driver.find_element_by_css_selector('#paging_menu > a.next > img').click()
             except NoSuchElementException as e:
                 print(e)
                 break
 
-        self.returnData = {"data": data, "comments": commentData}
         driver.close()
-        return self.returnData
+        return data
 
 
-result = Ppomppu().GetTrend("", "", "") #id , password , search
+result = Ppomppu().GetTrend("", "", "")  # id , password , search
+
 print(result)
