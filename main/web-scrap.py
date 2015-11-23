@@ -1,5 +1,4 @@
 from selenium.common.exceptions import NoSuchElementException
-import time
 
 __author__ = 'YoungMin'
 
@@ -8,18 +7,22 @@ from selenium.webdriver.common.keys import Keys
 import datetime
 from dateutil.relativedelta import relativedelta
 
-SEQ = "seq"
 TITLE = "title"
 CONTENT_DATA = "contentData"
 DATE = "date"
 WRITER = "writer"
 COMMENT_LIST = "commentList"
-DATE_FORMAT = '%Y-%m-%d %H:%M'
 
 
 class Ppomppu:
     def __init__(self):
-        print(self)
+        self.SEQ = "seq"
+        self.TITLE = TITLE
+        self.CONTENT_DATA = CONTENT_DATA
+        self.DATE = DATE
+        self.WRITER = WRITER
+        self.COMMENT_LIST = COMMENT_LIST
+        self.DATE_FORMAT = '%Y-%m-%d %H:%M'
 
     def GetTrend(self, id, password, value):
         global data
@@ -58,8 +61,8 @@ class Ppomppu:
 
                     title = dataHtml.split('\n')[0]
                     writer = dataHtml.split('\n')[1]
-                    date = dataHtml.split('\n')[2].split('|')[2].strip()
-                    if datetime.datetime.strptime(date, DATE_FORMAT) < LIMIT:
+                    date = datetime.datetime.strptime(dataHtml.split('\n')[2].split('|')[2].strip(), self.DATE_FORMAT)
+                    if date < LIMIT:
                         break
 
                     content = driver.find_element_by_id('KH_Content').text
@@ -78,14 +81,18 @@ class Ppomppu:
                         if comment.find('추천') > 0:
                             commentWriter = comment.split('추천')[0].strip()
                             commentContent = ''.join(comment.split('추천')[1].strip().split('\n')[0:-1])
-                            date = comment.split('추천')[1].split('\n')[-1].replace('|', '').strip()
-                            commentMap = {SEQ: seq, WRITER: commentWriter, DATE: date, CONTENT_DATA: commentContent}
+                            commentDate = comment.split('추천')[1].split('\n')[-1].replace('|', '').strip()
+                            commentDate = self.convertDate(commentDate)
+                            commentMap = {self.SEQ: seq, self.WRITER: commentWriter, self.DATE: commentDate,
+                                          self.CONTENT_DATA: commentContent}
                             commentData.append(commentMap)
                     except NoSuchElementException as e:
                         print(e)
                         continue
-                dataMap = {SEQ: seq, TITLE: title, CONTENT_DATA: content, WRITER: writer, DATE: date,
-                           COMMENT_LIST: commentData}
+
+                dataMap = {self.SEQ: seq, self.TITLE: title, self.CONTENT_DATA: content, self.WRITER: writer,
+                           self.DATE: date,
+                           self.COMMENT_LIST: commentData}
                 data.append(dataMap)
             driver.get(listUrl)
             try:
@@ -97,7 +104,89 @@ class Ppomppu:
         driver.close()
         return data
 
+    def convertDate(self, target):
+        try:
+            return datetime.datetime.strptime(target, self.DATE_FORMAT)
+        except ValueError as e:
+            return ''
+
+
+import pymysql.cursors
+
+
+class DBManager:
+    def __init__(self):
+        self.connection = pymysql.connect(host='localhost',
+                                          user='root',
+                                          password='1234',
+                                          db='data',
+                                          charset='utf8mb4',
+                                          cursorclass=pymysql.cursors.DictCursor)
+
+    def saveData(self, result):
+        connection = self.connection
+        cursor = connection.cursor()
+
+        for each in result:
+            authorName = each.get(WRITER)
+            title = each.get(TITLE)
+            contentData = each.get(CONTENT_DATA)
+            date = each.get(DATE)
+
+            authorId = self.getAuthorId(authorName, cursor)
+            contentId = self.getContentId(authorId, contentData, cursor, date, title)
+            commentList = each.get(COMMENT_LIST)
+
+            for comment in commentList:
+                commentWriter = comment.get(WRITER)
+                commentAuthorId = self.getAuthorId(commentWriter, cursor)
+                commentDate = comment.get(DATE)
+                commentContent = comment.get(CONTENT_DATA)
+
+                self.insertComment(cursor, commentAuthorId, commentContent, contentId, commentDate)
+
+        self.finalize()
+
+    def insertComment(self, cursor, commentAuthorId, commentContent, contentId, commentDate):
+        if commentDate == '' :
+            commentDate = datetime.datetime.now()
+
+        commentIdSql = "SELECT `id` FROM `comment` WHERE `authorId`=%s AND `commentData`=%s"
+        commentId = cursor.execute(commentIdSql, (commentAuthorId, commentContent))
+
+        if commentId == 0:
+            commentDataInsertSql = "INSERT INTO `comment` (`authorId`, `commentData`, `contentId`, `date`) VALUES (%s, %s, %s, %s)"
+            cursor.execute(commentDataInsertSql, (commentAuthorId, commentContent, contentId, commentDate))
+
+    def getContentId(self, authorId, contentData, cursor, date, title):
+        contentIdSql = "SELECT `id` FROM `content` WHERE `authorId`=%s AND `title`=%s"
+        contentId = cursor.execute(contentIdSql, (authorId, title))
+        if contentId == 0:
+            contentDataInsertSql = "INSERT INTO `content` (`title`, `contentData`, `authorId`, `date`) VALUES (%s, %s, %s, %s)"
+            cursor.execute(contentDataInsertSql, (title, contentData, authorId, date))
+            cursor.execute(contentIdSql, (authorId, title))
+            contentId = cursor.fetchone().get('id')
+        else:
+            contentId = cursor.fetchone().get('id')
+        return contentId
+
+    def getAuthorId(self, authorName, cursor):
+        authorIdSql = "SELECT `id` FROM `author` WHERE `name`=%s"
+        authorId = cursor.execute(authorIdSql, (authorName))
+        if authorId == 0:
+            authorDataInsertSql = "INSERT INTO `author` (`name`) VALUES (%s)"
+            cursor.execute(authorDataInsertSql, (authorName))
+            cursor.execute(authorIdSql, (authorName))
+            authorId = cursor.fetchone().get('id')
+        else:
+            authorId = cursor.fetchone().get('id')
+        return authorId
+
+    def finalize(self):
+        self.connection.commit()
+        self.connection.close()
+
 
 result = Ppomppu().GetTrend("", "", "")  # id , password , search
-
-print(result)
+DBManager().saveData(result)
+print('end')
