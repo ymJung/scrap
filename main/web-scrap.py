@@ -23,10 +23,11 @@ class Ppomppu:
         self.WRITER = WRITER
         self.COMMENT_LIST = COMMENT_LIST
         self.DATE_FORMAT = '%Y-%m-%d %H:%M'
+        self.LIMIT = datetime.datetime.now() - relativedelta(years=3)
+        self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
 
     def GetTrend(self, id, password, value):
         global data
-        LIMIT = datetime.datetime.now() - relativedelta(years=3)
         login_url = "http://m.ppomppu.co.kr/new/login.php?s_url=/new/"
         stock_url = "http://m.ppomppu.co.kr/new/bbs_list.php?id=stock"
         driver = webdriver.Firefox()
@@ -61,8 +62,8 @@ class Ppomppu:
 
                     title = dataHtml.split('\n')[0]
                     writer = dataHtml.split('\n')[1]
-                    date = datetime.datetime.strptime(dataHtml.split('\n')[2].split('|')[2].strip(), self.DATE_FORMAT)
-                    if date < LIMIT:
+                    date = self.convertDate(dataHtml.split('\n')[2].split('|')[2].strip())
+                    if date < self.LIMIT:
                         break
 
                     content = driver.find_element_by_id('KH_Content').text
@@ -79,9 +80,9 @@ class Ppomppu:
                     try:
                         comment = comment.strip()
                         if comment.find('추천') > 0:
-                            commentWriter = comment.split('추천')[0].strip()
-                            commentContent = ''.join(comment.split('추천')[1].strip().split('\n')[0:-1])
-                            commentDate = comment.split('추천')[1].split('\n')[-1].replace('|', '').strip()
+                            commentWriter = comment.split('\n')[-4]
+                            commentContent = comment.split('\n')[-2].replace('\n','')
+                            commentDate = comment.split('\n')[-1].replace('|','').strip()
                             commentDate = self.convertDate(commentDate)
                             commentMap = {self.SEQ: seq, self.WRITER: commentWriter, self.DATE: commentDate,
                                           self.CONTENT_DATA: commentContent}
@@ -107,21 +108,28 @@ class Ppomppu:
     def convertDate(self, target):
         try:
             return datetime.datetime.strptime(target, self.DATE_FORMAT)
-        except ValueError as e:
-            return ''
+        except :
+            return self.DEFAULT_DATE
 
 
 import pymysql.cursors
+import sys
 
+DB_IP = "localhost"
+DB_USER = "root"
+DB_PWD = "1234"
+DB_SCH = "data"
 
 class DBManager:
     def __init__(self):
-        self.connection = pymysql.connect(host='localhost',
-                                          user='root',
-                                          password='1234',
+        self.connection = pymysql.connect(host=DB_IP,
+                                          user=DB_USER,
+                                          password=DB_PWD,
                                           db='data',
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
+        self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
+
 
     def saveData(self, result):
         connection = self.connection
@@ -148,15 +156,22 @@ class DBManager:
         self.finalize()
 
     def insertComment(self, cursor, commentAuthorId, commentContent, contentId, commentDate):
-        if commentDate == '' :
-            commentDate = datetime.datetime.now()
+        try :
 
-        commentIdSql = "SELECT `id` FROM `comment` WHERE `authorId`=%s AND `commentData`=%s"
-        commentId = cursor.execute(commentIdSql, (commentAuthorId, commentContent))
+            commentIdSql = "SELECT `id` FROM `comment` WHERE `authorId`=%s AND `commentData`=%s"
+            commentId = cursor.execute(commentIdSql, (commentAuthorId, commentContent))
 
-        if commentId == 0:
-            commentDataInsertSql = "INSERT INTO `comment` (`authorId`, `commentData`, `contentId`, `date`) VALUES (%s, %s, %s, %s)"
-            cursor.execute(commentDataInsertSql, (commentAuthorId, commentContent, contentId, commentDate))
+            if commentId == 0:
+                commentDataInsertSql = "INSERT INTO `comment` (`authorId`, `commentData`, `contentId`, `date`) VALUES (%s, %s, %s, %s)"
+                cursor.execute(commentDataInsertSql, (commentAuthorId, commentContent, contentId, commentDate))
+        except pymysql.err.InternalError as e:
+            print(e)
+        except :
+            print("Unexpected error:", sys.exc_info()[0])
+            pass
+
+
+
 
     def getContentId(self, authorId, contentData, cursor, date, title):
         contentIdSql = "SELECT `id` FROM `content` WHERE `authorId`=%s AND `title`=%s"

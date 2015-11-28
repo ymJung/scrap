@@ -38,3 +38,22 @@ python 개인 공부
   `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=64 DEFAULT CHARSET=utf8'
+
+
+CREATE TABLE `word` (
+   `id` bigint(20) NOT NULL AUTO_INCREMENT,
+   `word` varchar(50) NOT NULL,
+   `good` int(11) DEFAULT '0',
+   `bad` int(11) DEFAULT '0',
+   PRIMARY KEY (`id`),
+   UNIQUE KEY `word_UNIQUE` (`word`)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8
+
+CREATE TABLE `delimiter` (
+   `id` bigint(20) NOT NULL AUTO_INCREMENT,
+   `delimiter` varchar(10) NOT NULL,
+   `good` int(11) DEFAULT '0',
+   `bad` int(11) DEFAULT '0',
+   PRIMARY KEY (`id`),
+   UNIQUE KEY `delimiter_UNIQUE` (`delimiter`)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8
