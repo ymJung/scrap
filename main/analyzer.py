@@ -2,8 +2,11 @@ DB_IP = "localhost"
 DB_USER = "root"
 DB_PWD = "1234"
 DB_SCH = "data"
+API_KEY = ''
 
 import pymysql.cursors
+
+
 class Analyzer:
     def __init__(self):
         self.connection = pymysql.connect(host=DB_IP,
@@ -27,13 +30,48 @@ class Analyzer:
         return delimiterIdCursor.fetchone().get('id')
 
 
-data = u'눈여겨 보는 종목입니다 어제 한번 출렁하면서 음봉10% 나왔다가 양봉으로 마무리하는 모습 보였는데 실탄이 있었다면... 아쉽더군요 외인의 매수세도 늘어가는거 같고 한달에 10주에서 20주씩 적금든다 생각하고 한 2년 투자하면 어떨까하는데 고수님들 생각은 어떠신지요'
+import requests
+import re
 
-an = Analyzer()
-an.insertDelimiter('는')
 
+class Dictionary:
+    def __init__(self):
+        self.session = requests.session()
+        self.key = API_KEY
+        self.url = "https://glosbe.com/gapi/translate?from=kor&dest=eng&format=json&pretty=true&phrase="
+
+    def getJson(self, text):
+        text = re.sub('[^가-힝0-9a-zA-Z\\s]', '', text)
+        res = self.session.get(
+            'http://openapi.naver.com/search?key=' + self.key + '&query=' + text + '&target=encyc&start=1&display=1')
+        return res.json()
+
+    def exist(self, text):
+        if len(text) <= 2: return False
+        result = self.getJson(text)
+        if result is None: return False
+        return len(result) > 0
+
+
+# http://openapi.naver.com/search?key=c1b406b32dbbbbeee5f2a36ddc14067f&query=독도&target=encyc&start=1&display=10
+
+# an = Analyzer()
+# an.insertDelimiter('는')
+
+## 미분류 DB 만들기
 # space 단위 분리
 # > 한글자씩 줄여가며 사전api 호출
 # >> 검색되면 - 단어 추가
 # >> 검색안되면 - 패스.
 # > 처리된 content는 플래그 처리
+
+
+data = u'눈여겨 보는 종목입니다 어제 한번 출렁하면서 음봉10% 나왔다가 양봉으로 마무리하는 모습 보였는데 실탄이 있었다면... 아쉽더군요 외인의 매수세도 늘어가는거 같고 한달에 10주에서 20주씩 적금든다 생각하고 한 2년 투자하면 어떨까하는데 고수님들 생각은 어떠신지요'
+dic = Dictionary()
+for str in data.split(' '):
+    for i in range(len(str)):
+        subStr = str[0:len(str) - i]
+        if dic.exist(subStr):
+            print(subStr)
+
+print('end')

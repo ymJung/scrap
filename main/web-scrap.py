@@ -13,6 +13,8 @@ DATE = "date"
 WRITER = "writer"
 COMMENT_LIST = "commentList"
 
+PPOMPPU_ID = ""
+PPOMPPU_PWD = ""
 
 class Ppomppu:
     def __init__(self):
@@ -202,6 +204,6 @@ class DBManager:
         self.connection.close()
 
 
-result = Ppomppu().GetTrend("", "", "")  # id , password , search
+result = Ppomppu().GetTrend(PPOMPPU_ID, PPOMPPU_PWD, "")  # id , password , search
 DBManager().saveData(result)
 print('end')
