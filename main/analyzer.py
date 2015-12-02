@@ -2,7 +2,6 @@ DB_IP = "localhost"
 DB_USER = "root"
 DB_PWD = "1234"
 DB_SCH = "data"
-API_KEY = ''
 
 import pymysql.cursors
 
@@ -37,20 +36,24 @@ import re
 class Dictionary:
     def __init__(self):
         self.session = requests.session()
-        self.key = API_KEY
-        self.url = "https://glosbe.com/gapi/translate?from=kor&dest=eng&format=json&pretty=true&phrase="
+        self.url ='http://krdic.naver.com/small_search.nhn?kind=keyword&query='
 
-    def getJson(self, text):
+    def getDictionary(self, text):
         text = re.sub('[^가-힝0-9a-zA-Z\\s]', '', text)
-        res = self.session.get(
-            'http://openapi.naver.com/search?key=' + self.key + '&query=' + text + '&target=encyc&start=1&display=1')
-        return res.json()
+        soup = BeautifulSoup(
+            urllib.request.urlopen(self.url + urllib.parse.quote(text)))
+        #response = self.session.get(
+         #   'http://openapi.naver.com/search?key=' + self.key + '&query=' + text + '&target=encyc&start=1&display=1')
+        return soup.find_all('strong') # >>
 
     def exist(self, text):
-        if len(text) <= 2: return False
-        result = self.getJson(text)
-        if result is None: return False
-        return len(result) > 0
+        if len(text) < 2:
+            return False
+        response = self.getDictionary(text)
+        tag = '<total>'
+        ctag = '</total>'
+        total = response[response.find(tag) + len(tag):response.find(ctag)]
+        return int(total) > 0
 
 
 # http://openapi.naver.com/search?key=c1b406b32dbbbbeee5f2a36ddc14067f&query=독도&target=encyc&start=1&display=10
@@ -75,3 +78,7 @@ for str in data.split(' '):
             print(subStr)
 
 print('end')
+from bs4 import BeautifulSoup
+import urllib
+
+
