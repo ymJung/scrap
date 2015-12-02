@@ -29,13 +29,12 @@ class Analyzer:
         return delimiterIdCursor.fetchone().get('id')
 
 
-import requests
 import re
-
+from bs4 import BeautifulSoup
+import urllib
 
 class Dictionary:
     def __init__(self):
-        self.session = requests.session()
         self.url ='http://krdic.naver.com/small_search.nhn?kind=keyword&query='
 
     def getDictionary(self, text):
@@ -44,16 +43,14 @@ class Dictionary:
             urllib.request.urlopen(self.url + urllib.parse.quote(text)))
         #response = self.session.get(
          #   'http://openapi.naver.com/search?key=' + self.key + '&query=' + text + '&target=encyc&start=1&display=1')
-        return soup.find_all('strong') # >>
+        return soup # >>
 
     def exist(self, text):
         if len(text) < 2:
             return False
         response = self.getDictionary(text)
-        tag = '<total>'
-        ctag = '</total>'
-        total = response[response.find(tag) + len(tag):response.find(ctag)]
-        return int(total) > 0
+        exist = response.find_all('span', attrs={'class':'star'})
+        return len(exist) > 0
 
 
 # http://openapi.naver.com/search?key=c1b406b32dbbbbeee5f2a36ddc14067f&query=독도&target=encyc&start=1&display=10
@@ -78,7 +75,6 @@ for str in data.split(' '):
             print(subStr)
 
 print('end')
-from bs4 import BeautifulSoup
-import urllib
+
 
 
