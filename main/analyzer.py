@@ -15,8 +15,35 @@ class Analyzer:
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
 
-    def analyze(self, data):
-        print(data)
+    def finalize(self):
+        self.connection.commit()
+        self.connection.close()
+
+    def analyze(self):
+        targets = self.targetMapList()
+        for target in targets:
+            #  try :
+            self.analyzeDictionary(target.get('contentData'), target.get('id'))
+            self.updateAnalyzeFlag(target.get('id'), 'Y')
+            self.finalize()
+            print('analyzed : ' + str(target.get('id')))
+            # except :
+            #  print('fail id : ' + str(target.get('id')))
+            # self.updateAnalyzeFlag(target.get('id'), 'N')
+
+    def targetMapList(self):
+        cursor = self.connection.cursor()
+        contentSelectSql = "SELECT `id`,`title`,`contentData`,`authorId`,`date`,`analyze`,`createdAt`" \
+                           " FROM `content` WHERE `analyze`=%s"
+        contentDataCursor = cursor.execute(contentSelectSql, ('N'))
+        if contentDataCursor != 0:
+            return cursor.fetchall()
+        return []
+
+    def updateAnalyzeFlag(self, contentId, analyzeFlag):
+        cursor = self.connection.cursor()
+        contentUpdateSql = "UPDATE `content` SET `analyze`=%s WHERE `id`=%s"
+        cursor.execute(contentUpdateSql, (analyzeFlag, contentId))
 
     def insertDelimiter(self, data):
         cursor = self.connection.cursor()
@@ -27,6 +54,20 @@ class Analyzer:
             cursor.execute(delimiterInsertSql, (data))
 
         return delimiterIdCursor.fetchone().get('id')
+
+    def analyzeDictionary(self, data, contentId):
+        dic = Dictionary()
+        for splitString in data.split(' '):
+            findWord = False
+            for i in range(len(splitString)):
+                subStr = splitString[0:len(splitString) - i]
+                subStr = dic.getRegularExpression(subStr)
+                if dic.isInsertTarget(subStr) is True:
+                    dic.insertWord(subStr)
+                    findWord = True
+            if dic.isTargetWord(splitString) and findWord is False:
+                dic.insertGarbageWord(splitString, contentId)
+        dic.finalize()
 
 
 import re
@@ -44,6 +85,10 @@ class Dictionary:
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
 
+    def finalize(self):
+        self.connection.commit()
+        self.connection.close()
+
     def getDictionary(self, text):
         soup = BeautifulSoup(
             urllib.request.urlopen(self.url + urllib.parse.quote(text)))
@@ -55,31 +100,48 @@ class Dictionary:
         cursor = self.connection.cursor()
         selectWordIdSql = "SELECT `id` FROM `word` WHERE `word`=%s"
         selectWordIdCursor = cursor.execute(selectWordIdSql, (data))
-        if selectWordIdCursor != 0 :
+        if selectWordIdCursor != 0:
             return True
-        else :
+        else:
+            return False
+
+    def existGarbageWord(self, data):
+        cursor = self.connection.cursor()
+        selectGarbageIdSql = "SELECT `id` FROM `garbage` WHERE `word`=%s"
+        selectGarbageIdCursor = cursor.execute(selectGarbageIdSql, (data))
+        if selectGarbageIdCursor != 0:
+            return True
+        else:
             return False
 
     def insertWord(self, data):
         cursor = self.connection.cursor()
         insertWordSql = "INSERT INTO `word` (`word`) VALUES (%s)"
-        insertWordSqlCursor = cursor.execute(insertWordSql, (data))
-        cursor.execute(insertWordSqlCursor, (data))
+        cursor.execute(insertWordSql, (data))
+        print('insert word ' + data)
 
-    def insertWaitWord(self, data):
-        cursor = self.connection.cursor()
-        insertWaitSql = "INSERT INTO `wait` (`word`) VALUES (%s)"
-        insertWaitSqlCursor = cursor.execute(insertWaitSql, (data))
-        cursor.execute(insertWaitSqlCursor, (data))
+    def insertGarbageWord(self, data, contentId):
+        data = self.getRegularExpression(data)
+        if self.isTargetWord(data) and self.existGarbageWord(data) is False and self.existWord(data) is True:
+            cursor = self.connection.cursor()
+            insertGarbageSql = "INSERT INTO `garbage` (`word`,`contentId`) VALUES (%s, %s)"
+            cursor.execute(insertGarbageSql, (data, contentId))
+            print('insert garbage ' + data)
 
-
-
-    def exist(self, text):
-        if len(text) < 2:
+    def isTargetWord(self, text):
+        if len(text) < 2 or len(text) > 50:
             return False
-        text = re.sub('[^가-힝0-9a-zA-Z\\s]', '', text)
-        if self.existWord(text) :
-            return True
+        return True
+
+    def getRegularExpression(self, text):
+        return re.sub('[^가-힝0-9a-zA-Z\\s]', '', text)
+
+    def isInsertTarget(self, text):
+        text = self.getRegularExpression(text)
+        if self.isTargetWord(text) is False:
+            return False
+        if self.existWord(text):
+            return False
         response = self.getDictionary(text)
         for tag in response.find_all('a'):
             if tag.find('strong') is not None:
@@ -93,35 +155,5 @@ class Dictionary:
         return False
 
 
-# http://openapi.naver.com/search?key=c1b406b32dbbbbeee5f2a36ddc14067f&query=독도&target=encyc&start=1&display=10
-
-# an = Analyzer()
-# an.insertDelimiter('는')
-
-## 미분류 DB 만들기
-# space 단위 분리
-# > 한글자씩 줄여가며 사전api 호출
-# >> 검색되면 - 단어 추가
-# >> 검색안되면 - 패스.
-# > 처리된 content는 플래그 처리
-
-
-data = u'눈여겨 보는 종목입니다 어제 한번 출렁하면서 음봉10% 나왔다가 양봉으로 마무리하는 모습 보였는데 실탄이 있었다면... 아쉽더군요 외인의 매수세도 늘어가는거 같고 한달에 10주에서 20주씩 적금든다 생각하고 한 2년 투자하면 어떨까하는데 고수님들 생각은 어떠신지요'
-# data list 를 db에서 N인걸로 가져오자.
-# word 를 insert 하자.
-# 미분류된 것들을 분석함에 넣자.
-
-
-dic = Dictionary()
-for splitString in data.split(' '):
-    #insertWaitWord = True
-    for i in range(len(splitString)):
-        subStr = splitString[0:len(splitString) - i]
-        if dic.exist(subStr):
-            dic.insertWord(subStr)
-            insertWaitWord = False
-            print(subStr)
-
-    #if insertWaitWord is True :
-    #    dic.insertWaitWord(splitString)
-print('end')
+anal = Analyzer()
+anal.analyze()
