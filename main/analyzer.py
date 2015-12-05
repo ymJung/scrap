@@ -23,10 +23,11 @@ class Analyzer:
         targets = self.targetMapList()
         for target in targets:
             #  try :
+            print('start : ' + str(target.get('id')))
             self.analyzeDictionary(target.get('contentData'), target.get('id'))
             self.updateAnalyzeFlag(target.get('id'), 'Y')
             self.finalize()
-            print('analyzed : ' + str(target.get('id')))
+            print('fin : ' + str(target.get('id')))
             # except :
             #  print('fail id : ' + str(target.get('id')))
             # self.updateAnalyzeFlag(target.get('id'), 'N')
