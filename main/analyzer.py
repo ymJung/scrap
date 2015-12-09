@@ -20,17 +20,11 @@ class Analyzer:
         self.connection.close()
 
     def analyze(self):
-        targets = self.targetMapList()
-        for target in targets:
-            #  try :
+        for target in self.targetMapList():
             print('start : ' + str(target.get('id')))
-            self.analyzeDictionary(target.get('contentData'), target.get('id'))
+            self.analyzeDictionary(target.get('contentData'), target.get('id'), 0)
             self.updateAnalyzeFlag(target.get('id'), 'Y')
-            self.finalize()
             print('fin : ' + str(target.get('id')))
-            # except :
-            #  print('fail id : ' + str(target.get('id')))
-            # self.updateAnalyzeFlag(target.get('id'), 'N')
 
     def targetMapList(self):
         cursor = self.connection.cursor()
@@ -56,28 +50,50 @@ class Analyzer:
 
         return delimiterIdCursor.fetchone().get('id')
 
-    def analyzeDictionary(self, data, contentId):
+    def analyzeDictionary(self, data, contentId, idx):
         dic = Dictionary()
-        for splitString in data.split(' '):
-            findWord = False
-            for i in range(len(splitString)):
-                subStr = splitString[0:len(splitString) - i]
-                subStr = dic.getRegularExpression(subStr)
-                if dic.isInsertTarget(subStr) is True:
-                    dic.insertWord(subStr)
-                    findWord = True
-            if dic.isTargetWord(splitString) and findWord is False:
-                dic.insertGarbageWord(splitString, contentId)
-        dic.finalize()
+        try:
+            splitStrings = data.split(' ')
+            for i in range(len(splitStrings)):
+                if idx > i:
+                    print('start in middle ' + str(idx))
+                    i = idx
+                splitString = splitStrings[i]
+                findWord = False
+                for j in range(len(splitString)):
+                    subStr = splitString[0:len(splitString) - j]
+                    subStr = dic.getRegularExpression(subStr)
+                    if dic.isTargetWord(subStr) and dic.isInsertTarget(subStr) is True:
+                        dic.insertWord(subStr)
+                        findWord = True
+
+                if dic.isTargetWord(splitString) and findWord is False and dic.existWord(splitString) is False:
+                    dic.insertGarbageWord(splitString, contentId)
+                idx = i
+            idx = 0
+        except urllib.error.URLError as e:
+            print(e)
+            print('retry analyzeDictionary ' + str(idx))
+            dic.connection.commit()
+            self.analyzeDictionary(data, contentId, idx)
+        except:
+            print('uncaught except')
+            dic.connection.commit()
+        finally:
+            dic.connection.commit()
 
 
 import re
 from bs4 import BeautifulSoup
 import urllib
+from urllib.request import Request, urlopen
+import time
+import random
 
 
 class Dictionary:
     def __init__(self):
+        self.count = 0
         self.url = 'http://krdic.naver.com/small_search.nhn?kind=keyword&query='
         self.connection = pymysql.connect(host=DB_IP,
                                           user=DB_USER,
@@ -91,10 +107,12 @@ class Dictionary:
         self.connection.close()
 
     def getDictionary(self, text):
+        interval = random.randrange(300, 1200) / 1000
+        time.sleep(interval)
+        self.count += 1
+        print(text + ' bs count(get) ' + str(self.count) + ' interval(sec) ' + str(interval))
         soup = BeautifulSoup(
-            urllib.request.urlopen(self.url + urllib.parse.quote(text)))
-        # response = self.session.get(
-        #   'http://openapi.naver.com/search?key=' + self.key + '&query=' + text + '&target=encyc&start=1&display=1')
+            urllib.request.urlopen(self.url + urllib.parse.quote(text)), "lxml")
         return soup
 
     def existWord(self, data):
@@ -130,26 +148,26 @@ class Dictionary:
             print('insert garbage ' + data)
 
     def isTargetWord(self, text):
-        if len(text) < 2 or len(text) > 50:
-            return False
-        return True
+        text = self.getRegularExpression(text)
+        if len(text) >= 2 and len(text) < 50:
+            return True
+        return False
 
     def getRegularExpression(self, text):
-        return re.sub('[^가-힝0-9a-zA-Z\\s]', '', text)
+        return re.sub('[^가-힝0-9a-zA-Z]', '', text).replace(' ', '')
 
     def isInsertTarget(self, text):
         text = self.getRegularExpression(text)
-        if self.isTargetWord(text) is False:
-            return False
         if self.existWord(text):
             return False
         response = self.getDictionary(text)
         for tag in response.find_all('a'):
-            if tag.find('strong') is not None:
+            if tag.find('strong') is \
+                    not None:
                 compare = tag.text
                 if tag.find('sup') is not None and (tag.find('sup').text != ''):
                     compare = tag.find('strong').text
-                if compare == text:
+                if compare == text or text == self.getRegularExpression(compare):
                     return True
                 else:
                     continue
@@ -158,3 +176,4 @@ class Dictionary:
 
 anal = Analyzer()
 anal.analyze()
+# anal.analyzeDictionary("상회", 1)
