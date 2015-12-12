@@ -25,6 +25,8 @@ class Analyzer:
             self.analyzeDictionary(target.get('contentData'), target.get('id'), 0)
             self.updateAnalyzeFlag(target.get('id'), 'Y')
             print('fin : ' + str(target.get('id')))
+            self.connection.commit()
+        self.finalize()
 
     def targetMapList(self):
         cursor = self.connection.cursor()
@@ -59,17 +61,18 @@ class Analyzer:
                     print('start in middle ' + str(idx))
                     i = idx
                 splitString = splitStrings[i]
-                findWord = False
-                for j in range(len(splitString)):
-                    subStr = splitString[0:len(splitString) - j]
-                    subStr = dic.getRegularExpression(subStr)
-                    if dic.isTargetWord(subStr) and dic.isInsertTarget(subStr) is True:
-                        dic.insertWord(subStr)
-                        findWord = True
+                if dic.existSplitWord(splitString) is False:
+                    findWord = False
+                    for j in range(len(splitString)):
+                        subStr = splitString[0:len(splitString) - j]
+                        subStr = dic.getRegularExpression(subStr)
+                        if dic.isTargetWord(subStr) and dic.isInsertTarget(subStr) is True:
+                            dic.insertWord(subStr)
+                            findWord = True
 
-                if dic.isTargetWord(splitString) and findWord is False and dic.existWord(splitString) is False:
-                    dic.insertGarbageWord(splitString, contentId)
-                idx = i
+                    if dic.isTargetWord(splitString) and findWord is False and dic.existWord(splitString) is False:
+                        dic.insertGarbageWord(splitString, contentId)
+                    idx = i
             idx = 0
         except urllib.error.URLError as e:
             print(e)
@@ -124,6 +127,12 @@ class Dictionary:
         else:
             return False
 
+    def existSplitWord(self, fullWord):
+        for i in range(len(fullWord) - 2):
+            if self.existWord(fullWord[0:i + 2]):
+                return True
+        return False
+
     def existGarbageWord(self, data):
         cursor = self.connection.cursor()
         selectGarbageIdSql = "SELECT `id` FROM `garbage` WHERE `word`=%s"
@@ -176,4 +185,3 @@ class Dictionary:
 
 anal = Analyzer()
 anal.analyze()
-# anal.analyzeDictionary("상회", 1)
