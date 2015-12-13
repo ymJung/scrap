@@ -2,6 +2,7 @@ __author__ = 'YoungMin'
 
 import win32com.client
 import pymysql.cursors
+import datetime
 
 DB_IP = "localhost"
 DB_USER = "root"
@@ -20,6 +21,7 @@ class DSStockError(Exception):
 
 class DSStock:
     def __init__(self):
+        self.DATE_FORMAT = '%Y-%m-%d'
         self.cybos = win32com.client.Dispatch("CpUtil.CpCybos")
         self.ins = win32com.client.Dispatch("CpUtil.CpStockCode")
         self.stock = win32com.client.Dispatch("dscbo1.StockMst")
@@ -33,34 +35,40 @@ class DSStock:
                                           db=DB_SCH,
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
+        self.DATE = 'date'
+        self.START = 'start'
+        self.HIGH = 'high'
+        self.LOW = 'low'
+        self.FINAL = 'final'
 
     def finalize(self):
         self.connection.commit()
         self.connection.close()
 
-    def selectStockCode(self, name):
+    def selectStock(self, name):
         cursor = self.connection.cursor()
-        selectStockSql = "SELECT `id`,`code`,`refreshCount` FROM `stock` WHERE `name`=%s"
-        stockCursor = cursor.execute(selectStockSql, (name))
-        if stockCursor == 0:
+        stockCursor = cursor.execute("SELECT `id`,`code`,`hit` FROM `stock` WHERE `name`=%s", (name))
+        if stockCursor != 0:
+            return cursor.fetchone()
+        return None
+
+    def getStock(self, name):
+        stock = self.selectStock(name)
+        cursor = self.connection.cursor()
+        if stock is None:
             totalCount = self.ins.GetCount()
             for i in range(0, totalCount):
                 if self.ins.GetData(1, i).startswith(name):
-                    insertStockSql = "INSERT INTO `data`.`stock` (`code`,`name`) VALUES (%s, %s);"
-                    cursor.execute(insertStockSql, (self.ins.getData(0, i), self.ins.getData(1, i)))
+                    cursor.execute("INSERT INTO `data`.`stock` (`code`,`name`) VALUES (%s, %s);", (self.ins.getData(0, i), self.ins.getData(1, i)))
                     print("insert [", self.ins.getData(0, i) + "][", self.ins.getData(1, i) + "]")
-                    return self.ins.getData(0, i)
+                    return self.selectStock(name)
             print("Not found name : " + str(name))
-            return ""
+
+            return None
         else:
-            fetch = cursor.fetchone()
-            code = fetch.get('code')
-            id = fetch.get('id')
-            refreshCount = fetch.get('refreshCount')
-            refreshCount = int(refreshCount) + 1
-            refreshCountUpdateSql = "UPDATE `stock` SET `refreshCount`=%s WHERE `id`=%s"
-            cursor.execute(refreshCountUpdateSql, (refreshCount, id))
-            return code
+            hit = int(stock.get('hit')) + 1
+            cursor.execute("UPDATE `stock` SET `hit`=%s WHERE `id`=%s", (hit, stock.get('id')))
+            return self.selectStock(name)
 
     def getUpDown(self, code):
         UP_DOWN_CODE = 12
@@ -81,17 +89,36 @@ class DSStock:
         data = []
         for i in range(num):
             temp = {}
-            temp['Date'] = (self.chart.GetDataValue(0, i))
-            temp['Open'] = float(format(self.chart.GetDataValue(1, i), '.2f'))  # 선물값이 오류수정
-            temp['High'] = float(format(self.chart.GetDataValue(2, i), '.2f'))
-            temp['Low'] = float(format(self.chart.GetDataValue(3, i), '.2f'))
-            temp['Close'] = float(format(self.chart.GetDataValue(4, i), '.2f'))
+            temp[self.DATE] = (self.chart.GetDataValue(0, i))
+            temp[self.START] = float(format(self.chart.GetDataValue(1, i), '.2f'))  # 선물값이 오류수정
+            temp[self.HIGH] = float(format(self.chart.GetDataValue(2, i), '.2f'))
+            temp[self.LOW] = float(format(self.chart.GetDataValue(3, i), '.2f'))
+            temp[self.FINAL] = float(format(self.chart.GetDataValue(4, i), '.2f'))
             data.append(temp)
         return data
 
+    def insertFinanceData(self, datas, stockId):
+        cursor = self.connection.cursor()
+        for data in datas:
+            date = datetime.datetime.strptime(data.get(self.DATE), self.DATE_FORMAT)
+            if self.isFinanceTarget(date, stockId) is False:
+                return
+            start = data.get(self.START)
+            high = data.get(self.HIGH)
+            low = data.get(self.LOW)
+            final = data.get(self.FINAL)
+            cursor.execute("INSERT INTO `data`.`finance` (`stockId`,`date`,`high`,`low`,`start`,`final`) "
+                           "VALUES (%s, %s, %s, %s, %s, %s);", (stockId, date, high, low, start, final))
+            print('insert finance' + str(date))
+
+    def isFinanceTarget(self, date, stockId):
+        #compare date TODO
+        pass
+
 
 ds = DSStock()
-code = ds.selectStockCode("삼성정밀화학")
+stock = ds.getStock("삼성정밀화학")
+datas = ds.getChartDataList(stock.get('code'), 365 * 2)
+ds.insertFinanceData(datas, stock.get('id'))
 ds.finalize()
-print(code)
-#datas = ds.getChartDataList(code, 365 * 2)
+
