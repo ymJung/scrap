@@ -21,7 +21,7 @@ class DSStockError(Exception):
 
 class DSStock:
     def __init__(self):
-        self.DATE_FORMAT = '%Y-%m-%d'
+        self.DATE_FORMAT = '%Y%m%d'
         self.cybos = win32com.client.Dispatch("CpUtil.CpCybos")
         self.ins = win32com.client.Dispatch("CpUtil.CpStockCode")
         self.stock = win32com.client.Dispatch("dscbo1.StockMst")
@@ -44,6 +44,7 @@ class DSStock:
     def finalize(self):
         self.connection.commit()
         self.connection.close()
+        print('finish')
 
     def selectStock(self, name):
         cursor = self.connection.cursor()
@@ -64,7 +65,7 @@ class DSStock:
                     return self.selectStock(name)
             print("Not found name : " + str(name))
 
-            return None
+            raise DSStockError('not found stock')
         else:
             hit = int(stock.get('hit')) + 1
             cursor.execute("UPDATE `stock` SET `hit`=%s WHERE `id`=%s", (hit, stock.get('id')))
@@ -100,7 +101,7 @@ class DSStock:
     def insertFinanceData(self, datas, stockId):
         cursor = self.connection.cursor()
         for data in datas:
-            date = datetime.datetime.strptime(data.get(self.DATE), self.DATE_FORMAT)
+            date = datetime.datetime.strptime(str(data.get(self.DATE)), self.DATE_FORMAT)
             if self.isFinanceTarget(date, stockId) is False:
                 return
             start = data.get(self.START)
@@ -112,13 +113,16 @@ class DSStock:
             print('insert finance' + str(date))
 
     def isFinanceTarget(self, date, stockId):
-        #compare date TODO
-        pass
+        cursor = self.connection.cursor()
+        stockCursor = cursor.execute("SELECT `id`,`stockId`,`date` FROM `finance` WHERE `stockId`=%s AND date = %s", (stockId, date))
+        if stockCursor == 0 :
+            return True
+        return False
 
 
 ds = DSStock()
-stock = ds.getStock("삼성정밀화학")
+stock = ds.getStock("")
 datas = ds.getChartDataList(stock.get('code'), 365 * 2)
-ds.insertFinanceData(datas, stock.get('id'))
+ds.insertFinanceData(datas, str(stock.get('id')))
 ds.finalize()
 

@@ -1,4 +1,7 @@
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
+
+PPOMPPU_ID = ""
+PPOMPPU_PWD = ""
 
 __author__ = 'YoungMin'
 
@@ -13,8 +16,6 @@ DATE = "date"
 WRITER = "writer"
 COMMENT_LIST = "commentList"
 
-PPOMPPU_ID = ""
-PPOMPPU_PWD = ""
 
 class Ppomppu:
     def __init__(self):
@@ -57,8 +58,8 @@ class Ppomppu:
 
             seq = 0
             for linkUrl in linkUrlList:
-                driver.get(linkUrl)
                 try:
+                    driver.get(linkUrl)
                     dataHtml = driver.find_element_by_css_selector('#wrap > div.ct > div > h4')
                     dataHtml = dataHtml.text
 
@@ -71,12 +72,15 @@ class Ppomppu:
                     content = driver.find_element_by_id('KH_Content').text
 
                     seq += 1
-                    comments = driver.find_element_by_css_selector('#wrap > div.ct > div > div.cmAr')
+                    comments = driver.find_element_by_css_selector('#wrap > div.ct > div > div.cmAr') # 개선 필요.
                     comments = comments.text
                     comments = comments.split("덧글")
                 except NoSuchElementException as e:
                     print(e)
                     continue
+                except UnexpectedAlertPresentException as e:
+                     print(e)
+                     continue
                 commentData = []
                 for comment in comments:
                     try:
@@ -86,14 +90,22 @@ class Ppomppu:
                             commentContent = comment.split('\n')[-2].replace('\n','')
                             commentDate = comment.split('\n')[-1].replace('|','').strip()
                             commentDate = self.convertDate(commentDate)
-                            commentMap = {self.SEQ: seq, self.WRITER: commentWriter, self.DATE: commentDate,
+                            commentMap = {self.SEQ: seq,
+                                          self.WRITER: commentWriter,
+                                          self.DATE: commentDate,
                                           self.CONTENT_DATA: commentContent}
                             commentData.append(commentMap)
                     except NoSuchElementException as e:
                         print(e)
                         continue
+                    except IndexError as e:
+                        print(e)
+                        continue
 
-                dataMap = {self.SEQ: seq, self.TITLE: title, self.CONTENT_DATA: content, self.WRITER: writer,
+                dataMap = {self.SEQ: seq,
+                           self.TITLE: title,
+                           self.CONTENT_DATA: content,
+                           self.WRITER: writer,
                            self.DATE: date,
                            self.COMMENT_LIST: commentData}
                 data.append(dataMap)
@@ -204,6 +216,6 @@ class DBManager:
         self.connection.close()
 
 
-result = Ppomppu().GetTrend(PPOMPPU_ID, PPOMPPU_PWD, "")  # id , password , search
+result = Ppomppu().GetTrend(PPOMPPU_ID, PPOMPPU_PWD, "대우조선해양")  # id , password , search
 DBManager().saveData(result)
 print('end')
