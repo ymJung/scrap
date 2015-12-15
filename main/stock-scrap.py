@@ -121,7 +121,7 @@ class DSStock:
 
 
 ds = DSStock()
-stock = ds.getStock("")
+stock = ds.getStock(" ")
 datas = ds.getChartDataList(stock.get('code'), 365 * 2)
 ds.insertFinanceData(datas, str(stock.get('id')))
 ds.finalize()

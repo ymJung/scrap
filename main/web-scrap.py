@@ -216,6 +216,6 @@ class DBManager:
         self.connection.close()
 
 
-result = Ppomppu().GetTrend(PPOMPPU_ID, PPOMPPU_PWD, "대우조선해양")  # id , password , search
+result = Ppomppu().GetTrend(PPOMPPU_ID, PPOMPPU_PWD, "")  # id , password , search
 DBManager().saveData(result)
 print('end')

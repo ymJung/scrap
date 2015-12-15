@@ -70,7 +70,7 @@ class Analyzer:
                             dic.insertWord(subStr)
                             findWord = True
 
-                    if dic.isTargetWord(splitString) and findWord is False and dic.existWord(splitString) is False:
+                    if findWord is False and dic.existWord(splitString) is False:
                         dic.insertGarbageWord(splitString, contentId)
                     idx = i
             idx = 0
@@ -150,7 +150,7 @@ class Dictionary:
 
     def insertGarbageWord(self, data, contentId):
         data = self.getRegularExpression(data)
-        if self.isTargetWord(data) and self.existGarbageWord(data) is False and self.existWord(data) is True:
+        if self.isTargetWord(data) and self.existGarbageWord(data) is False and self.existWord(data) is False:
             cursor = self.connection.cursor()
             insertGarbageSql = "INSERT INTO `garbage` (`word`,`contentId`) VALUES (%s, %s)"
             cursor.execute(insertGarbageSql, (data, contentId))
