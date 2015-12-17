@@ -4,6 +4,13 @@ DB_PWD = "1234"
 DB_SCH = "data"
 
 import pymysql.cursors
+from datetime import date, timedelta
+import re
+from bs4 import BeautifulSoup
+import urllib
+from urllib.request import urlopen
+import time
+import random
 
 
 class AnalyzerError(Exception):
@@ -92,14 +99,6 @@ class Analyzer:
             dic.connection.commit()
         finally:
             dic.connection.commit()
-
-
-import re
-from bs4 import BeautifulSoup
-import urllib
-from urllib.request import Request, urlopen
-import time
-import random
 
 
 class Dictionary:
@@ -209,13 +208,9 @@ class Dictionary:
         return False
 
 
-from datetime import date, timedelta
-
-
 class Miner:
     def __init__(self):
-        self.count = 0
-        self.url = 'http://krdic.naver.com/small_search.nhn?kind=keyword&query='
+        self.LIMIT = 5
         self.connection = pymysql.connect(host=DB_IP,
                                           user=DB_USER,
                                           password=DB_PWD,
@@ -228,16 +223,27 @@ class Miner:
         self.DATE_NAME = 'date'
         self.START_NAME = 'start'
         self.FINAL_NAME = 'final'
+        self.TODAY = date.today()
+        self.LIMIT_PAST_DATE = self.TODAY - timedelta(days=3 * 365)
 
     def finalize(self):
         self.connection.commit()
         self.connection.close()
 
-    def getContent(self, content, startPos, endPos):
+    def getCountContent(self, content, date):
+        cursor = self.connection.cursor()
+        countCursor = cursor.execute("select count(*) as c from content where contentData like %s and date > %s",
+                                     ('%' + content + '%', date))
+        if countCursor != 0:
+            return cursor.fetchone().get('c')
+        else:
+            return 0
+
+    def getContent(self, stockName, startPos, endPos):
         cursor = self.connection.cursor()
         contentCursor = cursor.execute(
             "SELECT `c`.`title`,`c`.`contentData`, `a`.`name`, `c`.`date` FROM `content` as `c`, `author` as `a` WHERE `c`.`contentData` like %s limit %s , %s",
-            ('%' + content + '%', startPos, endPos))
+            ('%' + stockName + '%', startPos, endPos))
         if contentCursor != 0:
             return cursor.fetchall()
         else:
@@ -246,16 +252,18 @@ class Miner:
     def getWordChangePriceList(self, contentDataList, stockName, period):
         dic = Dictionary()
         wordDatas = []
-        for result in contentDataList:
-            contentData = result.get(self.CONTENT_DATA_NAME)
-            date = result.get(self.DATE_NAME)
-            sliceDate = self.getTargetFinanceData(date, period)
-            change = self.getFinanceChangePrice(sliceDate, stockName)
+        for resultList in contentDataList:
+            for result in resultList :
+                contentData = result.get(self.CONTENT_DATA_NAME)
+                date = result.get(self.DATE_NAME)
+                sliceDate = self.getTargetFinanceData(date, period)
+                change = self.getFinanceChangePrice(sliceDate, stockName)
+                splitWords = dic.splitStr(contentData)
 
-            for target in dic.splitStr(contentData):
-                if dic.existSplitWord(target):
-                    word = dic.getWordByStr(target)
-                    self.putWordDatas(word, change, wordDatas)
+                for target in splitWords:
+                    if dic.existSplitWord(target):
+                        word = dic.getWordByStr(target)
+                        self.putWordDatas(word, change, wordDatas)
         return wordDatas
 
     def getFinanceChangePrice(self, sliceDate, stockName):
@@ -281,6 +289,7 @@ class Miner:
             if wordMap.get(word) is not None:
                 exist = True
                 wordMap.get(self.CHANGE_PRICE_LIST_NAME).append(changePrice)
+                print('put exist word data' + str(wordMap))
                 break
         if not exist:
             changeList = []
@@ -289,4 +298,59 @@ class Miner:
                 self.WORD_NAME: word,
                 self.CHANGE_PRICE_LIST_NAME: changeList
             }
+            print('put new word data' + str(newWordMap))
             wordDatas.append(newWordMap)
+
+    def getStockNameContent(self, stockName, limitDate):
+        contentsList = []
+        count = self.getCountContent(stockName, limitDate)
+        for i in range(int((count / self.LIMIT)) + 1):
+            contents = self.getContent(stockName, (i * 10) + 1, (i + 1) * self.LIMIT)
+            contentsList.append(contents)
+        return contentsList
+
+    def work(self, stockName, period):
+        contents = self.getStockNameContent(stockName, self.LIMIT_PAST_DATE)
+        wordPrices = self.getWordChangePriceList(contents, stockName, period)
+        return wordPrices
+
+    def getTargetContentWords(self, stockName, date):
+        contents = self.getStockNameContent(stockName, date)
+        words = []
+        dic = Dictionary()
+        for result in contents:
+            contentData = result.get(self.CONTENT_DATA_NAME)
+            splitWords = dic.splitStr(contentData)
+            for target in splitWords:
+                if dic.existSplitWord(target):
+                    word = dic.getWordByStr(target)
+                    words.append(word)
+        return words
+
+    def getWordPriceList(self, words, totalWordPrices):
+        results = []
+        for target in words:
+            for wordPrice in totalWordPrices:
+                compare = wordPrice.get(self.WORD_NAME)
+                if target == compare:
+                    price = wordPrice.get(self.CHANGE_PRICE_LIST_NAME)
+                    result = {
+                        self.WORD_NAME: target,
+                        self.CHANGE_PRICE_LIST_NAME: price
+                    }
+                    results.append(result)
+        return results
+
+miner = Miner()
+period = 10
+stockName = "한솔홈데코"
+targetWords = miner.getTargetContentWords(stockName, miner.TODAY - timedelta(days=period))
+if len(targetWords) != 0 :
+    totalWordPrices = miner.work(stockName, period)
+    results = miner.getWordPriceList(targetWords, totalWordPrices)
+    print(results)
+else :
+    print('none')
+
+
+

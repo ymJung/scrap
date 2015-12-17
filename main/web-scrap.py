@@ -2,7 +2,7 @@ from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPr
 
 PPOMPPU_ID = ""
 PPOMPPU_PWD = ""
-
+CONTENT = ""
 __author__ = 'YoungMin'
 
 from selenium import webdriver
@@ -216,6 +216,6 @@ class DBManager:
         self.connection.close()
 
 
-result = Ppomppu().GetTrend(PPOMPPU_ID, PPOMPPU_PWD, "")  # id , password , search
+result = Ppomppu().GetTrend(PPOMPPU_ID, PPOMPPU_PWD, CONTENT)  # id , password , search
 DBManager().saveData(result)
 print('end')

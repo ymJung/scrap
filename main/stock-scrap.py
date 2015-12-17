@@ -8,7 +8,7 @@ DB_IP = "localhost"
 DB_USER = "root"
 DB_PWD = "1234"
 DB_SCH = "data"
-
+STOCK_NAME = ""
 
 # member = win32com.client.Dispatch("dscbo1.StockMember1")
 class DSStockError(Exception):
@@ -121,7 +121,7 @@ class DSStock:
 
 
 ds = DSStock()
-stock = ds.getStock("")
+stock = ds.getStock(STOCK_NAME)
 datas = ds.getChartDataList(stock.get('code'), 365 * 2)
 ds.insertFinanceData(datas, str(stock.get('id')))
 ds.finalize()
