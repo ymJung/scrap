@@ -6,6 +6,14 @@ DB_SCH = "data"
 import pymysql.cursors
 
 
+class AnalyzerError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return repr(self.msg)
+
+
 class Analyzer:
     def __init__(self):
         self.connection = pymysql.connect(host=DB_IP,
@@ -55,7 +63,7 @@ class Analyzer:
     def analyzeDictionary(self, data, contentId, idx):
         dic = Dictionary()
         try:
-            splitStrings = data.split(' ')
+            splitStrings = dic.splitStr(data)
             for i in range(len(splitStrings)):
                 if idx > i:
                     print('start in middle ' + str(idx))
@@ -104,10 +112,16 @@ class Dictionary:
                                           db=DB_SCH,
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
+        self.MIN_WORD_LEN = 2
+        self.MAX_WORD_LEN = 50
 
     def finalize(self):
         self.connection.commit()
         self.connection.close()
+
+    def splitStr(self, str):
+        str = str.replace('\n', ' ')
+        return str.split()
 
     def getDictionary(self, text):
         interval = random.randrange(300, 1200) / 1000
@@ -128,10 +142,22 @@ class Dictionary:
             return False
 
     def existSplitWord(self, fullWord):
-        for i in range(len(fullWord) - 2):
-            if self.existWord(fullWord[0:i + 2]):
-                return True
+        if self.getExistWordIdx(fullWord) > 0:
+            return True
         return False
+
+    def getExistWordIdx(self, fullWord):
+        for i in range(len(fullWord) - self.MIN_WORD_LEN):
+            if self.existWord(fullWord[0:i + self.MIN_WORD_LEN]):
+                return i + self.MIN_WORD_LEN
+        return 0
+
+    def getWordByStr(self, fullWord):
+        idx = self.getExistWordIdx(fullWord)
+        if idx > 0:
+            return fullWord[0:idx]
+        else:
+            return ''
 
     def existGarbageWord(self, data):
         cursor = self.connection.cursor()
@@ -158,7 +184,7 @@ class Dictionary:
 
     def isTargetWord(self, text):
         text = self.getRegularExpression(text)
-        if len(text) >= 2 and len(text) < 50:
+        if len(text) >= self.MIN_WORD_LEN and len(text) < self.MAX_WORD_LEN:
             return True
         return False
 
@@ -183,5 +209,84 @@ class Dictionary:
         return False
 
 
-anal = Analyzer()
-anal.analyze()
+from datetime import date, timedelta
+
+
+class Miner:
+    def __init__(self):
+        self.count = 0
+        self.url = 'http://krdic.naver.com/small_search.nhn?kind=keyword&query='
+        self.connection = pymysql.connect(host=DB_IP,
+                                          user=DB_USER,
+                                          password=DB_PWD,
+                                          db=DB_SCH,
+                                          charset='utf8mb4',
+                                          cursorclass=pymysql.cursors.DictCursor)
+        self.CHANGE_PRICE_LIST_NAME = 'changePriceList'
+        self.WORD_NAME = 'word'
+        self.CONTENT_DATA_NAME = 'contentData'
+        self.DATE_NAME = 'date'
+        self.START_NAME = 'start'
+        self.FINAL_NAME = 'final'
+
+    def finalize(self):
+        self.connection.commit()
+        self.connection.close()
+
+    def getContent(self, content, startPos, endPos):
+        cursor = self.connection.cursor()
+        contentCursor = cursor.execute(
+            "SELECT `c`.`title`,`c`.`contentData`, `a`.`name`, `c`.`date` FROM `content` as `c`, `author` as `a` WHERE `c`.`contentData` like %s limit %s , %s",
+            ('%' + content + '%', startPos, endPos))
+        if contentCursor != 0:
+            return cursor.fetchall()
+        else:
+            raise AnalyzerError('content is not valid.')
+
+    def getWordChangePriceList(self, contentDataList, stockName, period):
+        dic = Dictionary()
+        wordDatas = []
+        for result in contentDataList:
+            contentData = result.get(self.CONTENT_DATA_NAME)
+            date = result.get(self.DATE_NAME)
+            sliceDate = self.getTargetFinanceData(date, period)
+            change = self.getFinanceChangePrice(sliceDate, stockName)
+
+            for target in dic.splitStr(contentData):
+                if dic.existSplitWord(target):
+                    word = dic.getWordByStr(target)
+                    self.putWordDatas(word, change, wordDatas)
+        return wordDatas
+
+    def getFinanceChangePrice(self, sliceDate, stockName):
+        cursor = self.connection.cursor()
+        financeCursor = cursor.execute(
+            "select s.name, f.start, f.final, f.date from finance f, stock s where f.stockId = s.id and s.name = %s and f.date like %s",
+            (stockName, sliceDate + "%"))
+        if financeCursor != 0:
+            finance = cursor.fetchone()  # one ? many?
+            return int(finance.get(self.START_NAME)) - int(finance.get(self.FINAL_NAME))
+        else:
+            raise AnalyzerError('finance data not found.')
+
+    def getTargetFinanceData(self, date, period):
+        # yyyy-MM-dd and plus period
+        plusPeridDate = date + timedelta(days=period)
+        sliceDate = str(plusPeridDate)[0:9]
+        return sliceDate
+
+    def putWordDatas(self, word, changePrice, wordDatas):
+        exist = False
+        for wordMap in wordDatas:
+            if wordMap.get(word) is not None:
+                exist = True
+                wordMap.get(self.CHANGE_PRICE_LIST_NAME).append(changePrice)
+                break
+        if not exist:
+            changeList = []
+            changeList.append(changePrice)
+            newWordMap = {
+                self.WORD_NAME: word,
+                self.CHANGE_PRICE_LIST_NAME: changeList
+            }
+            wordDatas.append(newWordMap)
