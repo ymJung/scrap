@@ -257,7 +257,7 @@ class Miner:
                 contentData = result.get(self.CONTENT_DATA_NAME)
                 date = result.get(self.DATE_NAME)
                 sliceDate = self.getTargetFinanceData(date, period)
-                change = self.getFinanceChangePrice(sliceDate, stockName)
+                change = self.getFinanceChangePrice(sliceDate, stockName) # 주말.?
                 splitWords = dic.splitStr(contentData)
 
                 for target in splitWords:
@@ -275,12 +275,12 @@ class Miner:
             finance = cursor.fetchone()  # one ? many?
             return int(finance.get(self.START_NAME)) - int(finance.get(self.FINAL_NAME))
         else:
-            raise AnalyzerError('finance data not found.')
+            print('finance data not found.' + sliceDate)
 
     def getTargetFinanceData(self, date, period):
         # yyyy-MM-dd and plus period
         plusPeridDate = date + timedelta(days=period)
-        sliceDate = str(plusPeridDate)[0:9]
+        sliceDate = plusPeridDate.strftime('%Y-%m-%d')
         return sliceDate
 
     def putWordDatas(self, word, changePrice, wordDatas):
@@ -318,13 +318,14 @@ class Miner:
         contents = self.getStockNameContent(stockName, date)
         words = []
         dic = Dictionary()
-        for result in contents:
-            contentData = result.get(self.CONTENT_DATA_NAME)
-            splitWords = dic.splitStr(contentData)
-            for target in splitWords:
-                if dic.existSplitWord(target):
-                    word = dic.getWordByStr(target)
-                    words.append(word)
+        for content in contents:
+            for result in content:
+                contentData = result.get(self.CONTENT_DATA_NAME)
+                splitWords = dic.splitStr(contentData)
+                for target in splitWords:
+                    if dic.existSplitWord(target):
+                        word = dic.getWordByStr(target)
+                        words.append(word)
         return words
 
     def getWordPriceList(self, words, totalWordPrices):
@@ -343,7 +344,7 @@ class Miner:
 
 miner = Miner()
 period = 10
-stockName = "한솔홈데코"
+stockName = ""
 targetWords = miner.getTargetContentWords(stockName, miner.TODAY - timedelta(days=period))
 if len(targetWords) != 0 :
     totalWordPrices = miner.work(stockName, period)
