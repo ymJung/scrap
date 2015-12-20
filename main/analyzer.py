@@ -252,18 +252,20 @@ class Miner:
     def getWordChangePriceList(self, contentDataList, stockName, period):
         dic = Dictionary()
         wordDatas = []
-        for resultList in contentDataList:
-            for result in resultList :
-                contentData = result.get(self.CONTENT_DATA_NAME)
-                date = result.get(self.DATE_NAME)
-                sliceDate = self.getTargetFinanceData(date, period)
-                change = self.getFinanceChangePrice(sliceDate, stockName) # 주말.?
-                splitWords = dic.splitStr(contentData)
+        for result in contentDataList :
+            contentData = result.get(self.CONTENT_DATA_NAME)
+            date = result.get(self.DATE_NAME)
+            sliceDate = self.getTargetFinanceData(date, period)
+            change = self.getFinanceChangePrice(sliceDate, stockName) # 주말.?
+            if change is None :
+                continue
 
-                for target in splitWords:
-                    if dic.existSplitWord(target):
-                        word = dic.getWordByStr(target)
-                        self.putWordDatas(word, change, wordDatas)
+            splitWords = dic.splitStr(contentData)
+
+            for target in splitWords:
+                if dic.existSplitWord(target):
+                    word = dic.getWordByStr(target)
+                    self.putWordDatas(word, change, wordDatas)
         return wordDatas
 
     def getFinanceChangePrice(self, sliceDate, stockName):
@@ -306,7 +308,7 @@ class Miner:
         count = self.getCountContent(stockName, limitDate)
         for i in range(int((count / self.LIMIT)) + 1):
             contents = self.getContent(stockName, (i * 10) + 1, (i + 1) * self.LIMIT)
-            contentsList.append(contents)
+            contentsList = contentsList + contents
         return contentsList
 
     def work(self, stockName, period):
@@ -318,40 +320,44 @@ class Miner:
         contents = self.getStockNameContent(stockName, date)
         words = []
         dic = Dictionary()
-        for content in contents:
-            for result in content:
-                contentData = result.get(self.CONTENT_DATA_NAME)
-                splitWords = dic.splitStr(contentData)
-                for target in splitWords:
-                    if dic.existSplitWord(target):
-                        word = dic.getWordByStr(target)
-                        words.append(word)
+        for result in contents:
+            contentData = result.get(self.CONTENT_DATA_NAME)
+            splitWords = dic.splitStr(contentData)
+            for target in splitWords:
+                if dic.existSplitWord(target):
+                    word = dic.getWordByStr(target)
+                    words.append(word)
         return words
 
     def getWordPriceList(self, words, totalWordPrices):
-        results = []
+        inputWordPriceList = []
         for target in words:
             for wordPrice in totalWordPrices:
-                compare = wordPrice.get(self.WORD_NAME)
-                if target == compare:
-                    price = wordPrice.get(self.CHANGE_PRICE_LIST_NAME)
-                    result = {
-                        self.WORD_NAME: target,
-                        self.CHANGE_PRICE_LIST_NAME: price
-                    }
-                    results.append(result)
-        return results
+                if target == wordPrice.get(self.WORD_NAME):
+                    exist = False
+                    for inputWordPrice in inputWordPriceList :
+                        if inputWordPrice.get(wordPrice.get(self.WORD_NAME)) is not None :
+                            prices = inputWordPrice.get(wordPrice.get(self.WORD_NAME)) + wordPrice.get(self.CHANGE_PRICE_LIST_NAME)
+                            inputWordPrice.update(wordPrice.get(self.WORD_NAME), prices)
+                            exist = True
+                    if exist is False :
+                        inputWordPrice = {
+                            self.WORD_NAME: wordPrice.get(self.WORD_NAME),
+                            self.CHANGE_PRICE_LIST_NAME: wordPrice.get(self.CHANGE_PRICE_LIST_NAME)
+                        }
+                        inputWordPriceList.append(inputWordPrice)
+        return inputWordPriceList
+# anal = Analyzer()
+# anal.analyze()
 
 miner = Miner()
 period = 10
 stockName = ""
-targetWords = miner.getTargetContentWords(stockName, miner.TODAY - timedelta(days=period))
-if len(targetWords) != 0 :
+# period 만큼 today까지 for문을 돌면서 샘플을 모을까?
+targetWords = miner.getTargetContentWords(stockName, date.today() - timedelta(days=period))
+if len(targetWords) > 0:
     totalWordPrices = miner.work(stockName, period)
-    results = miner.getWordPriceList(targetWords, totalWordPrices)
-    print(results)
-else :
+    resultMap = miner.getWordPriceList(targetWords, totalWordPrices)
+    print(resultMap)
+else:
     print('none')
-
-
-
