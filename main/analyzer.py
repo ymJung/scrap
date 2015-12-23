@@ -251,21 +251,24 @@ class Miner:
 
     def getWordChangePriceList(self, contentDataList, stockName, period):
         dic = Dictionary()
-        wordDatas = []
-        for result in contentDataList :
+        wordDatas = {}
+        for result in contentDataList:
             contentData = result.get(self.CONTENT_DATA_NAME)
             date = result.get(self.DATE_NAME)
             sliceDate = self.getTargetFinanceData(date, period)
-            change = self.getFinanceChangePrice(sliceDate, stockName) # 주말.?
-            if change is None :
+            change = self.getFinanceChangePrice(sliceDate, stockName)  # 주말.?
+            if change is None:
                 continue
 
             splitWords = dic.splitStr(contentData)
-
             for target in splitWords:
                 if dic.existSplitWord(target):
                     word = dic.getWordByStr(target)
-                    self.putWordDatas(word, change, wordDatas)
+                    try:
+                        wordDatas[word].append(change)
+                    except KeyError:
+                        wordDatas[word] = [change]
+                        # self.putWordDatas(word, change, wordDatas)
         return wordDatas
 
     def getFinanceChangePrice(self, sliceDate, stockName):
@@ -285,29 +288,11 @@ class Miner:
         sliceDate = plusPeridDate.strftime('%Y-%m-%d')
         return sliceDate
 
-    def putWordDatas(self, word, changePrice, wordDatas):
-        exist = False
-        for wordMap in wordDatas:
-            if wordMap.get(word) is not None:
-                exist = True
-                wordMap.get(self.CHANGE_PRICE_LIST_NAME).append(changePrice)
-                print('put exist word data' + str(wordMap))
-                break
-        if not exist:
-            changeList = []
-            changeList.append(changePrice)
-            newWordMap = {
-                self.WORD_NAME: word,
-                self.CHANGE_PRICE_LIST_NAME: changeList
-            }
-            print('put new word data' + str(newWordMap))
-            wordDatas.append(newWordMap)
-
     def getStockNameContent(self, stockName, limitDate):
         contentsList = []
         count = self.getCountContent(stockName, limitDate)
         for i in range(int((count / self.LIMIT)) + 1):
-            contents = self.getContent(stockName, (i * 10) + 1, (i + 1) * self.LIMIT)
+            contents = self.getContent(stockName, (i * 10) + 1, (i + 1) * self.LIMIT)  # paging.
             contentsList = contentsList + contents
         return contentsList
 
@@ -329,35 +314,49 @@ class Miner:
                     words.append(word)
         return words
 
-    def getWordPriceList(self, words, totalWordPrices):
-        inputWordPriceList = []
-        for target in words:
-            for wordPrice in totalWordPrices:
-                if target == wordPrice.get(self.WORD_NAME):
-                    exist = False
-                    for inputWordPrice in inputWordPriceList :
-                        if inputWordPrice.get(wordPrice.get(self.WORD_NAME)) is not None :
-                            prices = inputWordPrice.get(wordPrice.get(self.WORD_NAME)) + wordPrice.get(self.CHANGE_PRICE_LIST_NAME)
-                            inputWordPrice.update(wordPrice.get(self.WORD_NAME), prices)
-                            exist = True
-                    if exist is False :
-                        inputWordPrice = {
-                            self.WORD_NAME: wordPrice.get(self.WORD_NAME),
-                            self.CHANGE_PRICE_LIST_NAME: wordPrice.get(self.CHANGE_PRICE_LIST_NAME)
-                        }
-                        inputWordPriceList.append(inputWordPrice)
-        return inputWordPriceList
-# anal = Analyzer()
-# anal.analyze()
+    def getWordPriceMap(self, words, totalWordPrices):
+        wordPriceDict = {}
+        for word in words:
+            try:
+                wordPriceDict[word] = wordPriceDict[word] + totalWordPrices[word]
+            except KeyError:
+                wordPriceDict[word] = totalWordPrices[word]
+        return wordPriceDict
+
+    def extractTargetWord(self, stockName, limitDate):
+        targetWords = self.getTargetContentWords(stockName, limitDate)  # 개선할수있지 않을까?
+        resultMap = {}
+        if len(targetWords) > 0:
+            totalWordPrices = self.work(stockName, period)
+            resultMap = self.getWordPriceMap(targetWords, totalWordPrices)
+        else:
+            print('none')
+        return resultMap
+
+
+anal = Analyzer()
+anal.analyze()
 
 miner = Miner()
-period = 10
+period = 5
 stockName = ""
-# period 만큼 today까지 for문을 돌면서 샘플을 모을까?
-targetWords = miner.getTargetContentWords(stockName, date.today() - timedelta(days=period))
-if len(targetWords) > 0:
-    totalWordPrices = miner.work(stockName, period)
-    resultMap = miner.getWordPriceList(targetWords, totalWordPrices)
-    print(resultMap)
-else:
-    print('none')
+wordMap = miner.extractTargetWord(stockName, date.today() - timedelta(days=period))
+wordPlusMinusList = []
+plusTotal = 0
+minusTotal = 0
+for word in wordMap.keys():
+    plus = 0
+    minus = 0
+    for price in wordMap[word]:
+        if price > 0:
+            plus += 1
+        else:
+            minus += 1
+    plusTotal += plus
+    minusTotal += minus
+    chart = {'word': word, 'plus': plus, 'minus': minus}
+    wordPlusMinusList.append(chart)
+for wordPlusMinus in wordPlusMinusList:
+    print(wordPlusMinus)
+print(plusTotal)
+print(minusTotal)
