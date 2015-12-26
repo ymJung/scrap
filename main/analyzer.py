@@ -113,6 +113,7 @@ class Dictionary:
                                           cursorclass=pymysql.cursors.DictCursor)
         self.MIN_WORD_LEN = 2
         self.MAX_WORD_LEN = 50
+        self.REGULAR_EXP = '[^가-힝0-9a-zA-Z]'
 
     def finalize(self):
         self.connection.commit()
@@ -188,7 +189,7 @@ class Dictionary:
         return False
 
     def getRegularExpression(self, text):
-        return re.sub('[^가-힝0-9a-zA-Z]', '', text).replace(' ', '')
+        return re.sub(self.REGULAR_EXP, '', text).replace(' ', '')
 
     def isInsertTarget(self, text):
         text = self.getRegularExpression(text)
@@ -219,6 +220,8 @@ class Miner:
                                           cursorclass=pymysql.cursors.DictCursor)
         self.CHANGE_PRICE_LIST_NAME = 'changePriceList'
         self.WORD_NAME = 'word'
+        self.PLUS_NAME = 'plus'
+        self.MINUS_NAME = 'minus'
         self.CONTENT_DATA_NAME = 'contentData'
         self.DATE_NAME = 'date'
         self.START_NAME = 'start'
@@ -251,12 +254,13 @@ class Miner:
 
     def getWordChangePriceList(self, contentDataList, stockName, period):
         dic = Dictionary()
-        wordDatas = {}
+        wordDataMap = {}
+        cacheFinanceChangePrices = {}
         for result in contentDataList:
             contentData = result.get(self.CONTENT_DATA_NAME)
             date = result.get(self.DATE_NAME)
             sliceDate = self.getTargetFinanceData(date, period)
-            change = self.getFinanceChangePrice(sliceDate, stockName)  # 주말.?
+            change = self.getFinanceChangePrice(sliceDate, stockName, cacheFinanceChangePrices)
             if change is None:
                 continue
 
@@ -265,21 +269,27 @@ class Miner:
                 if dic.existSplitWord(target):
                     word = dic.getWordByStr(target)
                     try:
-                        wordDatas[word].append(change)
+                        wordDataMap[word].append(change)
                     except KeyError:
-                        wordDatas[word] = [change]
-                        # self.putWordDatas(word, change, wordDatas)
-        return wordDatas
+                        wordDataMap[word] = [change]
+        return wordDataMap
 
-    def getFinanceChangePrice(self, sliceDate, stockName):
+    def getFinanceChangePrice(self, sliceDate, stockName, cacheFinanceChangePrices):
+        try:
+            return cacheFinanceChangePrices[str(sliceDate) + stockName]
+        except KeyError:
+            print('found new finance data. ' + str(sliceDate) + stockName)
         cursor = self.connection.cursor()
         financeCursor = cursor.execute(
-            "select s.name, f.start, f.final, f.date from finance f, stock s where f.stockId = s.id and s.name = %s and f.date like %s",
+            "SELECT s.name, f.start, f.final, f.date FROM finance f, stock s WHERE f.stockId = s.id and s.name = %s and f.date like %s",
             (stockName, sliceDate + "%"))
         if financeCursor != 0:
             finance = cursor.fetchone()  # one ? many?
-            return int(finance.get(self.START_NAME)) - int(finance.get(self.FINAL_NAME))
+            stockPrice = int(finance.get(self.START_NAME)) - int(finance.get(self.FINAL_NAME))
+            cacheFinanceChangePrices[str(sliceDate) + stockName] = stockPrice
+            return stockPrice
         else:
+            cacheFinanceChangePrices[str(sliceDate) + stockName] = None
             print('finance data not found.' + sliceDate)
 
     def getTargetFinanceData(self, date, period):
@@ -318,6 +328,10 @@ class Miner:
         wordPriceDict = {}
         for word in words:
             try:
+                totalWordPrices[word]
+            except KeyError:
+                continue
+            try:
                 wordPriceDict[word] = wordPriceDict[word] + totalWordPrices[word]
             except KeyError:
                 wordPriceDict[word] = totalWordPrices[word]
@@ -333,30 +347,53 @@ class Miner:
             print('none')
         return resultMap
 
+    def printAnalyze(self, wordMap):
+        chartList = []
+        plusTotalCnt = 0
+        minusTotalCnt = 0
+        for word in wordMap.keys():
+            plusList = []
+            minusList = []
+            for price in wordMap[word]:
+                price = numpy.nan_to_num(price)
+                if price > 0:
+                    plusList.append(price)
+                if price < 0:
+                    minusList.append(price)
+            plusTotalCnt += len(plusList)
+            minusTotalCnt += len(minusList)
+
+            chart = {self.WORD_NAME: word, self.PLUS_NAME: plusList, self.MINUS_NAME: minusList}
+            chartList.append(chart)
+        plusAvgList = []
+        minusAvgList = []
+        for chart in chartList:
+            plusAvg = numpy.nan_to_num(numpy.mean(chart[self.PLUS_NAME]))
+            plusAvgList.append(plusAvg)
+            minusAvg = numpy.nan_to_num(numpy.mean(chart[self.MINUS_NAME]))
+            print(chart[self.WORD_NAME]
+                  + ', PLUS, ' + str(len(chart[self.PLUS_NAME])) + ' , PLUS_AVG, ' + str(plusAvg)
+                  + ' , MINUS , ' + str(len(chart[self.MINUS_NAME])) + ' , MINUS_AVG , ' + str(minusAvg))
+            minusAvgList.append(minusAvg)
+
+        plusAvgList = list(set(plusAvgList))
+        minusAvgList = list(set(minusAvgList))
+        plusAvgList.sort(reverse=True)
+        minusAvgList.sort()
+        print(plusTotalCnt)
+        print(plusAvgList)
+        print(minusTotalCnt)
+
+        print(minusAvgList)
+
+
+import numpy
 
 anal = Analyzer()
 anal.analyze()
 
 miner = Miner()
-period = 5
+period = 4
 stockName = ""
 wordMap = miner.extractTargetWord(stockName, date.today() - timedelta(days=period))
-wordPlusMinusList = []
-plusTotal = 0
-minusTotal = 0
-for word in wordMap.keys():
-    plus = 0
-    minus = 0
-    for price in wordMap[word]:
-        if price > 0:
-            plus += 1
-        else:
-            minus += 1
-    plusTotal += plus
-    minusTotal += minus
-    chart = {'word': word, 'plus': plus, 'minus': minus}
-    wordPlusMinusList.append(chart)
-for wordPlusMinus in wordPlusMinusList:
-    print(wordPlusMinus)
-print(plusTotal)
-print(minusTotal)
+miner.printAnalyze(wordMap)
