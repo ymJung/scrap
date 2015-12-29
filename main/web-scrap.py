@@ -1,30 +1,22 @@
-from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
-
 PPOMPPU_ID = ""
 PPOMPPU_PWD = ""
 CONTENT = ""
 __author__ = 'YoungMin'
 
+from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 import datetime
 from dateutil.relativedelta import relativedelta
 
-TITLE = "title"
-CONTENT_DATA = "contentData"
-DATE = "date"
-WRITER = "writer"
-COMMENT_LIST = "commentList"
-
-
 class Ppomppu:
     def __init__(self):
         self.SEQ = "seq"
-        self.TITLE = TITLE
-        self.CONTENT_DATA = CONTENT_DATA
-        self.DATE = DATE
-        self.WRITER = WRITER
-        self.COMMENT_LIST = COMMENT_LIST
+        self.TITLE = "title"
+        self.CONTENT_DATA = "contentData"
+        self.DATE = "date"
+        self.WRITER = "writer"
+        self.COMMENT_LIST = "commentList"
         self.DATE_FORMAT = '%Y-%m-%d %H:%M'
         self.LIMIT = datetime.datetime.now() - relativedelta(years=3)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
@@ -143,27 +135,32 @@ class DBManager:
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
-
+        self.SEQ = "seq"
+        self.TITLE = "title"
+        self.CONTENT_DATA = "contentData"
+        self.DATE = "date"
+        self.WRITER = "writer"
+        self.COMMENT_LIST = "commentList"
 
     def saveData(self, result):
         connection = self.connection
         cursor = connection.cursor()
 
         for each in result:
-            authorName = each.get(WRITER)
-            title = each.get(TITLE)
-            contentData = each.get(CONTENT_DATA)
-            date = each.get(DATE)
+            authorName = each.get(self.WRITER)
+            title = each.get(self.TITLE)
+            contentData = each.get(self.CONTENT_DATA)
+            date = each.get(self.DATE)
 
             authorId = self.getAuthorId(authorName, cursor)
             contentId = self.getContentId(authorId, contentData, cursor, date, title)
-            commentList = each.get(COMMENT_LIST)
+            commentList = each.get(self.COMMENT_LIST)
 
             for comment in commentList:
-                commentWriter = comment.get(WRITER)
+                commentWriter = comment.get(self.WRITER)
                 commentAuthorId = self.getAuthorId(commentWriter, cursor)
-                commentDate = comment.get(DATE)
-                commentContent = comment.get(CONTENT_DATA)
+                commentDate = comment.get(self.DATE)
+                commentContent = comment.get(self.CONTENT_DATA)
 
                 self.insertComment(cursor, commentAuthorId, commentContent, contentId, commentDate)
 
@@ -183,8 +180,6 @@ class DBManager:
         except :
             print("Unexpected error:", sys.exc_info()[0])
             pass
-
-
 
 
     def getContentId(self, authorId, contentData, cursor, date, title):
@@ -214,8 +209,9 @@ class DBManager:
     def finalize(self):
         self.connection.commit()
         self.connection.close()
+        print('end')
 
 
 result = Ppomppu().GetTrend(PPOMPPU_ID, PPOMPPU_PWD, CONTENT)  # id , password , search
 DBManager().saveData(result)
-print('end')
+

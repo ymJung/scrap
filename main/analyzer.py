@@ -1,3 +1,5 @@
+stockName = ""
+period = 2
 DB_IP = "localhost"
 DB_USER = "root"
 DB_PWD = "1234"
@@ -208,6 +210,7 @@ class Dictionary:
                     continue
         return False
 
+import numpy
 
 class Miner:
     def __init__(self):
@@ -252,7 +255,7 @@ class Miner:
         else:
             raise AnalyzerError('content is not valid.')
 
-    def getWordChangePriceList(self, contentDataList, stockName, period):
+    def getWordChangePriceMap(self, contentDataList, stockName, period):
         dic = Dictionary()
         wordDataMap = {}
         cacheFinanceChangePrices = {}
@@ -308,8 +311,8 @@ class Miner:
 
     def work(self, stockName, period):
         contents = self.getStockNameContent(stockName, self.LIMIT_PAST_DATE)
-        wordPrices = self.getWordChangePriceList(contents, stockName, period)
-        return wordPrices
+        wordPriceMap = self.getWordChangePriceMap(contents, stockName, period)
+        return wordPriceMap
 
     def getTargetContentWords(self, stockName, date):
         contents = self.getStockNameContent(stockName, date)
@@ -337,20 +340,9 @@ class Miner:
                 wordPriceDict[word] = totalWordPrices[word]
         return wordPriceDict
 
-    def extractTargetWord(self, stockName, limitDate):
-        targetWords = self.getTargetContentWords(stockName, limitDate)  # 개선할수있지 않을까?
-        resultMap = {}
-        if len(targetWords) > 0:
-            totalWordPrices = self.work(stockName, period)
-            resultMap = self.getWordPriceMap(targetWords, totalWordPrices)
-        else:
-            print('none')
-        return resultMap
 
-    def printAnalyze(self, wordMap):
+    def getAnalyzedChartList(self, wordMap):
         chartList = []
-        plusTotalCnt = 0
-        minusTotalCnt = 0
         for word in wordMap.keys():
             plusList = []
             minusList = []
@@ -360,40 +352,59 @@ class Miner:
                     plusList.append(price)
                 if price < 0:
                     minusList.append(price)
-            plusTotalCnt += len(plusList)
-            minusTotalCnt += len(minusList)
-
             chart = {self.WORD_NAME: word, self.PLUS_NAME: plusList, self.MINUS_NAME: minusList}
             chartList.append(chart)
+        return chartList
+
+    def printAnalyzedChartList(self, chartList):
         plusAvgList = []
         minusAvgList = []
         for chart in chartList:
-            plusAvg = numpy.nan_to_num(numpy.mean(chart[self.PLUS_NAME]))
+            plusWordList = chart[self.PLUS_NAME]
+            minusWordList = chart[self.MINUS_NAME]
+
+            plusAvg = numpy.nan_to_num(numpy.mean(plusWordList))
             plusAvgList.append(plusAvg)
-            minusAvg = numpy.nan_to_num(numpy.mean(chart[self.MINUS_NAME]))
-            print(chart[self.WORD_NAME]
-                  + ', PLUS, ' + str(len(chart[self.PLUS_NAME])) + ' , PLUS_AVG, ' + str(plusAvg)
-                  + ' , MINUS , ' + str(len(chart[self.MINUS_NAME])) + ' , MINUS_AVG , ' + str(minusAvg))
+            minusAvg = numpy.nan_to_num(numpy.mean(minusWordList))
             minusAvgList.append(minusAvg)
+
+            print(chart[self.WORD_NAME]
+                  + ', PLUS, ' + str(len(plusWordList)) + ' , PLUS_AVG, ' + str(plusAvg)
+                  + ' , MINUS , ' + str(len(minusWordList)) + ' , MINUS_AVG , ' + str(minusAvg))
 
         plusAvgList = list(set(plusAvgList))
         minusAvgList = list(set(minusAvgList))
         plusAvgList.sort(reverse=True)
         minusAvgList.sort()
-        print(plusTotalCnt)
         print(plusAvgList)
-        print(minusTotalCnt)
-
         print(minusAvgList)
 
+    def getAnalyzedCountList(self, chartList):
+        plusCnt = 0
+        minusCnt = 0
+        for chart in chartList :
+            plusCnt += len(chart.get(self.PLUS_NAME))
+            minusCnt += len(chart.get(self.MINUS_NAME))
+        return plusCnt, minusCnt
 
-import numpy
+    def printAnalyzed(self, period, stockName):
+        targetWords = miner.getTargetContentWords(stockName, date.today() - timedelta(days=period))  # 개선할수있지 않을까?
+        totalWordPriceMap = miner.work(stockName, period)
+        resultWordPriceMap = miner.getWordPriceMap(targetWords, totalWordPriceMap)
+        targetChartList = miner.getAnalyzedChartList(resultWordPriceMap)
+        totalChartList = miner.getAnalyzedChartList(totalWordPriceMap)
+        targetPlusCnt, targetMinusCnt = miner.getAnalyzedCountList(targetChartList)
+        totalPlusCnt, totalMinusCnt = miner.getAnalyzedCountList(totalChartList)
+        miner.printAnalyzedChartList(targetChartList)
+        print('plus cnt ' + str(targetPlusCnt/totalPlusCnt))
+        print('minus cnt ' + str(targetMinusCnt / totalMinusCnt))
+
 
 anal = Analyzer()
 anal.analyze()
-
 miner = Miner()
-period = 4
-stockName = ""
-wordMap = miner.extractTargetWord(stockName, date.today() - timedelta(days=period))
-miner.printAnalyze(wordMap)
+
+miner.printAnalyzed(period, stockName)
+
+
+

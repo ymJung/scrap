@@ -1,4 +1,5 @@
 __author__ = 'YoungMin'
+STOCK_NAME = ""
 
 import win32com.client
 import pymysql.cursors
@@ -8,7 +9,7 @@ DB_IP = "localhost"
 DB_USER = "root"
 DB_PWD = "1234"
 DB_SCH = "data"
-STOCK_NAME = ""
+
 
 # member = win32com.client.Dispatch("dscbo1.StockMember1")
 class DSStockError(Exception):
