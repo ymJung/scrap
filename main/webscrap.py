@@ -1,6 +1,3 @@
-PPOMPPU_ID = ""
-PPOMPPU_PWD = ""
-CONTENT = ""
 __author__ = 'YoungMin'
 
 from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
@@ -121,17 +118,13 @@ class Ppomppu:
 import pymysql.cursors
 import sys
 
-DB_IP = "localhost"
-DB_USER = "root"
-DB_PWD = "1234"
-DB_SCH = "data"
 
 class DBManager:
-    def __init__(self):
+    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
         self.connection = pymysql.connect(host=DB_IP,
                                           user=DB_USER,
                                           password=DB_PWD,
-                                          db='data',
+                                          db=DB_SCH,
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
@@ -210,8 +203,4 @@ class DBManager:
         self.connection.commit()
         self.connection.close()
         print('end')
-
-
-result = Ppomppu().GetTrend(PPOMPPU_ID, PPOMPPU_PWD, CONTENT)  # id , password , search
-DBManager().saveData(result)
 

@@ -1,9 +1,3 @@
-stockName = ""
-period = 2
-DB_IP = "localhost"
-DB_USER = "root"
-DB_PWD = "1234"
-DB_SCH = "data"
 
 import pymysql.cursors
 from datetime import date, timedelta
@@ -24,7 +18,7 @@ class AnalyzerError(Exception):
 
 
 class Analyzer:
-    def __init__(self):
+    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
         self.connection = pymysql.connect(host=DB_IP,
                                           user=DB_USER,
                                           password=DB_PWD,
@@ -104,7 +98,7 @@ class Analyzer:
 
 
 class Dictionary:
-    def __init__(self):
+    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
         self.count = 0
         self.url = 'http://krdic.naver.com/small_search.nhn?kind=keyword&query='
         self.connection = pymysql.connect(host=DB_IP,
@@ -213,7 +207,7 @@ class Dictionary:
 import numpy
 
 class Miner:
-    def __init__(self):
+    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
         self.LIMIT = 5
         self.connection = pymysql.connect(host=DB_IP,
                                           user=DB_USER,
@@ -369,8 +363,8 @@ class Miner:
             minusAvgList.append(minusAvg)
 
             print(chart[self.WORD_NAME]
-                  + ', PLUS, ' + str(len(plusWordList)) + ' , PLUS_AVG, ' + str(plusAvg)
-                  + ' , MINUS , ' + str(len(minusWordList)) + ' , MINUS_AVG , ' + str(minusAvg))
+                  + ': PLUS: ' + str(len(plusWordList)) + ' , PLUS_AVG: ' + str(plusAvg)
+                  + ' , MINUS: ' + str(len(minusWordList)) + ' , MINUS_AVG: ' + str(minusAvg))
 
         plusAvgList = list(set(plusAvgList))
         minusAvgList = list(set(minusAvgList))
@@ -388,23 +382,15 @@ class Miner:
         return plusCnt, minusCnt
 
     def printAnalyzed(self, period, stockName):
-        targetWords = miner.getTargetContentWords(stockName, date.today() - timedelta(days=period))  # 개선할수있지 않을까?
-        totalWordPriceMap = miner.work(stockName, period)
-        resultWordPriceMap = miner.getWordPriceMap(targetWords, totalWordPriceMap)
-        targetChartList = miner.getAnalyzedChartList(resultWordPriceMap)
-        totalChartList = miner.getAnalyzedChartList(totalWordPriceMap)
-        targetPlusCnt, targetMinusCnt = miner.getAnalyzedCountList(targetChartList)
-        totalPlusCnt, totalMinusCnt = miner.getAnalyzedCountList(totalChartList)
-        miner.printAnalyzedChartList(targetChartList)
+        targetWords = self.getTargetContentWords(stockName, date.today() - timedelta(days=period))  # 개선할수있지 않을까?
+        totalWordPriceMap = self.work(stockName, period)
+        resultWordPriceMap = self.getWordPriceMap(targetWords, totalWordPriceMap)
+        targetChartList = self.getAnalyzedChartList(resultWordPriceMap)
+        totalChartList = self.getAnalyzedChartList(totalWordPriceMap)
+        targetPlusCnt, targetMinusCnt = self.getAnalyzedCountList(targetChartList)
+        totalPlusCnt, totalMinusCnt = self.getAnalyzedCountList(totalChartList)
+        self.printAnalyzedChartList(targetChartList)
         print('plus cnt ' + str(targetPlusCnt/totalPlusCnt))
         print('minus cnt ' + str(targetMinusCnt / totalMinusCnt))
-
-
-anal = Analyzer()
-anal.analyze()
-miner = Miner()
-
-miner.printAnalyzed(period, stockName)
-
 
 

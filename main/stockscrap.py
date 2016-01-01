@@ -1,14 +1,8 @@
 __author__ = 'YoungMin'
-STOCK_NAME = ""
 
 import win32com.client
 import pymysql.cursors
 import datetime
-
-DB_IP = "localhost"
-DB_USER = "root"
-DB_PWD = "1234"
-DB_SCH = "data"
 
 
 # member = win32com.client.Dispatch("dscbo1.StockMember1")
@@ -21,7 +15,7 @@ class DSStockError(Exception):
 
 
 class DSStock:
-    def __init__(self):
+    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
         self.DATE_FORMAT = '%Y%m%d'
         self.cybos = win32com.client.Dispatch("CpUtil.CpCybos")
         self.ins = win32com.client.Dispatch("CpUtil.CpStockCode")
@@ -121,9 +115,4 @@ class DSStock:
         return False
 
 
-ds = DSStock()
-stock = ds.getStock(STOCK_NAME)
-datas = ds.getChartDataList(stock.get('code'), 365 * 2)
-ds.insertFinanceData(datas, str(stock.get('id')))
-ds.finalize()
 
