@@ -6,20 +6,28 @@ from selenium.webdriver.common.keys import Keys
 import datetime
 from dateutil.relativedelta import relativedelta
 
+SEQ = "seq"
+TITLE = "title"
+CONTENT_DATA = "contentData"
+DATE = "date"
+WRITER = "writer"
+COMMENT_LIST = "commentList"
+LIMIT = datetime.datetime.now() - relativedelta(years=3)
+
+
 class Ppomppu:
     def __init__(self):
-        self.SEQ = "seq"
-        self.TITLE = "title"
-        self.CONTENT_DATA = "contentData"
-        self.DATE = "date"
-        self.WRITER = "writer"
-        self.COMMENT_LIST = "commentList"
+        self.SEQ = SEQ
+        self.TITLE = TITLE
+        self.CONTENT_DATA = CONTENT_DATA
+        self.DATE = DATE
+        self.WRITER = WRITER
+        self.COMMENT_LIST = COMMENT_LIST
         self.DATE_FORMAT = '%Y-%m-%d %H:%M'
-        self.LIMIT = datetime.datetime.now() - relativedelta(years=3)
+        self.LIMIT = LIMIT
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
 
-    def GetTrend(self, id, password, value):
-        global data
+    def getTrend(self, id, password, value):
         login_url = "http://m.ppomppu.co.kr/new/login.php?s_url=/new/"
         stock_url = "http://m.ppomppu.co.kr/new/bbs_list.php?id=stock"
         driver = webdriver.Firefox()
@@ -61,23 +69,23 @@ class Ppomppu:
                     content = driver.find_element_by_id('KH_Content').text
 
                     seq += 1
-                    comments = driver.find_element_by_css_selector('#wrap > div.ct > div > div.cmAr') # 개선 필요.
+                    comments = driver.find_element_by_css_selector('#wrap > div.ct > div > div.cmAr')  # 개선 필요.
                     comments = comments.text
                     comments = comments.split("덧글")
                 except NoSuchElementException as e:
                     print(e)
                     continue
                 except UnexpectedAlertPresentException as e:
-                     print(e)
-                     continue
+                    print(e)
+                    continue
                 commentData = []
                 for comment in comments:
                     try:
                         comment = comment.strip()
                         if comment.find('추천') > 0:
                             commentWriter = comment.split('\n')[-4]
-                            commentContent = comment.split('\n')[-2].replace('\n','')
-                            commentDate = comment.split('\n')[-1].replace('|','').strip()
+                            commentContent = comment.split('\n')[-2].replace('\n', '')
+                            commentDate = comment.split('\n')[-1].replace('|', '').strip()
                             commentDate = self.convertDate(commentDate)
                             commentMap = {self.SEQ: seq,
                                           self.WRITER: commentWriter,
@@ -111,8 +119,82 @@ class Ppomppu:
     def convertDate(self, target):
         try:
             return datetime.datetime.strptime(target, self.DATE_FORMAT)
-        except :
+        except:
             return self.DEFAULT_DATE
 
 
+from bs4 import BeautifulSoup
+from urllib.request import urlopen
+import urllib
+
+
+class Paxnet:
+    def __init__(self):
+        self.SEQ = SEQ
+        self.TITLE = TITLE
+        self.CONTENT_DATA = CONTENT_DATA
+        self.DATE = DATE
+        self.WRITER = WRITER
+        self.COMMENT_LIST = COMMENT_LIST
+        self.DATE_FORMAT = '%Y%m%d%H:%M'
+        self.LIMIT = LIMIT
+        self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
+
+
+    def getTrendByCode(self, code):
+        data = []
+        page = 0
+        seq = 0
+        while True:
+            url = 'http://board.moneta.co.kr/cgi-bin/mpax/bulList.cgi?boardid=' + code + '&page=' + str(page)
+            soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
+            clds = soup.find(id='communityListData').findAll('dl')
+            links = []
+            breakFlag = False
+            for cld in clds:
+                links.append('http://board.moneta.co.kr/cgi-bin/mpax/' + cld.find('a').get('href'))
+                date = self.convertDate(cld.find('div').text.split(' ')[1])
+                if date < self.LIMIT:
+                    breakFlag = True
+                    break
+            if breakFlag:
+                break
+            for link in links:
+                try:
+                    seq += 1
+                    lsoup = BeautifulSoup(urllib.request.urlopen(link), 'lxml')
+                    title = lsoup.find('h3').text
+                    content = lsoup.find('div', class_='view_article').text
+                    writer = lsoup.find('strong').text
+                    date = self.convertDate(lsoup.findAll('div', class_='hd')[1].text.replace(' ', '').replace('.', '').split('\n')[4])
+
+                    commentData = []
+                    for commentSoup in lsoup.find('div', class_='comment').findAll('dl'):
+                        commentWriter = commentSoup.find('strong')
+                        commentContent = commentSoup.find('dd').find('p')
+                        commentDate = self.convertDate(commentSoup.find('dt').text.replace('\t','').replace(' ','').replace('.','').split('\n')[3][0:13])
+                        commentMap = {
+                            self.SEQ: seq,
+                            self.WRITER: commentWriter,
+                            self.DATE: commentDate,
+                            self.CONTENT_DATA: commentContent}
+                        commentData.append(commentMap)
+
+                    dataMap = {
+                        self.SEQ: seq,
+                        self.TITLE: title,
+                        self.CONTENT_DATA: content,
+                        self.WRITER: writer,
+                        self.DATE: date,
+                        self.COMMENT_LIST: commentData}
+                    data.append(dataMap)
+                except:
+                    continue
+        return data
+
+    def convertDate(self, param):
+        try :
+            return datetime.datetime.strptime(param, self.DATE_FORMAT)
+        except :
+            return self.DEFAULT_DATE
 
