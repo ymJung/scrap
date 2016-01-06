@@ -20,38 +20,36 @@ class DBManager:
         self.WRITER = "writer"
         self.COMMENT_LIST = "commentList"
 
-    def saveData(self, result):
-        connection = self.connection
-        cursor = connection.cursor()
-
-        for each in result:
+    def saveData(self, results, stockName):
+        for each in results:
             authorName = each.get(self.WRITER)
             title = each.get(self.TITLE)
             contentData = each.get(self.CONTENT_DATA)
             date = each.get(self.DATE)
+            if len(authorName) == 0 or len(title) == 0 or len(contentData) == 0 :
+                print('data is wrong' + str(each))
+                continue
 
-            authorId = self.getAuthorId(authorName, cursor)
-            contentId = self.getContentId(authorId, contentData, cursor, date, title)
+            authorId = self.saveAuthorAndGetId(authorName)
+            contentId = self.saveContentAndGetId(authorId, contentData, date, title, stockName)
             commentList = each.get(self.COMMENT_LIST)
 
             for comment in commentList:
                 commentWriter = comment.get(self.WRITER)
-                commentAuthorId = self.getAuthorId(commentWriter, cursor)
+                commentAuthorId = self.saveAuthorAndGetId(commentWriter)
                 commentDate = comment.get(self.DATE)
                 commentContent = comment.get(self.CONTENT_DATA)
 
-                self.insertComment(cursor, commentAuthorId, commentContent, contentId, commentDate)
+                self.insertComment(commentAuthorId, commentContent, contentId, commentDate, stockName)
 
-        self.finalize()
-
-    def insertComment(self, cursor, commentAuthorId, commentContent, contentId, commentDate):
+    def insertComment(self, commentAuthorId, commentContent, contentId, commentDate, stockName):
         try :
-
+            cursor = self.connection.cursor()
             commentIdSql = "SELECT `id` FROM `comment` WHERE `authorId`=%s AND `commentData`=%s"
             commentId = cursor.execute(commentIdSql, (commentAuthorId, commentContent))
 
             if commentId == 0:
-                commentDataInsertSql = "INSERT INTO `comment` (`authorId`, `commentData`, `contentId`, `date`) VALUES (%s, %s, %s, %s)"
+                commentDataInsertSql = "INSERT INTO `comment` (`authorId`, `commentData`, `contentId`, `date`, `query`) VALUES (%s, %s, %s, %s, %s)"
                 cursor.execute(commentDataInsertSql, (commentAuthorId, commentContent, contentId, commentDate))
         except pymysql.err.InternalError as e:
             print(e)
@@ -60,20 +58,22 @@ class DBManager:
             pass
 
 
-    def getContentId(self, authorId, contentData, cursor, date, title):
+    def saveContentAndGetId(self, authorId, contentData, date, title, stockName):
+        cursor = self.connection.cursor()
         contentIdSql = "SELECT `id` FROM `content` WHERE `authorId`=%s AND `title`=%s"
         contentId = cursor.execute(contentIdSql, (authorId, title))
         if contentId == 0:
-            contentDataInsertSql = "INSERT INTO `content` (`title`, `contentData`, `authorId`, `date`) VALUES (%s, %s, %s, %s)"
-            cursor.execute(contentDataInsertSql, (title, contentData, authorId, date))
+            contentDataInsertSql = "INSERT INTO `content` (`title`, `contentData`, `authorId`, `date`, `query`) VALUES (%s, %s, %s, %s, %s)"
+            cursor.execute(contentDataInsertSql, (title, contentData, authorId, date, stockName))
             cursor.execute(contentIdSql, (authorId, title))
             contentId = cursor.fetchone().get('id')
         else:
             contentId = cursor.fetchone().get('id')
         return contentId
 
-    def getAuthorId(self, authorName, cursor):
-        authorIdSql = "SELECT `id` FROM `author` WHERE `name`=%s"
+    def saveAuthorAndGetId(self, authorName):
+        cursor = self.connection.cursor()
+        authorIdSql = "SELECT `id` FROM `author` WHERE `name`= %s"
         authorId = cursor.execute(authorIdSql, (authorName))
         if authorId == 0:
             authorDataInsertSql = "INSERT INTO `author` (`name`) VALUES (%s)"
@@ -88,3 +88,11 @@ class DBManager:
         self.connection.commit()
         self.connection.close()
         print('end')
+
+    def getUsefulStockList(self):
+        cursor = self.connection.cursor()
+        usefulStockSql = "SELECT `id`, `code`, `name` FROM stock WHERE `use` = 1"
+        cursor.execute(usefulStockSql)
+        return cursor.fetchall()
+
+

@@ -107,6 +107,7 @@ class DSStock:
                            "VALUES (%s, %s, %s, %s, %s, %s);", (stockId, date, high, low, start, final))
             print('insert finance' + str(date))
 
+
     def isFinanceTarget(self, date, stockId):
         cursor = self.connection.cursor()
         stockCursor = cursor.execute("SELECT `id`,`stockId`,`date` FROM `finance` WHERE `stockId`=%s AND date = %s", (stockId, date))

@@ -3,6 +3,7 @@ from datetime import date, timedelta
 import pymysql.cursors
 import dictionary
 
+
 class MinerError(Exception):
     def __init__(self, msg):
         self.msg = msg
@@ -41,8 +42,8 @@ class Miner:
 
     def getCountContent(self, content, date):
         cursor = self.connection.cursor()
-        countCursor = cursor.execute("select count(*) as c from content where contentData like %s and date > %s",
-                                     ('%' + content + '%', date))
+        countCursor = cursor.execute("select count(*) as c from content where query = %s and date > %s",
+                                     (content, date))
         if countCursor != 0:
             return cursor.fetchone().get('c')
         else:
@@ -51,8 +52,8 @@ class Miner:
     def getContent(self, stockName, startPos, endPos):
         cursor = self.connection.cursor()
         contentCursor = cursor.execute(
-            "SELECT `c`.`title`,`c`.`contentData`, `a`.`name`, `c`.`date` FROM `content` as `c`, `author` as `a` WHERE `c`.`contentData` like %s limit %s , %s",
-            ('%' + stockName + '%', startPos, endPos))
+            "SELECT `c`.`title`,`c`.`contentData`, `a`.`name`, `c`.`date` FROM `content` as `c`, `author` as `a` WHERE `c`.`query` = %s limit %s , %s",
+            (stockName, startPos, endPos))
         if contentCursor != 0:
             return cursor.fetchall()
         else:
@@ -108,8 +109,12 @@ class Miner:
         contentsList = []
         count = self.getCountContent(stockName, limitDate)
         for i in range(int((count / self.LIMIT)) + 1):
-            contents = self.getContent(stockName, (i * 10) + 1, (i + 1) * self.LIMIT)  # paging.
-            contentsList = contentsList + contents
+            try :
+                contents = self.getContent(stockName, (i * 10) + 1, (i + 1) * self.LIMIT)  # paging.
+                contentsList = contentsList + contents
+            except MinerError :
+                print('data is empty.')
+                continue
         return contentsList
 
     def work(self, stockName, period):
@@ -142,7 +147,6 @@ class Miner:
             except KeyError:
                 wordPriceDict[word] = totalWordPrices[word]
         return wordPriceDict
-
 
     def getAnalyzedChartList(self, wordMap):
         chartList = []
@@ -185,13 +189,13 @@ class Miner:
     def getAnalyzedCountList(self, chartList):
         plusCnt = 0
         minusCnt = 0
-        for chart in chartList :
+        for chart in chartList:
             plusCnt += len(chart.get(self.PLUS_NAME))
             minusCnt += len(chart.get(self.MINUS_NAME))
         return plusCnt, minusCnt
 
-    def printAnalyzed(self, period, stockName):
-        targetWords = self.getTargetContentWords(stockName, date.today() - timedelta(days=period))  # 개선할수있지 않을까?
+    def getAnalyzedCnt(self, period, stockName):
+        targetWords = self.getTargetContentWords(stockName, date.today() - timedelta(days=period))
         totalWordPriceMap = self.work(stockName, period)
         resultWordPriceMap = self.getWordPriceMap(targetWords, totalWordPriceMap)
         targetChartList = self.getAnalyzedChartList(resultWordPriceMap)
@@ -199,6 +203,10 @@ class Miner:
         targetPlusCnt, targetMinusCnt = self.getAnalyzedCountList(targetChartList)
         totalPlusCnt, totalMinusCnt = self.getAnalyzedCountList(totalChartList)
         self.printAnalyzedChartList(targetChartList)
-        print('plus cnt ' + str(targetPlusCnt/totalPlusCnt))
-        print('minus cnt ' + str(targetMinusCnt / totalMinusCnt))
-
+        plusCnt = 0
+        if totalPlusCnt != 0 :
+            plusCnt = (targetPlusCnt / totalPlusCnt)
+        minusCnt = 0
+        if totalMinusCnt != 0:
+            minusCnt = (targetMinusCnt / totalMinusCnt)
+        return plusCnt, minusCnt  # plus cnt minus cnt

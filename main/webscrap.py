@@ -12,7 +12,6 @@ CONTENT_DATA = "contentData"
 DATE = "date"
 WRITER = "writer"
 COMMENT_LIST = "commentList"
-LIMIT = datetime.datetime.now() - relativedelta(years=3)
 
 
 class Ppomppu:
@@ -24,7 +23,7 @@ class Ppomppu:
         self.WRITER = WRITER
         self.COMMENT_LIST = COMMENT_LIST
         self.DATE_FORMAT = '%Y-%m-%d %H:%M'
-        self.LIMIT = LIMIT
+        self.LIMIT = datetime.datetime.now() - relativedelta(years=3)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
 
     def getTrend(self, id, password, value):
@@ -126,7 +125,9 @@ class Ppomppu:
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
 import urllib
-
+import time
+import random
+import re
 
 class Paxnet:
     def __init__(self):
@@ -137,15 +138,19 @@ class Paxnet:
         self.WRITER = WRITER
         self.COMMENT_LIST = COMMENT_LIST
         self.DATE_FORMAT = '%Y%m%d%H:%M'
-        self.LIMIT = LIMIT
+        self.LIMIT = datetime.datetime.now() - relativedelta(years=1)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
+        self.CODE_EXP = '[^0-9]'
+
 
 
     def getTrendByCode(self, code):
+        code = re.sub(self.CODE_EXP, '', code).replace(' ', '')
         data = []
         page = 0
         seq = 0
         while True:
+            print('code(' + code + ') seq : ' + str(seq) + ' page : ' + str(page) + ' data len : ' + str(len(data)))
             url = 'http://board.moneta.co.kr/cgi-bin/mpax/bulList.cgi?boardid=' + code + '&page=' + str(page)
             soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
             clds = soup.find(id='communityListData').findAll('dl')
@@ -157,10 +162,12 @@ class Paxnet:
                 if date < self.LIMIT:
                     breakFlag = True
                     break
-            if breakFlag:
-                break
+            if clds is None or len(clds) == 0 :
+                breakFlag = True
             for link in links:
                 try:
+                    interval = random.randrange(300, 1500) / 1000
+                    time.sleep(interval)
                     seq += 1
                     lsoup = BeautifulSoup(urllib.request.urlopen(link), 'lxml')
                     title = lsoup.find('h3').text
@@ -170,8 +177,8 @@ class Paxnet:
 
                     commentData = []
                     for commentSoup in lsoup.find('div', class_='comment').findAll('dl'):
-                        commentWriter = commentSoup.find('strong')
-                        commentContent = commentSoup.find('dd').find('p')
+                        commentWriter = commentSoup.find('strong').text
+                        commentContent = commentSoup.find('dd').find('p').text
                         commentDate = self.convertDate(commentSoup.find('dt').text.replace('\t','').replace(' ','').replace('.','').split('\n')[3][0:13])
                         commentMap = {
                             self.SEQ: seq,
@@ -189,10 +196,20 @@ class Paxnet:
                         self.COMMENT_LIST: commentData}
                     data.append(dataMap)
                 except:
+                    print('some thing are wrong. but continue.')
                     continue
+            if breakFlag:
+                print('end')
+                break
+            else :
+                page += 1
         return data
 
     def convertDate(self, param):
+        if len(param) == 10 :
+            return datetime.datetime.strptime(param, '%Y.%m.%d')
+        if len(param) == 5 :
+            return datetime.datetime(datetime.datetime.now().year, datetime.datetime.now().month, datetime.datetime.now().day, int(param[0:1]), int(param[3:4]), 0)
         try :
             return datetime.datetime.strptime(param, self.DATE_FORMAT)
         except :
