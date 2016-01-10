@@ -95,4 +95,7 @@ class DBManager:
         cursor.execute(usefulStockSql)
         return cursor.fetchall()
 
-
+    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt):
+        cursor = self.connection.cursor()
+        authorDataInsertSql = "INSERT INTO `data`.`item` (`query`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`) VALUES (%s, %s, %s, %s, %s, %s)"
+        cursor.execute(authorDataInsertSql, (stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt))

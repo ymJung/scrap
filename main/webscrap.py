@@ -147,7 +147,7 @@ class Paxnet:
     def getTrendByCode(self, code):
         code = re.sub(self.CODE_EXP, '', code).replace(' ', '')
         data = []
-        page = 0
+        page = 1
         seq = 0
         while True:
             print('code(' + code + ') seq : ' + str(seq) + ' page : ' + str(page) + ' data len : ' + str(len(data)))
@@ -212,6 +212,77 @@ class Paxnet:
             return datetime.datetime(datetime.datetime.now().year, datetime.datetime.now().month, datetime.datetime.now().day, int(param[0:1]), int(param[3:4]), 0)
         try :
             return datetime.datetime.strptime(param, self.DATE_FORMAT)
+        except :
+            return self.DEFAULT_DATE
+
+
+
+class NaverStock :
+    def __init__(self):
+        self.SEQ = SEQ
+        self.TITLE = TITLE
+        self.CONTENT_DATA = CONTENT_DATA
+        self.DATE = DATE
+        self.WRITER = WRITER
+        self.COMMENT_LIST = COMMENT_LIST
+        self.DATE_FORMAT = '%Y.%m.%d %H:%M'
+        self.LIMIT = datetime.datetime.now() - relativedelta(weeks=2)
+        self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
+        self.CODE_EXP = '[^0-9]'
+
+
+
+    def getTrendByCode(self, code):
+        code = re.sub(self.CODE_EXP, '', code).replace(' ', '')
+        data = []
+        page = 1
+        seq = 0
+        while True:
+            print('code(' + code + ') seq : ' + str(seq) + ' page : ' + str(page) + ' data len : ' + str(len(data)))
+            url = 'http://finance.naver.com/item/board.nhn?code=' + code + '&page=' + str(page)
+            soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
+            listTD = soup.findAll('td', class_='title')
+            links = []
+            breakFlag = False
+            for td in listTD:
+                links.append('http://finance.naver.com' + td.find('a').get('href'))
+            if listTD is None or len(listTD) == 0 :
+                breakFlag = True
+            for link in links:
+                try:
+                    interval = random.randrange(300, 1500) / 1000
+                    time.sleep(interval)
+                    seq += 1
+                    lsoup = BeautifulSoup(urllib.request.urlopen(link), 'lxml')
+                    title = lsoup.find('table', class_='view').find('strong').text
+                    content = lsoup.find('table', class_='view').find(id='body').text
+                    writer = lsoup.find('strong').text
+                    date = self.convertDate(lsoup.find('table', class_='view').find('th', class_='gray03 p9 tah').text)
+                    if date < self.LIMIT:
+                        breakFlag = True
+                        break
+
+                    dataMap = {
+                        self.SEQ: seq,
+                        self.TITLE: title,
+                        self.CONTENT_DATA: content,
+                        self.WRITER: writer,
+                        self.DATE: date,
+                        self.COMMENT_LIST: []}
+                    data.append(dataMap)
+                except:
+                    print('some thing are wrong. but continue.')
+                    continue
+            if breakFlag:
+                print('end')
+                break
+            else :
+                page += 1
+        return data
+
+    def convertDate(self, param):
+        try :
+            return datetime.datetime.strptime(param, self.DATE_FORMAT) #'2016.01.06 21:23'
         except :
             return self.DEFAULT_DATE
 

@@ -209,4 +209,4 @@ class Miner:
         minusCnt = 0
         if totalMinusCnt != 0:
             minusCnt = (targetMinusCnt / totalMinusCnt)
-        return plusCnt, minusCnt  # plus cnt minus cnt
+        return plusCnt, minusCnt, totalPlusCnt, totalMinusCnt  # plus cnt minus cnt
