@@ -61,19 +61,24 @@ class runner :
         stockDbm.finalize()
 
     def run(self, stock):
+        runDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         self.insertFinance(stock)
         self.insertPpomppuResult(stock)
         self.insertPaxnetResult(stock)
         self.insertNaverResult(stock)
         self.insertAnalyzedResult(stock)
-        dbm.updateLastUseDate(stock)
+        runDbm.updateLastUseDate(stock)
         # dbm.updateAnalyzedResult(stock) #item에  origin price, targetAt에  result price 를 업데이트 한다.
-        dbm.finalize()
+        runDbm.finalize()
 
     def getNewItem(self, stockName):
-        ds = stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH)
+        ds = stockscrap.DSStock(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         insert = ds.getStock(stockName)
         datas = ds.getChartDataList(insert.get('code'), 365 * 2)
         ds.insertFinanceData(datas, str(insert.get('id')))
         ds.finalize()
+
+
+
+
 
