@@ -109,10 +109,10 @@ class Miner:
         contentsList = []
         count = self.getCountContent(stockName, limitDate)
         for i in range(int((count / self.LIMIT)) + 1):
-            try :
+            try:
                 contents = self.getContent(stockName, (i * 10) + 1, (i + 1) * self.LIMIT)  # paging.
                 contentsList = contentsList + contents
-            except MinerError :
+            except MinerError:
                 print('data is empty.')
                 continue
         return contentsList
@@ -146,6 +146,7 @@ class Miner:
                 wordPriceDict[word] = wordPriceDict[word] + totalWordPrices[word]
             except KeyError:
                 wordPriceDict[word] = totalWordPrices[word]
+
         return wordPriceDict
 
     def getAnalyzedChartList(self, wordMap):
@@ -159,6 +160,8 @@ class Miner:
                     plusList.append(price)
                 if price < 0:
                     minusList.append(price)
+
+
             chart = {self.WORD_NAME: word, self.PLUS_NAME: plusList, self.MINUS_NAME: minusList}
             chartList.append(chart)
         return chartList
@@ -204,9 +207,11 @@ class Miner:
         totalPlusCnt, totalMinusCnt = self.getAnalyzedCountList(totalChartList)
         self.printAnalyzedChartList(targetChartList)
         plusCnt = 0
-        if totalPlusCnt != 0 :
+        if totalPlusCnt != 0:
             plusCnt = (targetPlusCnt / totalPlusCnt)
         minusCnt = 0
         if totalMinusCnt != 0:
             minusCnt = (targetMinusCnt / totalMinusCnt)
         return plusCnt, minusCnt, totalPlusCnt, totalMinusCnt  # plus cnt minus cnt
+
+

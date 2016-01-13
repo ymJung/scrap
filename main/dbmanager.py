@@ -91,11 +91,17 @@ class DBManager:
 
     def getUsefulStockList(self):
         cursor = self.connection.cursor()
-        usefulStockSql = "SELECT `id`, `code`, `name` FROM stock WHERE `use` = 1"
+        usefulStockSql = "SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1"
         cursor.execute(usefulStockSql)
-        return cursor.fetchall()
+        stocks = cursor.fetchall()
+        return stocks
 
     def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt):
         cursor = self.connection.cursor()
         authorDataInsertSql = "INSERT INTO `data`.`item` (`query`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`) VALUES (%s, %s, %s, %s, %s, %s)"
         cursor.execute(authorDataInsertSql, (stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt))
+
+    def updateLastUseDate(self, stock):
+        cursor = self.connection.cursor()
+        updateLastUseDateSql = "UPDATE `data`.`stock` SET `lastUseDateAt`= now() WHERE `id`= %s"
+        cursor.execute(updateLastUseDateSql, (stock.get('id')))

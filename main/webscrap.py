@@ -26,7 +26,9 @@ class Ppomppu:
         self.LIMIT = datetime.datetime.now() - relativedelta(years=3)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
 
-    def getTrend(self, id, password, value):
+    def getTrend(self, id, password, value, lastUseDateAt):
+        if lastUseDateAt is not None:
+            self.LIMIT = datetime.datetime(lastUseDateAt.year, lastUseDateAt.month, lastUseDateAt.day)
         login_url = "http://m.ppomppu.co.kr/new/login.php?s_url=/new/"
         stock_url = "http://m.ppomppu.co.kr/new/bbs_list.php?id=stock"
         driver = webdriver.Firefox()
@@ -129,6 +131,7 @@ import time
 import random
 import re
 
+
 class Paxnet:
     def __init__(self):
         self.SEQ = SEQ
@@ -142,9 +145,9 @@ class Paxnet:
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
         self.CODE_EXP = '[^0-9]'
 
-
-
-    def getTrendByCode(self, code):
+    def getTrendByCode(self, code, lastUseDateAt):
+        if lastUseDateAt is not None:
+            self.LIMIT = datetime.datetime(lastUseDateAt.year, lastUseDateAt.month, lastUseDateAt.day)
         code = re.sub(self.CODE_EXP, '', code).replace(' ', '')
         data = []
         page = 1
@@ -162,7 +165,9 @@ class Paxnet:
                 if date < self.LIMIT:
                     breakFlag = True
                     break
-            if clds is None or len(clds) == 0 :
+                else :
+                    print('paxnet link date : ' + str(date))
+            if clds is None or len(clds) == 0:
                 breakFlag = True
             for link in links:
                 try:
@@ -173,13 +178,16 @@ class Paxnet:
                     title = lsoup.find('h3').text
                     content = lsoup.find('div', class_='view_article').text
                     writer = lsoup.find('strong').text
-                    date = self.convertDate(lsoup.findAll('div', class_='hd')[1].text.replace(' ', '').replace('.', '').split('\n')[4])
+                    date = self.convertDate(
+                        lsoup.findAll('div', class_='hd')[1].text.replace(' ', '').replace('.', '').split('\n')[4])
 
                     commentData = []
                     for commentSoup in lsoup.find('div', class_='comment').findAll('dl'):
                         commentWriter = commentSoup.find('strong').text
                         commentContent = commentSoup.find('dd').find('p').text
-                        commentDate = self.convertDate(commentSoup.find('dt').text.replace('\t','').replace(' ','').replace('.','').split('\n')[3][0:13])
+                        commentDate = self.convertDate(
+                            commentSoup.find('dt').text.replace('\t', '').replace(' ', '').replace('.', '').split('\n')[
+                                3][0:13])
                         commentMap = {
                             self.SEQ: seq,
                             self.WRITER: commentWriter,
@@ -201,23 +209,23 @@ class Paxnet:
             if breakFlag:
                 print('end')
                 break
-            else :
+            else:
                 page += 1
         return data
 
     def convertDate(self, param):
-        if len(param) == 10 :
+        if len(param) == 10:
             return datetime.datetime.strptime(param, '%Y.%m.%d')
-        if len(param) == 5 :
-            return datetime.datetime(datetime.datetime.now().year, datetime.datetime.now().month, datetime.datetime.now().day, int(param[0:1]), int(param[3:4]), 0)
-        try :
+        if len(param) == 5:
+            return datetime.datetime(datetime.datetime.now().year, datetime.datetime.now().month,
+                                     datetime.datetime.now().day, int(param[0:1]), int(param[3:4]), 0)
+        try:
             return datetime.datetime.strptime(param, self.DATE_FORMAT)
-        except :
+        except:
             return self.DEFAULT_DATE
 
 
-
-class NaverStock :
+class NaverStock:
     def __init__(self):
         self.SEQ = SEQ
         self.TITLE = TITLE
@@ -230,9 +238,9 @@ class NaverStock :
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
         self.CODE_EXP = '[^0-9]'
 
-
-
-    def getTrendByCode(self, code):
+    def getTrendByCode(self, code, lastUseDateAt):
+        if lastUseDateAt is not None:
+            self.LIMIT = datetime.datetime(lastUseDateAt.year, lastUseDateAt.month, lastUseDateAt.day)
         code = re.sub(self.CODE_EXP, '', code).replace(' ', '')
         data = []
         page = 1
@@ -246,7 +254,7 @@ class NaverStock :
             breakFlag = False
             for td in listTD:
                 links.append('http://finance.naver.com' + td.find('a').get('href'))
-            if listTD is None or len(listTD) == 0 :
+            if listTD is None or len(listTD) == 0:
                 breakFlag = True
             for link in links:
                 try:
@@ -261,6 +269,8 @@ class NaverStock :
                     if date < self.LIMIT:
                         breakFlag = True
                         break
+                    else :
+                        print('naver stock link date : ' + str(date))
 
                     dataMap = {
                         self.SEQ: seq,
@@ -276,13 +286,12 @@ class NaverStock :
             if breakFlag:
                 print('end')
                 break
-            else :
+            else:
                 page += 1
         return data
 
     def convertDate(self, param):
-        try :
-            return datetime.datetime.strptime(param, self.DATE_FORMAT) #'2016.01.06 21:23'
-        except :
+        try:
+            return datetime.datetime.strptime(param, self.DATE_FORMAT)  # '2016.01.06 21:23'
+        except:
             return self.DEFAULT_DATE
-
