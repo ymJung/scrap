@@ -6,14 +6,14 @@ import webscrap
 from datetime import date, timedelta
 
 class runner :
-    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH) :
+    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ID, PPOMPPU_PWD) :
         self.DB_IP = DB_IP
         self.DB_USER = DB_USER
         self.DB_PWD = DB_PWD
         self.DB_SCH = DB_SCH
 
-        self.PPOMPPU_ID = "metal0"
-        self.PPOMPPU_PWD = "jym8602"
+        self.PPOMPPU_ID = PPOMPPU_ID
+        self.PPOMPPU_PWD = PPOMPPU_PWD
 
     def insertFinance(self, stock) :
         stockCode = stock.get('code')
@@ -77,8 +77,5 @@ class runner :
         datas = ds.getChartDataList(insert.get('code'), 365 * 2)
         ds.insertFinanceData(datas, str(insert.get('id')))
         ds.finalize()
-
-
-
 
 
