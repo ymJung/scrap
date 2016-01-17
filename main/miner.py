@@ -160,8 +160,6 @@ class Miner:
                     plusList.append(price)
                 if price < 0:
                     minusList.append(price)
-
-
             chart = {self.WORD_NAME: word, self.PLUS_NAME: plusList, self.MINUS_NAME: minusList}
             chartList.append(chart)
         return chartList
@@ -203,6 +201,9 @@ class Miner:
         resultWordPriceMap = self.getWordPriceMap(targetWords, totalWordPriceMap)
         targetChartList = self.getAnalyzedChartList(resultWordPriceMap)
         totalChartList = self.getAnalyzedChartList(totalWordPriceMap)
+
+        ## target, total avg insert. TODO
+
         targetPlusCnt, targetMinusCnt = self.getAnalyzedCountList(targetChartList)
         totalPlusCnt, totalMinusCnt = self.getAnalyzedCountList(totalChartList)
         self.printAnalyzedChartList(targetChartList)

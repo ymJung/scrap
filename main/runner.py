@@ -6,14 +6,14 @@ import webscrap
 from datetime import date, timedelta
 
 class runner :
-    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ID, PPOMPPU_PWD) :
+    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC) :
         self.DB_IP = DB_IP
         self.DB_USER = DB_USER
         self.DB_PWD = DB_PWD
         self.DB_SCH = DB_SCH
 
-        self.PPOMPPU_ID = PPOMPPU_ID
-        self.PPOMPPU_PWD = PPOMPPU_PWD
+        self.PPOMPPU_ID = PPOMPPU_ACC.get('id')
+        self.PPOMPPU_PWD = PPOMPPU_ACC.get('pwd')
 
     def insertFinance(self, stock) :
         stockCode = stock.get('code')
@@ -68,7 +68,7 @@ class runner :
         self.insertNaverResult(stock)
         self.insertAnalyzedResult(stock)
         runDbm.updateLastUseDate(stock)
-        # dbm.updateAnalyzedResult(stock) #item에  origin price, targetAt에  result price 를 업데이트 한다.
+        # dbm.updateAnalyzedResultItem(stock) #TODO --
         runDbm.finalize()
 
     def getNewItem(self, stockName):
@@ -77,5 +77,20 @@ class runner :
         datas = ds.getChartDataList(insert.get('code'), 365 * 2)
         ds.insertFinanceData(datas, str(insert.get('id')))
         ds.finalize()
+
+
+
+dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
+stocks = dbm.getUsefulStockList()
+for stock in stocks :
+     work = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
+     work.run(stock)
+
+#stockName = '대우조선해양'
+#work.getNewItem(stockName)
+
+
+#dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
+#dbm.updateAnalyzedResultItem('서연')
 
 

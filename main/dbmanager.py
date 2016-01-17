@@ -105,3 +105,22 @@ class DBManager:
         cursor = self.connection.cursor()
         updateLastUseDateSql = "UPDATE `data`.`stock` SET `lastUseDateAt`= now() WHERE `id`= %s"
         cursor.execute(updateLastUseDateSql, (stock.get('id')))
+
+    def updateAnalyzedResultItem(self, stock): #TODO - fix error
+        cursor = self.connection.cursor()
+        selectTargetDatesSql  = 'select targetAt from item where originPrice is null and query = %s'
+        cursor.execute(selectTargetDatesSql, (stock))
+        targets = cursor.fetchall()
+        for target in targets :
+            targetAt = target.get('targetAt')
+            selectTargetStockSql = 'select s.name, f.date, f.start, f.final from finance f, stock s where f.stockId = s.id and f.date = %s and s.name = %s'
+            cursor.execute(selectTargetStockSql, (targetAt, stock))
+            targetStocks = cursor.fetchall()
+
+            for targetStock in targetStocks :
+                targetStock.get('')
+                ## update.calc
+
+
+
+
