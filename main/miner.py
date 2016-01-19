@@ -164,7 +164,7 @@ class Miner:
             chartList.append(chart)
         return chartList
 
-    def printAnalyzedChartList(self, chartList):
+    def getAnalyzedAvgChartList(self, chartList):
         plusAvgList = []
         minusAvgList = []
         for chart in chartList:
@@ -186,6 +186,7 @@ class Miner:
         minusAvgList.sort()
         print(plusAvgList)
         print(minusAvgList)
+        return numpy.nan_to_num(numpy.mean(plusAvgList)), numpy.nan_to_num(numpy.mean(minusAvgList))
 
     def getAnalyzedCountList(self, chartList):
         plusCnt = 0
@@ -202,17 +203,13 @@ class Miner:
         targetChartList = self.getAnalyzedChartList(resultWordPriceMap)
         totalChartList = self.getAnalyzedChartList(totalWordPriceMap)
 
-        ## target, total avg insert. TODO
-
         targetPlusCnt, targetMinusCnt = self.getAnalyzedCountList(targetChartList)
         totalPlusCnt, totalMinusCnt = self.getAnalyzedCountList(totalChartList)
-        self.printAnalyzedChartList(targetChartList)
+        targetPlusAvg, targetMinusAvg = self.getAnalyzedAvgChartList(targetChartList)
         plusCnt = 0
         if totalPlusCnt != 0:
             plusCnt = (targetPlusCnt / totalPlusCnt)
         minusCnt = 0
         if totalMinusCnt != 0:
             minusCnt = (targetMinusCnt / totalMinusCnt)
-        return plusCnt, minusCnt, totalPlusCnt, totalMinusCnt  # plus cnt minus cnt
-
-
+        return plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg

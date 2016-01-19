@@ -1,4 +1,3 @@
-
 import datetime
 import pymysql.cursors
 import sys
@@ -26,7 +25,7 @@ class DBManager:
             title = each.get(self.TITLE)
             contentData = each.get(self.CONTENT_DATA)
             date = each.get(self.DATE)
-            if len(authorName) == 0 or len(title) == 0 or len(contentData) == 0 :
+            if len(authorName) == 0 or len(title) == 0 or len(contentData) == 0:
                 print('data is wrong' + str(each))
                 continue
 
@@ -43,7 +42,7 @@ class DBManager:
                 self.insertComment(commentAuthorId, commentContent, contentId, commentDate, stockName)
 
     def insertComment(self, commentAuthorId, commentContent, contentId, commentDate, stockName):
-        try :
+        try:
             cursor = self.connection.cursor()
             commentIdSql = "SELECT `id` FROM `comment` WHERE `authorId`=%s AND `commentData`=%s"
             commentId = cursor.execute(commentIdSql, (commentAuthorId, commentContent))
@@ -53,10 +52,9 @@ class DBManager:
                 cursor.execute(commentDataInsertSql, (commentAuthorId, commentContent, contentId, commentDate))
         except pymysql.err.InternalError as e:
             print(e)
-        except :
+        except:
             print("Unexpected error:", sys.exc_info()[0])
             pass
-
 
     def saveContentAndGetId(self, authorId, contentData, date, title, stockName):
         cursor = self.connection.cursor()
@@ -96,31 +94,31 @@ class DBManager:
         stocks = cursor.fetchall()
         return stocks
 
-    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt):
+    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, targetPlusAvg,
+                         targetMinusAvg):
         cursor = self.connection.cursor()
-        authorDataInsertSql = "INSERT INTO `data`.`item` (`query`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`) VALUES (%s, %s, %s, %s, %s, %s)"
-        cursor.execute(authorDataInsertSql, (stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt))
+        authorDataInsertSql = "INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `plusAvg`, `minusAvg`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        cursor.execute('select id from stock where name = %s', stockName)
+        stock = cursor.fetchone()
+        cursor.execute(authorDataInsertSql, (
+        stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, float(targetPlusAvg), float(targetMinusAvg)))
 
     def updateLastUseDate(self, stock):
         cursor = self.connection.cursor()
         updateLastUseDateSql = "UPDATE `data`.`stock` SET `lastUseDateAt`= now() WHERE `id`= %s"
         cursor.execute(updateLastUseDateSql, (stock.get('id')))
 
-    def updateAnalyzedResultItem(self, stock): #TODO - fix error
+    def updateAnalyzedResultItem(self, stock):
         cursor = self.connection.cursor()
-        selectTargetDatesSql  = 'select targetAt from item where originPrice is null and query = %s'
-        cursor.execute(selectTargetDatesSql, (stock))
+        stockName = stock.get('name')
+        stockId = stock.get('id')
+        selectTargetItemsSql = 'select id, targetAt from item where financeId is null and stockId = %s'
+        cursor.execute(selectTargetItemsSql, (stockId))
         targets = cursor.fetchall()
-        for target in targets :
-            targetAt = target.get('targetAt')
-            selectTargetStockSql = 'select s.name, f.date, f.start, f.final from finance f, stock s where f.stockId = s.id and f.date = %s and s.name = %s'
-            cursor.execute(selectTargetStockSql, (targetAt, stock))
-            targetStocks = cursor.fetchall()
-
-            for targetStock in targetStocks :
-                targetStock.get('')
-                ## update.calc
-
-
-
-
+        for target in targets:
+            selectTargetStockSql = 'select f.id, s.name, f.date, f.start, f.final from finance f, stock s where f.stockId = s.id and f.date = %s and s.name = %s'
+            cursor.execute(selectTargetStockSql, (target.get('targetAt'), stockName))
+            targetFinances = cursor.fetchall()
+            for targetFinance in targetFinances:
+                updateItemPriceSql = "UPDATE item SET financeId = %s WHERE id= %s"
+                cursor.execute(updateItemPriceSql, (targetFinance.get('id'), target.get('id')))

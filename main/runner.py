@@ -54,9 +54,9 @@ class runner :
         mine = miner.Miner(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
 
         period = 2
-        plusCnt, minusCnt, totalPlusCnt, totalMinusCnt = mine.getAnalyzedCnt(period, stockName)
+        plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(period, stockName)
         result = {'name' : stockName, 'pluscnt': plusCnt, 'minuscnt':minusCnt}
-        stockDbm.saveAnalyzedData(stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, date.today() + timedelta(days=period))
+        stockDbm.saveAnalyzedData(stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, date.today() + timedelta(days=period), targetPlusAvg, targetMinusAvg)
         print(str(result))
         stockDbm.finalize()
 
@@ -66,9 +66,10 @@ class runner :
         self.insertPpomppuResult(stock)
         self.insertPaxnetResult(stock)
         self.insertNaverResult(stock)
+
         self.insertAnalyzedResult(stock)
         runDbm.updateLastUseDate(stock)
-        # dbm.updateAnalyzedResultItem(stock) #TODO --
+        runDbm.updateAnalyzedResultItem(stock)
         runDbm.finalize()
 
     def getNewItem(self, stockName):
@@ -79,18 +80,23 @@ class runner :
         ds.finalize()
 
 
-
+DB_IP = "localhost" #해당날짜에 값이 없으면 어디가 기준인가?
+DB_USER = "root"
+DB_PWD = "1234"
+DB_SCH = "data"
+PPOMPPU_ACC = { 'id': "", 'pwd' : ""}
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 stocks = dbm.getUsefulStockList()
 for stock in stocks :
      work = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
      work.run(stock)
 
-#stockName = '대우조선해양'
-#work.getNewItem(stockName)
+#stockName = '잇츠스킨'
+#runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC).getNewItem(stockName)
+#runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC).printAnalyzed(stockName)
+#select i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.final from item i, stock s, finance f where i.stockId = s.id and i.financeId = f.id order by i.id desc;
+#TODO targetat 에 해당하는 finance final 을 가져오자.
+#select i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId from item i, stock s where i.stockId = s.id order by i.id desc;
 
-
-#dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
-#dbm.updateAnalyzedResultItem('서연')
 
 
