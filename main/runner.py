@@ -25,17 +25,19 @@ class runner :
     def insertPpomppuResult(self, stock):
         lastUseDateAt = stock.get('lastUseDateAt')
         stockName = stock.get('name')
-        ppomppuResult = webscrap.Ppomppu().getTrend(self.PPOMPPU_ID, self.PPOMPPU_PWD, stockName, lastUseDateAt)  # id , password , search
+        ppomppu = webscrap.Ppomppu()
+        ppomppuResult = ppomppu.getTrend(self.PPOMPPU_ID, self.PPOMPPU_PWD, stockName, lastUseDateAt)  # id , password , search
         saveDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        saveDbm.saveData(ppomppuResult, stockName)
+        saveDbm.saveData(ppomppu.SITE, ppomppuResult, stockName)
         saveDbm.finalize()
     def insertPaxnetResult(self, stock) :
         lastUseDateAt = stock.get('lastUseDateAt')
         stockCode = stock.get('code')
         stockName = stock.get('name')
-        paxnetResult = webscrap.Paxnet().getTrendByCode(stockCode, lastUseDateAt)
+        paxnet = webscrap.Paxnet()
+        paxnetResult = paxnet.getTrendByCode(stockCode, lastUseDateAt)
         paxnetSaveDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        paxnetSaveDbm.saveData(paxnetResult, stockName)
+        paxnetSaveDbm.saveData(paxnet.SITE,  paxnetResult, stockName)
         paxnetSaveDbm.finalize()
     def insertNaverResult(self, stock) :
         lastUseDateAt = stock.get('lastUseDateAt')
@@ -44,7 +46,7 @@ class runner :
         ns = webscrap.NaverStock()
         naverResult = ns.getTrendByCode(stockCode, lastUseDateAt)
         naverSaveDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        naverSaveDbm.saveData(naverResult, stockName)
+        naverSaveDbm.saveData(ns.SITE, naverResult, stockName)
         naverSaveDbm.finalize()
     def insertAnalyzedResult(self, stock) :
         stockDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
@@ -79,24 +81,31 @@ class runner :
         ds.insertFinanceData(datas, str(insert.get('id')))
         ds.finalize()
 
+    def printForecastData(self, forecastResult, analyzedResult):
+        #i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final
+        #i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId
+        for each in forecastResult :
+            print('plus[' + str(each.get('plus')) + '] avg [' + str(each.get('plusAvg')) + '] minus[' + str(each.get('minus')) + '] avg [' + str(each.get('minusAvg')) + '] result  : ' +  str(each.get('start') - each.get('final')))
+        for each in analyzedResult:
+            print(each.get('name') + ' plus[' + str(each.get('plus')) + '] avg [' + str(each.get('plusAvg')) + '] minus[' + str(each.get('minus')) + '] avg [' + str(each.get('minusAvg')) + '] target  : ' +  str(each.get('targetAt')))
 
-DB_IP = "localhost" #해당날짜에 값이 없으면 어디가 기준인가?
+
+
+
+DB_IP = "localhost"
 DB_USER = "root"
 DB_PWD = "1234"
 DB_SCH = "data"
 PPOMPPU_ACC = { 'id': "", 'pwd' : ""}
+newItem = ''
+runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
+if newItem is not '' :
+    runner.getNewItem(newItem)
+
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 stocks = dbm.getUsefulStockList()
 for stock in stocks :
-     work = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
-     work.run(stock)
-
-#stockName = '잇츠스킨'
-#runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC).getNewItem(stockName)
-#runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC).printAnalyzed(stockName)
-#select i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.final from item i, stock s, finance f where i.stockId = s.id and i.financeId = f.id order by i.id desc;
-#TODO targetat 에 해당하는 finance final 을 가져오자.
-#select i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId from item i, stock s where i.stockId = s.id order by i.id desc;
-
-
+    analyzed, forecast = dbm.analyzedSql(stock.get('name'))
+    #runner.printForecastData(analyzed, forecast)
+    runner.run(stock)
 

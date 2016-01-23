@@ -13,7 +13,6 @@ DATE = "date"
 WRITER = "writer"
 COMMENT_LIST = "commentList"
 
-
 class Ppomppu:
     def __init__(self):
         self.SEQ = SEQ
@@ -25,14 +24,23 @@ class Ppomppu:
         self.DATE_FORMAT = '%Y-%m-%d %H:%M'
         self.LIMIT = datetime.datetime.now() - relativedelta(years=3)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
+        self.SITE = "PPOMPPU"
 
     def getTrend(self, id, password, value, lastUseDateAt):
         if lastUseDateAt is not None:
             self.LIMIT = datetime.datetime(lastUseDateAt.year, lastUseDateAt.month, lastUseDateAt.day)
         login_url = "http://m.ppomppu.co.kr/new/login.php?s_url=/new/"
         stock_url = "http://m.ppomppu.co.kr/new/bbs_list.php?id=stock"
-        driver = webdriver.Firefox()
-        # login
+        driver = None
+        while True :
+            try :
+                if driver is None :
+                    driver = webdriver.Firefox()
+                else :
+                    break
+            except OSError :
+                print('driver get error.')
+
         driver.get(login_url)
         driver.find_element_by_id("user_id").send_keys(id)
         driver.find_element_by_id("password").send_keys(password)
@@ -144,6 +152,7 @@ class Paxnet:
         self.LIMIT = datetime.datetime.now() - relativedelta(years=1)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
         self.CODE_EXP = '[^0-9]'
+        self.SITE = 'PAXNET'
 
     def getTrendByCode(self, code, lastUseDateAt):
         if lastUseDateAt is not None:
@@ -237,6 +246,7 @@ class NaverStock:
         self.LIMIT = datetime.datetime.now() - relativedelta(weeks=2)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
         self.CODE_EXP = '[^0-9]'
+        self.SITE = "NAVER_STOCK"
 
     def getTrendByCode(self, code, lastUseDateAt):
         if lastUseDateAt is not None:

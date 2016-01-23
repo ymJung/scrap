@@ -19,7 +19,7 @@ class DBManager:
         self.WRITER = "writer"
         self.COMMENT_LIST = "commentList"
 
-    def saveData(self, results, stockName):
+    def saveData(self, site, results, stockName):
         for each in results:
             authorName = each.get(self.WRITER)
             title = each.get(self.TITLE)
@@ -30,12 +30,12 @@ class DBManager:
                 continue
 
             authorId = self.saveAuthorAndGetId(authorName)
-            contentId = self.saveContentAndGetId(authorId, contentData, date, title, stockName)
+            contentId = self.saveContentAndGetId(site, authorId, contentData, date, title, stockName)
             commentList = each.get(self.COMMENT_LIST)
 
             for comment in commentList:
                 commentWriter = comment.get(self.WRITER)
-                commentAuthorId = self.saveAuthorAndGetId(commentWriter)
+                commentAuthorId = self.saveAuthorAndGetId(site, commentWriter)
                 commentDate = comment.get(self.DATE)
                 commentContent = comment.get(self.CONTENT_DATA)
 
@@ -56,26 +56,26 @@ class DBManager:
             print("Unexpected error:", sys.exc_info()[0])
             pass
 
-    def saveContentAndGetId(self, authorId, contentData, date, title, stockName):
+    def saveContentAndGetId(self, site, authorId, contentData, date, title, stockName):
         cursor = self.connection.cursor()
         contentIdSql = "SELECT `id` FROM `content` WHERE `authorId`=%s AND `title`=%s"
         contentId = cursor.execute(contentIdSql, (authorId, title))
         if contentId == 0:
-            contentDataInsertSql = "INSERT INTO `content` (`title`, `contentData`, `authorId`, `date`, `query`) VALUES (%s, %s, %s, %s, %s)"
-            cursor.execute(contentDataInsertSql, (title, contentData, authorId, date, stockName))
+            contentDataInsertSql = "INSERT INTO `content` (`title`, `contentData`, `authorId`, `date`, `query`, `site`) VALUES (%s, %s, %s, %s, %s, %s)"
+            cursor.execute(contentDataInsertSql, (title, contentData, authorId, date, stockName, site))
             cursor.execute(contentIdSql, (authorId, title))
             contentId = cursor.fetchone().get('id')
         else:
             contentId = cursor.fetchone().get('id')
         return contentId
 
-    def saveAuthorAndGetId(self, authorName):
+    def saveAuthorAndGetId(self, site, authorName):
         cursor = self.connection.cursor()
         authorIdSql = "SELECT `id` FROM `author` WHERE `name`= %s"
         authorId = cursor.execute(authorIdSql, (authorName))
         if authorId == 0:
-            authorDataInsertSql = "INSERT INTO `author` (`name`) VALUES (%s)"
-            cursor.execute(authorDataInsertSql, (authorName))
+            authorDataInsertSql = "INSERT INTO `author` (`name`, `site`) VALUES (%s, %s)"
+            cursor.execute(authorDataInsertSql, (authorName, site))
             cursor.execute(authorIdSql, (authorName))
             authorId = cursor.fetchone().get('id')
         else:
@@ -122,3 +122,13 @@ class DBManager:
             for targetFinance in targetFinances:
                 updateItemPriceSql = "UPDATE item SET financeId = %s WHERE id= %s"
                 cursor.execute(updateItemPriceSql, (targetFinance.get('id'), target.get('id')))
+
+    def analyzedSql(self, stockName):
+        cursor = self.connection.cursor()
+        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id and f.id = i.financeId and s.name = %s order by i.id desc';
+        cursor.execute(selectAnalyzedSql, (stockName))
+        analyzedResult = cursor.fetchall()
+        selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId FROM item i, stock s WHERE i.stockId = s.id and s.name = %s order by i.id desc';
+        cursor.execute(selectForecastSql, (stockName))
+        forecastResult = cursor.fetchall()
+        return analyzedResult, forecastResult
