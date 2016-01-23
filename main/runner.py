@@ -106,6 +106,6 @@ dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 stocks = dbm.getUsefulStockList()
 for stock in stocks :
     analyzed, forecast = dbm.analyzedSql(stock.get('name'))
-    #runner.printForecastData(analyzed, forecast)
+    runner.printForecastData(analyzed, forecast)
     runner.run(stock)
 

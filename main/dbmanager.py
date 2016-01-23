@@ -29,7 +29,7 @@ class DBManager:
                 print('data is wrong' + str(each))
                 continue
 
-            authorId = self.saveAuthorAndGetId(authorName)
+            authorId = self.saveAuthorAndGetId(site, authorName)
             contentId = self.saveContentAndGetId(site, authorId, contentData, date, title, stockName)
             commentList = each.get(self.COMMENT_LIST)
 
@@ -98,7 +98,7 @@ class DBManager:
                          targetMinusAvg):
         cursor = self.connection.cursor()
         authorDataInsertSql = "INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `plusAvg`, `minusAvg`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
-        cursor.execute('select id from stock where name = %s', stockName)
+        cursor.execute('SELECT id FROM stock WHERE name = %s', stockName)
         stock = cursor.fetchone()
         cursor.execute(authorDataInsertSql, (
         stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, float(targetPlusAvg), float(targetMinusAvg)))
@@ -112,23 +112,40 @@ class DBManager:
         cursor = self.connection.cursor()
         stockName = stock.get('name')
         stockId = stock.get('id')
-        selectTargetItemsSql = 'select id, targetAt from item where financeId is null and stockId = %s'
+
+        selectTargetItemsSql = 'SELECT id, targetAt FROM item WHERE financeId IS NULL AND stockId = %s'
         cursor.execute(selectTargetItemsSql, (stockId))
         targets = cursor.fetchall()
         for target in targets:
-            selectTargetStockSql = 'select f.id, s.name, f.date, f.start, f.final from finance f, stock s where f.stockId = s.id and f.date = %s and s.name = %s'
-            cursor.execute(selectTargetStockSql, (target.get('targetAt'), stockName))
+            updated = False
+            selectTargetStockSql = 'SELECT f.id, s.name, f.date, f.start, f.final, f.date FROM finance f, stock s WHERE f.stockId = s.id AND s.name = %s'
+            cursor.execute(selectTargetStockSql + ' AND f.date = %s', (stockName, target.get('targetAt')))
             targetFinances = cursor.fetchall()
-            for targetFinance in targetFinances:
-                updateItemPriceSql = "UPDATE item SET financeId = %s WHERE id= %s"
-                cursor.execute(updateItemPriceSql, (targetFinance.get('id'), target.get('id')))
+
+            for targetFinance in targetFinances: # 아마 로직에 변경 없으면 1개임.
+                updated = True
+                self.updateItemPrice(targetFinance.get('id'), target.get('id'))
+            if updated is False :
+                existFinance = cursor.execute(selectTargetStockSql +  ' AND f.date > %s LIMIT 1' , (stockName, target.get('targetAt')))
+                if existFinance != 0 :
+                    targetFinance = cursor.fetchone()
+                    self.updateItemPrice(targetFinance.get('id'), target.get('id'))
+
+    def updateItemPrice(self, financeId, itemId):
+        cursor = self.connection.cursor()
+        updateItemPriceSql = "UPDATE item SET financeId = %s WHERE id= %s"
+        cursor.execute(updateItemPriceSql, (financeId, itemId))
+
+
 
     def analyzedSql(self, stockName):
         cursor = self.connection.cursor()
-        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id and f.id = i.financeId and s.name = %s order by i.id desc';
+        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s order by i.id desc';
         cursor.execute(selectAnalyzedSql, (stockName))
         analyzedResult = cursor.fetchall()
-        selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId FROM item i, stock s WHERE i.stockId = s.id and s.name = %s order by i.id desc';
+        selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s WHERE i.stockId = s.id AND s.name = %s AND i.financeId IS NULL order by i.id desc'
         cursor.execute(selectForecastSql, (stockName))
         forecastResult = cursor.fetchall()
         return analyzedResult, forecastResult
+
+
