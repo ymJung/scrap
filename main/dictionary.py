@@ -116,3 +116,10 @@ class Dictionary:
                 else:
                     continue
         return False
+
+DB_IP = "localhost"
+DB_USER = "root"
+DB_PWD = "1234"
+DB_SCH = "data"
+dic = Dictionary(DB_IP, DB_USER, DB_PWD, DB_SCH)
+dic.existSplitWord('건전성이')

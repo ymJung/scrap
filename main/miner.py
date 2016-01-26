@@ -42,7 +42,7 @@ class Miner:
 
     def getCountContent(self, content, date):
         cursor = self.connection.cursor()
-        countCursor = cursor.execute("select count(*) as c from content where query = %s and date > %s",
+        countCursor = cursor.execute("select count(*) as c from content where query = %s and date > %s", #TODO -- between 사용.
                                      (content, date))
         if countCursor != 0:
             return cursor.fetchone().get('c')
@@ -143,7 +143,7 @@ class Miner:
             except KeyError:
                 continue
             try:
-                wordPriceDict[word] = wordPriceDict[word] + totalWordPrices[word]
+                wordPriceDict[word] = wordPriceDict[word] + totalWordPrices[word] # TODO - memory error.
             except KeyError:
                 wordPriceDict[word] = totalWordPrices[word]
 
@@ -159,7 +159,7 @@ class Miner:
                 if price > 0:
                     plusList.append(price)
                 if price < 0:
-                    minusList.append(price)
+                    minusList.append(price) # TODO - memory error.
             chart = {self.WORD_NAME: word, self.PLUS_NAME: plusList, self.MINUS_NAME: minusList}
             chartList.append(chart)
         return chartList
@@ -196,7 +196,7 @@ class Miner:
             minusCnt += len(chart.get(self.MINUS_NAME))
         return plusCnt, minusCnt
 
-    def getAnalyzedCnt(self, period, stockName):
+    def getAnalyzedCnt(self, period, stockName): #TODO - period 를 between 으로 찾자 , 한번에 여러 데이터를 넣어놓자.
         targetWords = self.getTargetContentWords(stockName, date.today() - timedelta(days=period))
         totalWordPriceMap = self.work(stockName, period)
         resultWordPriceMap = self.getWordPriceMap(targetWords, totalWordPriceMap)

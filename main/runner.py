@@ -49,27 +49,28 @@ class runner :
         naverSaveDbm.saveData(ns.SITE, naverResult, stockName)
         naverSaveDbm.finalize()
     def insertAnalyzedResult(self, stock) :
-        stockDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         stockName = stock.get('name')
         anal = analyzer.Analyzer(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         anal.analyze()
         mine = miner.Miner(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-
         period = 2
         plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(period, stockName)
         result = {'name' : stockName, 'pluscnt': plusCnt, 'minuscnt':minusCnt}
+
+        stockDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         stockDbm.saveAnalyzedData(stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, date.today() + timedelta(days=period), targetPlusAvg, targetMinusAvg)
         print(str(result))
         stockDbm.finalize()
 
-    def run(self, stock):
-        runDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        self.insertFinance(stock)
-        self.insertPpomppuResult(stock)
-        self.insertPaxnetResult(stock)
-        self.insertNaverResult(stock)
+    def run(self, stock, busy):
+        if busy is False :
+            self.insertFinance(stock)
+            self.insertPpomppuResult(stock)
+            self.insertPaxnetResult(stock)
+            self.insertNaverResult(stock)
 
         self.insertAnalyzedResult(stock)
+        runDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         runDbm.updateLastUseDate(stock)
         runDbm.updateAnalyzedResultItem(stock)
         runDbm.finalize()
@@ -98,14 +99,17 @@ DB_PWD = "1234"
 DB_SCH = "data"
 PPOMPPU_ACC = { 'id': "", 'pwd' : ""}
 newItem = ''
+busy = False
 runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
-if newItem is not '' :
+if len(newItem) > 0 :
     runner.getNewItem(newItem)
 
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 stocks = dbm.getUsefulStockList()
 for stock in stocks :
-    analyzed, forecast = dbm.analyzedSql(stock.get('name'))
-    runner.printForecastData(analyzed, forecast)
-    runner.run(stock)
+    # analyzed, forecast = dbm.analyzedSql(stock.get('name'))
+    # runner.printForecastData(analyzed, forecast)
+    runner.run(stock, busy)
+
+    # 1빠른 검색을 만즐자.
 
