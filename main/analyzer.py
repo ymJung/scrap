@@ -25,7 +25,7 @@ class Analyzer:
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
 
-    def finalize(self):
+    def __del__(self):
         self.connection.commit()
         self.connection.close()
 
@@ -36,7 +36,7 @@ class Analyzer:
             self.updateAnalyzeFlag(target.get('id'), 'Y')
             print('fin : ' + str(target.get('id')))
             self.connection.commit()
-        self.finalize()
+
 
     def targetMapList(self):
         cursor = self.connection.cursor()

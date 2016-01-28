@@ -82,7 +82,7 @@ class DBManager:
             authorId = cursor.fetchone().get('id')
         return authorId
 
-    def finalize(self):
+    def __del__(self):
         self.connection.commit()
         self.connection.close()
         print('end')

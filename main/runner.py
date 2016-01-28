@@ -21,7 +21,7 @@ class runner :
         ds = stockscrap.DSStock(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         datas = ds.getChartDataList(stockCode, 365 * 2)
         ds.insertFinanceData(datas, str(stockId))
-        ds.finalize()
+
     def insertPpomppuResult(self, stock):
         lastUseDateAt = stock.get('lastUseDateAt')
         stockName = stock.get('name')
@@ -29,7 +29,7 @@ class runner :
         ppomppuResult = ppomppu.getTrend(self.PPOMPPU_ID, self.PPOMPPU_PWD, stockName, lastUseDateAt)  # id , password , search
         saveDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         saveDbm.saveData(ppomppu.SITE, ppomppuResult, stockName)
-        saveDbm.finalize()
+
     def insertPaxnetResult(self, stock) :
         lastUseDateAt = stock.get('lastUseDateAt')
         stockCode = stock.get('code')
@@ -38,7 +38,7 @@ class runner :
         paxnetResult = paxnet.getTrendByCode(stockCode, lastUseDateAt)
         paxnetSaveDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         paxnetSaveDbm.saveData(paxnet.SITE,  paxnetResult, stockName)
-        paxnetSaveDbm.finalize()
+
     def insertNaverResult(self, stock) :
         lastUseDateAt = stock.get('lastUseDateAt')
         stockCode = stock.get('code')
@@ -47,46 +47,52 @@ class runner :
         naverResult = ns.getTrendByCode(stockCode, lastUseDateAt)
         naverSaveDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         naverSaveDbm.saveData(ns.SITE, naverResult, stockName)
-        naverSaveDbm.finalize()
-    def insertAnalyzedResult(self, stock) :
+
+    def insertAnalyzedResult(self, stock, targetAt, period) :
         stockName = stock.get('name')
         anal = analyzer.Analyzer(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         anal.analyze()
         mine = miner.Miner(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        period = 2
-        plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(period, stockName)
+
+        plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(targetAt, period, stockName)
         result = {'name' : stockName, 'pluscnt': plusCnt, 'minuscnt':minusCnt}
 
         stockDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        stockDbm.saveAnalyzedData(stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, date.today() + timedelta(days=period), targetPlusAvg, targetMinusAvg)
+        stockDbm.saveAnalyzedData(stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt + timedelta(days=period), targetPlusAvg, targetMinusAvg)
         print(str(result))
-        stockDbm.finalize()
 
-    def run(self, stock, busy):
+
+    def todayRun(self, stock, busy):
+        runDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         if busy is False :
             self.insertFinance(stock)
             self.insertPpomppuResult(stock)
             self.insertPaxnetResult(stock)
             self.insertNaverResult(stock)
-
-        self.insertAnalyzedResult(stock)
-        runDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        runDbm.updateLastUseDate(stock)
+            runDbm.updateLastUseDate(stock)
+        period = 2 # 2일 뒤 예측.
+        targetAt = date.today()
+        self.insertAnalyzedResult(stock, targetAt, period)
         runDbm.updateAnalyzedResultItem(stock)
-        runDbm.finalize()
+
+    def migration(self, stock, period, dayLimit):
+        for i in dayLimit :
+             pass
+             #TODO  -self.insertAnalyzedResult(stock, targetAt, period)
+    pass
 
     def getNewItem(self, stockName):
         ds = stockscrap.DSStock(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         insert = ds.getStock(stockName)
         datas = ds.getChartDataList(insert.get('code'), 365 * 2)
         ds.insertFinanceData(datas, str(insert.get('id')))
-        ds.finalize()
+
 
     def printForecastData(self, forecastResult, analyzedResult):
         #i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final
         #i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId
         for each in forecastResult :
-            print('plus[' + str(each.get('plus')) + '] avg [' + str(each.get('plusAvg')) + '] minus[' + str(each.get('minus')) + '] avg [' + str(each.get('minusAvg')) + '] result  : ' +  str(each.get('start') - each.get('final')))
+            print('plus[' + str(each.get('plus')) + '] avg [' + str(each.get('plusAvg')) + '] minus[' + str(each.get('minus')) + '] avg [' + str(each.get('minusAvg')) + '] result  : ' +  str(each.get('final') - each.get('start')))
         for each in analyzedResult:
             print(each.get('name') + ' plus[' + str(each.get('plus')) + '] avg [' + str(each.get('plusAvg')) + '] minus[' + str(each.get('minus')) + '] avg [' + str(each.get('minusAvg')) + '] target  : ' +  str(each.get('targetAt')))
 
@@ -109,7 +115,7 @@ stocks = dbm.getUsefulStockList()
 for stock in stocks :
     # analyzed, forecast = dbm.analyzedSql(stock.get('name'))
     # runner.printForecastData(analyzed, forecast)
-    runner.run(stock, busy)
+    runner.todayRun(stock, busy)
 
     # 1빠른 검색을 만즐자.
 

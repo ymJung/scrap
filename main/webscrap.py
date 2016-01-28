@@ -38,8 +38,8 @@ class Ppomppu:
                     driver = webdriver.Firefox()
                 else :
                     break
-            except OSError :
-                print('driver get error.')
+            except OSError as  e:
+                print('driver get error.' + str(e))
 
         driver.get(login_url)
         driver.find_element_by_id("user_id").send_keys(id)
