@@ -1,6 +1,7 @@
 __author__ = 'YoungMin'
 
-from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
+from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException, \
+    StaleElementReferenceException
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 import datetime
@@ -85,6 +86,9 @@ class Ppomppu:
                     print(e)
                     continue
                 except UnexpectedAlertPresentException as e:
+                    print(e)
+                    continue
+                except StaleElementReferenceException as e:
                     print(e)
                     continue
                 commentData = []

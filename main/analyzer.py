@@ -25,7 +25,7 @@ class Analyzer:
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
 
-    def __del__(self):
+    def finalize(self):
         self.connection.commit()
         self.connection.close()
 
@@ -94,6 +94,7 @@ class Analyzer:
             dic.connection.commit()
         finally:
             dic.connection.commit()
+        dic.finalize()
 
 
 

@@ -130,6 +130,7 @@ class Miner:
                 if dic.existSplitWord(target):
                     word = dic.getWordByStr(target)
                     words.append(word)
+        dic.finalize()
         return words
 
     def getWordPriceMap(self, words, totalWordPrices):

@@ -82,7 +82,7 @@ class DBManager:
             authorId = cursor.fetchone().get('id')
         return authorId
 
-    def __del__(self):
+    def finalize(self):
         self.connection.commit()
         self.connection.close()
         print('end')
@@ -94,14 +94,12 @@ class DBManager:
         stocks = cursor.fetchall()
         return stocks
 
-    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, targetPlusAvg,
-                         targetMinusAvg):
+    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, targetPlusAvg, targetMinusAvg):
         cursor = self.connection.cursor()
         authorDataInsertSql = "INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `plusAvg`, `minusAvg`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         cursor.execute('SELECT id FROM stock WHERE name = %s', stockName)
         stock = cursor.fetchone()
-        cursor.execute(authorDataInsertSql, (
-        stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, float(targetPlusAvg), float(targetMinusAvg)))
+        cursor.execute(authorDataInsertSql, (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, float(targetPlusAvg), float(targetMinusAvg)))
 
     def updateLastUseDate(self, stock):
         cursor = self.connection.cursor()
