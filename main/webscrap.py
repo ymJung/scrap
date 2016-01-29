@@ -1,6 +1,7 @@
 __author__ = 'YoungMin'
 
-from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
+from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException, \
+    StaleElementReferenceException
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 import datetime
@@ -38,8 +39,8 @@ class Ppomppu:
                     driver = webdriver.Firefox()
                 else :
                     break
-            except OSError :
-                print('driver get error.')
+            except OSError as  e:
+                print('driver get error.' + str(e))
 
         driver.get(login_url)
         driver.find_element_by_id("user_id").send_keys(id)
@@ -85,6 +86,9 @@ class Ppomppu:
                     print(e)
                     continue
                 except UnexpectedAlertPresentException as e:
+                    print(e)
+                    continue
+                except StaleElementReferenceException as e:
                     print(e)
                     continue
                 commentData = []

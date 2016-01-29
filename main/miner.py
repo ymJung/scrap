@@ -33,17 +33,14 @@ class Miner:
         self.DATE_NAME = 'date'
         self.START_NAME = 'start'
         self.FINAL_NAME = 'final'
-        self.TODAY = date.today()
-        self.LIMIT_PAST_DATE = self.TODAY - timedelta(days=3 * 365)
 
     def finalize(self):
         self.connection.commit()
         self.connection.close()
 
-    def getCountContent(self, content, date):
+    def getCountContent(self, content, targetDate, periodDate):
         cursor = self.connection.cursor()
-        countCursor = cursor.execute("select count(*) as c from content where query = %s and date > %s", #TODO -- between 사용.
-                                     (content, date))
+        countCursor = cursor.execute("select count(*) as c from content where query = %s and date between %s and %s", (content, targetDate, periodDate))
         if countCursor != 0:
             return cursor.fetchone().get('c')
         else:
@@ -105,9 +102,9 @@ class Miner:
         sliceDate = plusPeridDate.strftime('%Y-%m-%d')
         return sliceDate
 
-    def getStockNameContent(self, stockName, limitDate):
+    def getStockNameContent(self, stockName, targetDate, limitDate):
         contentsList = []
-        count = self.getCountContent(stockName, limitDate)
+        count = self.getCountContent(stockName, targetDate, limitDate)
         for i in range(int((count / self.LIMIT)) + 1):
             try:
                 contents = self.getContent(stockName, (i * 10) + 1, (i + 1) * self.LIMIT)  # paging.
@@ -118,12 +115,12 @@ class Miner:
         return contentsList
 
     def work(self, stockName, period):
-        contents = self.getStockNameContent(stockName, self.LIMIT_PAST_DATE)
+        contents = self.getStockNameContent(stockName, date.today() - timedelta(days=3 * 365), date.today())
         wordPriceMap = self.getWordChangePriceMap(contents, stockName, period)
         return wordPriceMap
 
-    def getTargetContentWords(self, stockName, date):
-        contents = self.getStockNameContent(stockName, date)
+    def getTargetContentWords(self, stockName, targetDate, periodDate):
+        contents = self.getStockNameContent(stockName, targetDate, periodDate)
         words = []
         dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         for result in contents:
@@ -133,6 +130,7 @@ class Miner:
                 if dic.existSplitWord(target):
                     word = dic.getWordByStr(target)
                     words.append(word)
+        dic.finalize()
         return words
 
     def getWordPriceMap(self, words, totalWordPrices):
@@ -196,8 +194,8 @@ class Miner:
             minusCnt += len(chart.get(self.MINUS_NAME))
         return plusCnt, minusCnt
 
-    def getAnalyzedCnt(self, period, stockName): #TODO - period 를 between 으로 찾자 , 한번에 여러 데이터를 넣어놓자.
-        targetWords = self.getTargetContentWords(stockName, date.today() - timedelta(days=period))
+    def getAnalyzedCnt(self, targetDate, period, stockName):
+        targetWords = self.getTargetContentWords(stockName, targetDate, targetDate - timedelta(days=period))
         totalWordPriceMap = self.work(stockName, period)
         resultWordPriceMap = self.getWordPriceMap(targetWords, totalWordPriceMap)
         targetChartList = self.getAnalyzedChartList(resultWordPriceMap)
