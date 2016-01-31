@@ -63,7 +63,7 @@ class runner :
         stockDbm.finalize()
 
 
-    def run(self, stock, period, targetAt, busy):
+    def run(self, stock, targetAt, period, busy):
         if busy is False :
             self.insertFinance(stock)
             self.insertPpomppuResult(stock)
@@ -89,7 +89,7 @@ class runner :
         for minusDay in range(dayLimit):
             targetAt = date.today() - timedelta(days=minusDay)
             print('migration target at ' + str(targetAt) + ' period ' + str(minusDay) + '/' + str(dayLimit))
-            self.run(stock, period, targetAt, True)
+            self.run(stock, targetAt, period, True)
 
 
 
@@ -103,6 +103,23 @@ class runner :
     def printForecastData(self, forecastResult, analyzedResult):
         #i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final
         #i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId
+        plusPoint = []
+        minusPoint = []
+
+        for each in forecastResult:
+            resultPrice = each.get('final') - each.get('start')
+            plus = each.get('plus')
+            plusAvg = each.get('plusAvg')
+            minus = each.get('minus')
+            total = plus + minus
+            stockName = each.get('name')
+            minusAvg = each.get('minusAvg')
+            if total > 0 :
+                if resultPrice > 0:  # plus
+                    plusPoint.append({'name': stockName, 'point': plus / total, 'avg': plusAvg})
+                else:
+                    minusPoint.append({'name': stockName, 'point': minus / total, 'avg': minusAvg})
+
         for each in forecastResult :
             print('plus[' + str(each.get('plus')) + '] avg [' + str(each.get('plusAvg')) + '] minus[' + str(each.get('minus')) + '] avg [' + str(each.get('minusAvg')) + '] result  : ' +  str(each.get('final') - each.get('start')))
         for each in analyzedResult:
@@ -130,8 +147,8 @@ duration = 30
 for stock in stocks :
     # analyzed, forecast = dbm.analyzedSql(stock.get('name'))
     # runner.printForecastData(analyzed, forecast)
-    # runner.todayRun(stock, targetAt, period, busy)
-    runner.migration(stock, period, duration)
+    runner.run(stock, targetAt, period, busy)
+    # runner.migration(stock, period, duration)
 
 
 

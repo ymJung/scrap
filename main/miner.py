@@ -100,13 +100,13 @@ class Miner:
         contentsList = []
         count = 0
         cursor = self.connection.cursor()
-        conditionQuery = 'c.query = %s and c.date between %s and %s'
-        countCursor = cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE " + conditionQuery, (stockName, limitAt, startAt))
+        conditionQuery = ' WHERE c.query = %s and c.date between %s and %s'
+        countCursor = cursor.execute("SELECT COUNT(c.id) as cnt FROM content c " + conditionQuery, (stockName, limitAt, startAt))
         if countCursor != 0:
             count = cursor.fetchone().get('cnt')
         for i in range(int((count / self.LIMIT_COUNT)) + 1):
             try:
-                contentCursor = cursor.execute("SELECT c.title,c.contentData, a.name, c.date FROM content as c, author as a WHERE " + conditionQuery + " LIMIT %s , %s",
+                contentCursor = cursor.execute("SELECT c.title,c.contentData, a.name, c.date FROM content as c, author as a " + conditionQuery + " LIMIT %s , %s",
                                                (stockName, limitAt, startAt, (i * 10) + 1, (i + 1) * self.LIMIT_COUNT))
                 if contentCursor != 0:
                     contents = cursor.fetchall()
@@ -207,6 +207,6 @@ class Miner:
 
         targetPlusCnt, targetMinusCnt = self.getAnalyzedCountList(targetChartList)
         totalPlusCnt, totalMinusCnt = self.getAnalyzedCountList(totalChartList)
-        targetPlusAvg, targetMinusAvg = self.getAnalyzedAvgChartList(targetChartList)
+        targetPlusAvg, targetMinusAvg = self.getAnalyzedAvgChartList(targetChartList) #TODO   warnings.warn("Mean of empty slice.", RuntimeWarning)
 
         return targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg
