@@ -69,6 +69,7 @@ class Miner:
                 continue
 
             splitWords = dic.splitStr(contentData)
+            print('split words len ' + str(len(splitWords)))
             for target in splitWords:
                 if dic.existSplitWord(target):
                     word = dic.getWordByStr(target)

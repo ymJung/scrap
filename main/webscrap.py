@@ -166,64 +166,68 @@ class Paxnet:
         page = 1
         seq = 0
         while True:
-            print('code(' + code + ') seq : ' + str(seq) + ' page : ' + str(page) + ' data len : ' + str(len(data)))
-            url = 'http://board.moneta.co.kr/cgi-bin/mpax/bulList.cgi?boardid=' + code + '&page=' + str(page)
-            soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
-            clds = soup.find(id='communityListData').findAll('dl')
-            links = []
-            breakFlag = False
-            for cld in clds:
-                links.append('http://board.moneta.co.kr/cgi-bin/mpax/' + cld.find('a').get('href'))
-                date = self.convertDate(cld.find('div').text.split(' ')[1])
-                if date < self.LIMIT:
+            try :
+                print('code(' + code + ') seq : ' + str(seq) + ' page : ' + str(page) + ' data len : ' + str(len(data)))
+                url = 'http://board.moneta.co.kr/cgi-bin/mpax/bulList.cgi?boardid=' + code + '&page=' + str(page)
+                soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
+                clds = soup.find(id='communityListData').findAll('dl')
+                links = []
+                breakFlag = False
+                for cld in clds:
+                    links.append('http://board.moneta.co.kr/cgi-bin/mpax/' + cld.find('a').get('href'))
+                    date = self.convertDate(cld.find('div').text.split(' ')[1])
+                    if date < self.LIMIT:
+                        breakFlag = True
+                        break
+                    else :
+                        print('paxnet link date : ' + str(date))
+                if clds is None or len(clds) == 0:
                     breakFlag = True
-                    break
-                else :
-                    print('paxnet link date : ' + str(date))
-            if clds is None or len(clds) == 0:
-                breakFlag = True
-            for link in links:
-                try:
-                    interval = random.randrange(300, 1500) / 1000
-                    time.sleep(interval)
-                    seq += 1
-                    lsoup = BeautifulSoup(urllib.request.urlopen(link), 'lxml')
-                    title = lsoup.find('h3').text
-                    content = lsoup.find('div', class_='view_article').text
-                    writer = lsoup.find('strong').text
-                    date = self.convertDate(
-                        lsoup.findAll('div', class_='hd')[1].text.replace(' ', '').replace('.', '').split('\n')[4])
+                for link in links:
+                    try:
+                        interval = random.randrange(300, 1500) / 1000
+                        time.sleep(interval)
+                        seq += 1
+                        lsoup = BeautifulSoup(urllib.request.urlopen(link), 'lxml')
+                        title = lsoup.find('h3').text
+                        content = lsoup.find('div', class_='view_article').text
+                        writer = lsoup.find('strong').text
+                        date = self.convertDate(
+                            lsoup.findAll('div', class_='hd')[1].text.replace(' ', '').replace('.', '').split('\n')[4])
 
-                    commentData = []
-                    for commentSoup in lsoup.find('div', class_='comment').findAll('dl'):
-                        commentWriter = commentSoup.find('strong').text
-                        commentContent = commentSoup.find('dd').find('p').text
-                        commentDate = self.convertDate(
-                            commentSoup.find('dt').text.replace('\t', '').replace(' ', '').replace('.', '').split('\n')[
-                                3][0:13])
-                        commentMap = {
+                        commentData = []
+                        for commentSoup in lsoup.find('div', class_='comment').findAll('dl'):
+                            commentWriter = commentSoup.find('strong').text
+                            commentContent = commentSoup.find('dd').find('p').text
+                            commentDate = self.convertDate(
+                                commentSoup.find('dt').text.replace('\t', '').replace(' ', '').replace('.', '').split('\n')[
+                                    3][0:13])
+                            commentMap = {
+                                self.SEQ: seq,
+                                self.WRITER: commentWriter,
+                                self.DATE: commentDate,
+                                self.CONTENT_DATA: commentContent}
+                            commentData.append(commentMap)
+
+                        dataMap = {
                             self.SEQ: seq,
-                            self.WRITER: commentWriter,
-                            self.DATE: commentDate,
-                            self.CONTENT_DATA: commentContent}
-                        commentData.append(commentMap)
-
-                    dataMap = {
-                        self.SEQ: seq,
-                        self.TITLE: title,
-                        self.CONTENT_DATA: content,
-                        self.WRITER: writer,
-                        self.DATE: date,
-                        self.COMMENT_LIST: commentData}
-                    data.append(dataMap)
-                except:
-                    print('some thing are wrong. but continue.')
-                    continue
-            if breakFlag:
-                print('end')
-                break
-            else:
-                page += 1
+                            self.TITLE: title,
+                            self.CONTENT_DATA: content,
+                            self.WRITER: writer,
+                            self.DATE: date,
+                            self.COMMENT_LIST: commentData}
+                        data.append(dataMap)
+                    except:
+                        print('some thing are wrong. but continue.')
+                        continue
+                if breakFlag:
+                    print('end')
+                    break
+                else:
+                    page += 1
+            except urllib.error.URLError as e :
+                print('url error')
+                print(e)
         return data
 
     def convertDate(self, param):

@@ -41,30 +41,30 @@ class DSStock:
         self.connection.close()
         print('finish')
 
-    def selectStock(self, name):
+    def selectStock(self, stockCode):
         cursor = self.connection.cursor()
-        stockCursor = cursor.execute("SELECT `id`,`code`,`hit` FROM `stock` WHERE `name`=%s", (name))
+        stockCursor = cursor.execute("SELECT `id`,`code`,`name`, `hit` FROM `stock` WHERE `code`=%s", (stockCode))
         if stockCursor != 0:
             return cursor.fetchone()
         return None
 
-    def getStock(self, name):
-        stock = self.selectStock(name)
+    def getStock(self, stockCode):
+        stock = self.selectStock(stockCode)
         cursor = self.connection.cursor()
         if stock is None:
             totalCount = self.ins.GetCount()
             for i in range(0, totalCount):
-                if self.ins.GetData(1, i).startswith(name):
+                if self.ins.GetData(0, i) == str(stockCode):
                     cursor.execute("INSERT INTO `data`.`stock` (`code`,`name`) VALUES (%s, %s);", (self.ins.getData(0, i), self.ins.getData(1, i)))
                     print("insert [", self.ins.getData(0, i) + "][", self.ins.getData(1, i) + "]")
-                    return self.selectStock(name)
-            print("Not found name : " + str(name))
+                    return self.selectStock(stockCode)
+            print("Not found name : " + str(stockCode))
 
             raise DSStockError('not found stock')
         else:
             hit = int(stock.get('hit')) + 1
             cursor.execute("UPDATE `stock` SET `hit`=%s WHERE `id`=%s", (hit, stock.get('id')))
-            return self.selectStock(name)
+            return self.selectStock(stockCode)
 
     def getUpDown(self, code):
         UP_DOWN_CODE = 12

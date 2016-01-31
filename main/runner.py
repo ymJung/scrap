@@ -58,6 +58,7 @@ class runner :
 
         plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(targetAt, period, stockName)
         result = {'name' : stockName, 'pluscnt': plusCnt, 'minuscnt':minusCnt}
+        print(str(result))
 
         stockDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         stockDbm.saveAnalyzedData(stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt + timedelta(days=period), targetPlusAvg, targetMinusAvg)
@@ -65,28 +66,31 @@ class runner :
 
 
     def todayRun(self, stock, busy):
-        runDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         if busy is False :
             self.insertFinance(stock)
             self.insertPpomppuResult(stock)
             self.insertPaxnetResult(stock)
             self.insertNaverResult(stock)
-            runDbm.updateLastUseDate(stock)
+            upd = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+            upd.updateLastUseDate(stock)
+            upd.finalize()
+
         period = 2 # 2일 뒤 예측.
         targetAt = date.today()
         self.insertAnalyzedResult(stock, targetAt, period)
+        runDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         runDbm.updateAnalyzedResultItem(stock)
         runDbm.finalize()
 
     def migration(self, stock, period, dayLimit):
         for i in dayLimit :
-             pass
-             #TODO  -self.insertAnalyzedResult(stock, targetAt, period)
+             targetAt = date.today()
+             self.insertAnalyzedResult(stock, targetAt, period)
     pass
 
-    def getNewItem(self, stockName):
+    def getNewItem(self, stockCode):
         ds = stockscrap.DSStock(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        insert = ds.getStock(stockName)
+        insert = ds.getStock(stockCode)
         datas = ds.getChartDataList(insert.get('code'), 365 * 2)
         ds.insertFinanceData(datas, str(insert.get('id')))
         ds.finalize()
@@ -106,12 +110,12 @@ DB_IP = "localhost"
 DB_USER = "root"
 DB_PWD = "1234"
 DB_SCH = "data"
-PPOMPPU_ACC = { 'id': "", 'pwd' : ""}
-newItem = ''
+PPOMPPU_ACC = { 'id': "metal0", 'pwd' : "jym8602"}
+newItemCode = ''
 busy = False
 runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
-# if len(newItem) > 0 :
-#     runner.getNewItem(newItem)
+if len(newItemCode) > 0 :
+    runner.getNewItem(newItemCode)
 
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 stocks = dbm.getUsefulStockList()

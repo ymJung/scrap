@@ -106,7 +106,8 @@ class DBManager:
     def updateLastUseDate(self, stock):
         cursor = self.connection.cursor()
         updateLastUseDateSql = "UPDATE `data`.`stock` SET `lastUseDateAt`= now() WHERE `id`= %s"
-        cursor.execute(updateLastUseDateSql, (stock.get('id')))
+        result = cursor.execute(updateLastUseDateSql, (stock.get('id')))
+        print('update' + str(result))
 
     def updateAnalyzedResultItem(self, stock):
         cursor = self.connection.cursor()
