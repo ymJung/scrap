@@ -36,7 +36,7 @@ class DSStock:
         self.LOW = 'low'
         self.FINAL = 'final'
 
-    def __del__(self) :
+    def finalize(self):
         self.connection.commit()
         self.connection.close()
         print('finish')
