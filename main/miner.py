@@ -14,7 +14,7 @@ class MinerError(Exception):
 
 class Miner:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
-        self.LIMIT = 5
+        self.LIMIT_COUNT = 5
         self.connection = pymysql.connect(host=DB_IP,
                                           user=DB_USER,
                                           password=DB_PWD,
@@ -38,13 +38,6 @@ class Miner:
         self.connection.commit()
         self.connection.close()
 
-    def getCountContent(self, content, targetDate, periodDate):
-        cursor = self.connection.cursor()
-        countCursor = cursor.execute("select count(*) as c from content where query = %s and date between %s and %s", (content, targetDate, periodDate))
-        if countCursor != 0:
-            return cursor.fetchone().get('c')
-        else:
-            return 0
 
     def getContent(self, stockName, startPos, endPos):
         cursor = self.connection.cursor()
@@ -103,20 +96,30 @@ class Miner:
         sliceDate = plusPeridDate.strftime('%Y-%m-%d')
         return sliceDate
 
-    def getStockNameContent(self, stockName, targetDate, limitDate):
+    def getStockNameContent(self, stockName, startAt, limitAt):
         contentsList = []
-        count = self.getCountContent(stockName, targetDate, limitDate)
-        for i in range(int((count / self.LIMIT)) + 1):
+        count = 0
+        cursor = self.connection.cursor()
+        conditionQuery = 'c.query = %s and c.date between %s and %s'
+        countCursor = cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE " + conditionQuery, (stockName, limitAt, startAt))
+        if countCursor != 0:
+            count = cursor.fetchone().get('cnt')
+        for i in range(int((count / self.LIMIT_COUNT)) + 1):
             try:
-                contents = self.getContent(stockName, (i * 10) + 1, (i + 1) * self.LIMIT)  # paging.
-                contentsList = contentsList + contents
+                contentCursor = cursor.execute("SELECT c.title,c.contentData, a.name, c.date FROM content as c, author as a WHERE " + conditionQuery + " LIMIT %s , %s",
+                                               (stockName, limitAt, startAt, (i * 10) + 1, (i + 1) * self.LIMIT_COUNT))
+                if contentCursor != 0:
+                    contents = cursor.fetchall()
+                    contentsList = contentsList + contents
+                else:
+                    raise MinerError('content is not valid.')
             except MinerError:
                 print('data is empty.')
                 continue
         return contentsList
 
     def work(self, stockName, period):
-        contents = self.getStockNameContent(stockName, date.today() - timedelta(days=3 * 365), date.today())
+        contents = self.getStockNameContent(stockName, date.today(), date.today() - timedelta(days=3 * 365))
         wordPriceMap = self.getWordChangePriceMap(contents, stockName, period)
         return wordPriceMap
 
@@ -205,10 +208,5 @@ class Miner:
         targetPlusCnt, targetMinusCnt = self.getAnalyzedCountList(targetChartList)
         totalPlusCnt, totalMinusCnt = self.getAnalyzedCountList(totalChartList)
         targetPlusAvg, targetMinusAvg = self.getAnalyzedAvgChartList(targetChartList)
-        plusCnt = 0
-        if totalPlusCnt != 0:
-            plusCnt = (targetPlusCnt / totalPlusCnt)
-        minusCnt = 0
-        if totalMinusCnt != 0:
-            minusCnt = (targetMinusCnt / totalMinusCnt)
-        return plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg
+
+        return targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg

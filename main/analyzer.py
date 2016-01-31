@@ -36,12 +36,10 @@ class Analyzer:
             self.updateAnalyzeFlag(target.get('id'), 'Y')
             print('fin : ' + str(target.get('id')))
             self.connection.commit()
-        self.finalize()
 
     def targetMapList(self):
         cursor = self.connection.cursor()
-        contentSelectSql = "SELECT `id`,`title`,`contentData`,`authorId`,`date`,`analyze`,`createdAt`" \
-                           " FROM `content` WHERE `analyze`=%s"
+        contentSelectSql = "SELECT `id`,`title`,`contentData`,`authorId`,`date`,`analyze`,`createdAt` FROM `content` WHERE `analyze`=%s"
         contentDataCursor = cursor.execute(contentSelectSql, ('N'))
         if contentDataCursor != 0:
             return cursor.fetchall()

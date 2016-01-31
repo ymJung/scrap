@@ -51,9 +51,7 @@ class runner :
 
     def insertAnalyzedResult(self, stock, targetAt, period) :
         stockName = stock.get('name')
-        anal = analyzer.Analyzer(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        anal.analyze()
-        anal.finalize()
+
         mine = miner.Miner(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
 
         plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(targetAt, period, stockName)
@@ -65,28 +63,35 @@ class runner :
         stockDbm.finalize()
 
 
-    def todayRun(self, stock, busy):
+    def run(self, stock, period, targetAt, busy):
         if busy is False :
             self.insertFinance(stock)
             self.insertPpomppuResult(stock)
             self.insertPaxnetResult(stock)
             self.insertNaverResult(stock)
+            anal = analyzer.Analyzer(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+            anal.analyze()
+            anal.finalize()
             upd = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
             upd.updateLastUseDate(stock)
             upd.finalize()
 
-        period = 2 # 2일 뒤 예측.
-        targetAt = date.today()
         self.insertAnalyzedResult(stock, targetAt, period)
+        self.update(stock)
+
+    def update(self, stock) :
         runDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         runDbm.updateAnalyzedResultItem(stock)
         runDbm.finalize()
 
     def migration(self, stock, period, dayLimit):
-        for i in dayLimit :
-             targetAt = date.today()
-             self.insertAnalyzedResult(stock, targetAt, period)
-    pass
+        print('migration')
+        for minusDay in range(dayLimit):
+            targetAt = date.today() - timedelta(days=minusDay)
+            print('migration target at ' + str(targetAt) + ' period ' + str(minusDay) + '/' + str(dayLimit))
+            self.run(stock, period, targetAt, True)
+
+
 
     def getNewItem(self, stockCode):
         ds = stockscrap.DSStock(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
@@ -110,7 +115,7 @@ DB_IP = "localhost"
 DB_USER = "root"
 DB_PWD = "1234"
 DB_SCH = "data"
-PPOMPPU_ACC = { 'id': "metal0", 'pwd' : "jym8602"}
+PPOMPPU_ACC = { 'id': "", 'pwd' : ""}
 newItemCode = ''
 busy = False
 runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
@@ -119,10 +124,14 @@ if len(newItemCode) > 0 :
 
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 stocks = dbm.getUsefulStockList()
+period = 2 # 2일 뒤 예측.
+targetAt = date.today()
+duration = 30
 for stock in stocks :
     # analyzed, forecast = dbm.analyzedSql(stock.get('name'))
     # runner.printForecastData(analyzed, forecast)
-    runner.todayRun(stock, busy)
+    # runner.todayRun(stock, targetAt, period, busy)
+    runner.migration(stock, period, duration)
 
-    # 1빠른 검색을 만즐자.
+
 
