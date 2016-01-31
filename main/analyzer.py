@@ -25,7 +25,7 @@ class Analyzer:
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
 
-    def __del__(self):
+    def finalize(self):
         self.connection.commit()
         self.connection.close()
 
@@ -37,11 +37,9 @@ class Analyzer:
             print('fin : ' + str(target.get('id')))
             self.connection.commit()
 
-
     def targetMapList(self):
         cursor = self.connection.cursor()
-        contentSelectSql = "SELECT `id`,`title`,`contentData`,`authorId`,`date`,`analyze`,`createdAt`" \
-                           " FROM `content` WHERE `analyze`=%s"
+        contentSelectSql = "SELECT `id`,`title`,`contentData`,`authorId`,`date`,`analyze`,`createdAt` FROM `content` WHERE `analyze`=%s"
         contentDataCursor = cursor.execute(contentSelectSql, ('N'))
         if contentDataCursor != 0:
             return cursor.fetchall()
