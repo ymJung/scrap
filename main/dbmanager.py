@@ -94,8 +94,7 @@ class DBManager:
         stocks = cursor.fetchall()
         return stocks
 
-    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, targetPlusAvg,
-                         targetMinusAvg):
+    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, targetPlusAvg, targetMinusAvg):
         cursor = self.connection.cursor()
         authorDataInsertSql = "INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `plusAvg`, `minusAvg`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         cursor.execute('SELECT id FROM stock WHERE name = %s', stockName)
@@ -141,12 +140,21 @@ class DBManager:
 
     def analyzedSql(self, stockName):
         cursor = self.connection.cursor()
-        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s order by i.id desc';
+        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s group by i.targetAt order by i.targetAt desc';
         cursor.execute(selectAnalyzedSql, (stockName))
         analyzedResult = cursor.fetchall()
         selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s WHERE i.stockId = s.id AND s.name = %s AND i.financeId IS NULL order by i.id desc'
         cursor.execute(selectForecastSql, (stockName))
         forecastResult = cursor.fetchall()
         return analyzedResult, forecastResult
+
+    def existForecatDate(self, forecastAt):
+        cursor = self.connection.cursor()
+        selectAnalyzedSql = 'SELECT * FROM item WHERE targetAt = %s'
+        result = cursor.execute(selectAnalyzedSql, (forecastAt))
+        if result != 0:
+            print('exist item date ' + str(forecastAt))
+            return True
+        return False
 
 

@@ -151,6 +151,17 @@ class Miner:
 
         return wordPriceDict
 
+    def divideAvgList(self, list):
+        newList = []
+        for i in range(list) :
+            idx = i*2
+            if (idx + 1) >= len(list) :
+                break
+            split = list[idx:idx+1]
+            newList.append(numpy.mean(split))
+        return newList
+
+
     def getAnalyzedChartList(self, wordMap):
         chartList = []
         for word in wordMap.keys():
@@ -158,10 +169,16 @@ class Miner:
             minusList = []
             for price in wordMap[word]:
                 price = numpy.nan_to_num(price)
-                if price > 0:
-                    plusList.append(price)
-                if price < 0:
-                    minusList.append(price) # TODO - memory error.
+                try :
+                    if price > 0:
+                        plusList.append(price)
+                    if price < 0:
+                        minusList.append(price)
+                except MemoryError as e :
+                    print('Memory Error. getAnalyzedChartList')
+                    print(e)
+                    plusList = self.divideAvgList(plusList)
+                    minusList = self.divideAvgList(minusList)
             chart = {self.WORD_NAME: word, self.PLUS_NAME: plusList, self.MINUS_NAME: minusList}
             chartList.append(chart)
         return chartList
@@ -181,11 +198,12 @@ class Miner:
             print(chart[self.WORD_NAME]
                   + ': PLUS: ' + str(len(plusWordList)) + ' , PLUS_AVG: ' + str(plusAvg)
                   + ' , MINUS: ' + str(len(minusWordList)) + ' , MINUS_AVG: ' + str(minusAvg))
-
-        plusAvgList = list(set(plusAvgList))
-        minusAvgList = list(set(minusAvgList))
-        plusAvgList.sort(reverse=True)
-        minusAvgList.sort()
+        if len(plusAvgList) > 0 :
+            plusAvgList = list(set(plusAvgList))
+            plusAvgList.sort(reverse=True)
+        if len(minusAvgList) > 0 :
+            minusAvgList = list(set(minusAvgList))
+            minusAvgList.sort()
         print(plusAvgList)
         print(minusAvgList)
         return numpy.nan_to_num(numpy.mean(plusAvgList)), numpy.nan_to_num(numpy.mean(minusAvgList))
@@ -207,6 +225,6 @@ class Miner:
 
         targetPlusCnt, targetMinusCnt = self.getAnalyzedCountList(targetChartList)
         totalPlusCnt, totalMinusCnt = self.getAnalyzedCountList(totalChartList)
-        targetPlusAvg, targetMinusAvg = self.getAnalyzedAvgChartList(targetChartList) #TODO   warnings.warn("Mean of empty slice.", RuntimeWarning)
+        targetPlusAvg, targetMinusAvg = self.getAnalyzedAvgChartList(targetChartList)
 
         return targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg

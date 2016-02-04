@@ -200,8 +200,7 @@ class Paxnet:
                             commentWriter = commentSoup.find('strong').text
                             commentContent = commentSoup.find('dd').find('p').text
                             commentDate = self.convertDate(
-                                commentSoup.find('dt').text.replace('\t', '').replace(' ', '').replace('.', '').split('\n')[
-                                    3][0:13])
+                                commentSoup.find('dt').text.replace('\t', '').replace(' ', '').replace('.', '').split('\n')[3][0:13])
                             commentMap = {
                                 self.SEQ: seq,
                                 self.WRITER: commentWriter,
@@ -251,7 +250,7 @@ class NaverStock:
         self.WRITER = WRITER
         self.COMMENT_LIST = COMMENT_LIST
         self.DATE_FORMAT = '%Y.%m.%d %H:%M'
-        self.LIMIT = datetime.datetime.now() - relativedelta(weeks=2)
+        self.LIMIT = datetime.datetime.now() - relativedelta(month=2)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
         self.CODE_EXP = '[^0-9]'
         self.SITE = "NAVER_STOCK"
