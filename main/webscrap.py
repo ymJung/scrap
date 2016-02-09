@@ -54,6 +54,7 @@ class Ppomppu:
         search.send_keys(Keys.ENTER)
 
         data = []
+        stop = False
 
         while True:
             listUrl = driver.current_url
@@ -74,6 +75,7 @@ class Ppomppu:
                     writer = dataHtml.split('\n')[1]
                     date = self.convertDate(dataHtml.split('\n')[2].split('|')[2].strip())
                     if date < self.LIMIT:
+                        stop = True
                         break
 
                     content = driver.find_element_by_id('KH_Content').text
@@ -119,6 +121,9 @@ class Ppomppu:
                            self.DATE: date,
                            self.COMMENT_LIST: commentData}
                 data.append(dataMap)
+            if stop :
+                print('end')
+                break
             driver.get(listUrl)
             try:
                 driver.find_element_by_css_selector('#paging_menu > a.next > img').click()

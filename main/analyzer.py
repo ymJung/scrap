@@ -30,20 +30,26 @@ class Analyzer:
         self.connection.close()
 
     def analyze(self):
-        for target in self.targetMapList():
+        while True :
+            target = self.analyzeTarget()
+            if target is None :
+                break
+            self.updateAnalyzeFlag(target.get('id'), 'Y')
+            self.connection.commit()
             print('start : ' + str(target.get('id')))
             self.analyzeDictionary(target.get('contentData'), target.get('id'), 0)
-            self.updateAnalyzeFlag(target.get('id'), 'Y')
-            print('fin : ' + str(target.get('id')))
             self.connection.commit()
+            print('fin : ' + str(target.get('id')))
 
-    def targetMapList(self):
+    def analyzeTarget(self):
         cursor = self.connection.cursor()
-        contentSelectSql = "SELECT `id`,`title`,`contentData`,`authorId`,`date`,`analyze`,`createdAt` FROM `content` WHERE `analyze`=%s"
+        contentSelectSql = "SELECT `id`,`title`,`contentData`,`authorId`,`date`,`analyze`,`createdAt` FROM `content` WHERE `analyze`=%s LIMIT 1"
         contentDataCursor = cursor.execute(contentSelectSql, ('N'))
         if contentDataCursor != 0:
-            return cursor.fetchall()
-        return []
+            result = cursor.fetchone()
+
+            return result
+        return None
 
     def updateAnalyzeFlag(self, contentId, analyzeFlag):
         cursor = self.connection.cursor()
@@ -68,12 +74,11 @@ class Analyzer:
                 if idx > i:
                     print('start in middle ' + str(idx))
                     i = idx
-                splitString = splitStrings[i]
+                splitString = dic.getRegularExpression(splitStrings[i])
                 if dic.existSplitWord(splitString) is False:
                     findWord = False
                     for j in range(len(splitString)):
                         subStr = splitString[0:len(splitString) - j]
-                        subStr = dic.getRegularExpression(subStr)
                         if dic.isTargetWord(subStr) and dic.isInsertTarget(subStr) is True:
                             dic.insertWord(subStr)
                             findWord = True

@@ -22,7 +22,8 @@ class Dictionary:
                                           cursorclass=pymysql.cursors.DictCursor)
         self.MIN_WORD_LEN = 2
         self.MAX_WORD_LEN = 50
-        self.REGULAR_EXP = '[^가-힝0-9a-zA-Z]'
+        # self.REGULAR_EXP = '[^가-힝0-9a-zA-Z]' TODO - check.
+        self.REGULAR_EXP = '[^가-힝]'
 
     def finalize(self):
         self.connection.commit()

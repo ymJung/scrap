@@ -94,13 +94,13 @@ class DBManager:
         stocks = cursor.fetchall()
         return stocks
 
-    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, targetPlusAvg, targetMinusAvg):
+    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, targetPlusAvg, targetMinusAvg, period):
         cursor = self.connection.cursor()
-        authorDataInsertSql = "INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `plusAvg`, `minusAvg`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        authorDataInsertSql = "INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `plusAvg`, `minusAvg`, `period`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
         cursor.execute('SELECT id FROM stock WHERE name = %s', stockName)
         stock = cursor.fetchone()
         cursor.execute(authorDataInsertSql, (
-        stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, float(targetPlusAvg), float(targetMinusAvg)))
+        stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, float(targetPlusAvg), float(targetMinusAvg), period))
 
     def updateLastUseDate(self, stock):
         cursor = self.connection.cursor()
@@ -140,7 +140,7 @@ class DBManager:
 
     def analyzedSql(self, stockName):
         cursor = self.connection.cursor()
-        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s group by i.targetAt order by i.targetAt desc';
+        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s group by i.targetAt order by i.targetAt desc'
         cursor.execute(selectAnalyzedSql, (stockName))
         analyzedResult = cursor.fetchall()
         selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s WHERE i.stockId = s.id AND s.name = %s AND i.financeId IS NULL order by i.id desc'
