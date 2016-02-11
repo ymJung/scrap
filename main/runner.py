@@ -68,15 +68,13 @@ class runner :
     def run(self, stock, targetAt, period, busy):
         if busy is False :
             self.insertFinance(stock)
-            self.insertPpomppuResult(stock)
+            # self.insertPpomppuResult(stock)
             self.insertPaxnetResult(stock)
             self.insertNaverResult(stock)
             anal = analyzer.Analyzer(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
             anal.analyze()
-            anal.finalize()
             upd = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
             upd.updateLastUseDate(stock)
-            upd.finalize()
         self.insertAnalyzedResult(stock, targetAt, period)
 
 
@@ -107,13 +105,15 @@ class runner :
 
 
 
-    def printForecastData(self, forecastResult, analyzedResult):
+    def printForecastData(self, analyzed):
+        forecastResult = analyzed.get('forecast')
+        analyzedResult = analyzed.get('analyzed')
         #i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final
         #i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId
         plusPoint = []
         minusPoint = []
 
-        for each in forecastResult:
+        for each in analyzedResult:
             resultPrice = each.get('final') - each.get('start')
             plus = each.get('plus')
             plusAvg = each.get('plusAvg')
@@ -124,9 +124,9 @@ class runner :
             targetAt = each.get('targetAt')
             if total > 0 :
                 if resultPrice > 0:  # plus
-                    plusPoint.append({'name': stockName, 'result': resultPrice, 'point': plus / total, 'avg': plusAvg, 'targetAt': str(targetAt)})
+                    plusPoint.append({'name': stockName, 'result': resultPrice, 'point': self.division(plus, total), 'avg': plusAvg, 'targetAt': str(targetAt)})
                 else:
-                    minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minus / total,'avg': minusAvg, 'targetAt': str(targetAt)})
+                    minusPoint.append({'name': stockName, 'result': resultPrice, 'point': self.division(minus, total),'avg': minusAvg, 'targetAt': str(targetAt)})
         # for each in plusPoint :
         #     print('plus' + str(each))
         # for each in minusPoint :
@@ -135,11 +135,16 @@ class runner :
         #     print('name:',each.get('name'),'plus point :',each.get('plus'),'minus point :',each.get('minus'), 'compare :', self.getDivideNum(each.get('plus'), each.get('minus')))
 
         for each in plusPoint :
-            print (each.get('name'), 'plus',each.get('point'))
+            print ('PLUS targetAt',each.get('targetAt'), each.get('name'), 'plus',each.get('point'))
         for each in minusPoint :
-            print (each.get('name'), 'minus',each.get('point'))
-        for each in analyzedResult :
-            print(each.get('name'), 'plus',each.get('plus'),'minus',each.get('minus'), 'point', each.get('plus')/each.get('plus')+each.get('minus'))
+            print ('MINUS targetAt',each.get('targetAt'), each.get('name'), 'minus',each.get('point'))
+        for each in forecastResult :
+            print('FORECAST targetAt',each.get('targetAt'), each.get('name'), 'plus',each.get('plus'),'minus',each.get('minus'), 'point', self.division(each.get('plus'),each.get('plus')+each.get('minus')))
+
+    def division(self, num1, num2):
+        if num2 == 0 :
+            return 0
+        return num1 / num2
 
 
 
@@ -157,7 +162,7 @@ DB_IP = "localhost"
 DB_USER = "root"
 DB_PWD = "1234"
 DB_SCH = "data"
-PPOMPPU_ACC = { 'id': "", 'pwd' : ""}
+PPOMPPU_ACC = { 'id': "metal0", 'pwd' : "jym8602"}
 busy = False
 runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
 
@@ -165,16 +170,10 @@ dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 stocks = dbm.getUsefulStockList()
 period = 2
 targetAt = date.today()
-# code here
-import time
 
-t1 = time.time() # start time
 for stock in stocks :
-#    runner.printForecastData(analyzed, forecast)
+   # runner.printForecastData(dbm.analyzedSql(stock.get('name')))
    runner.run(stock, targetAt, period, busy)
-
-t2 = time.time() # end time
-print(str(t2-t1)) # analyzed, forecast = dbm.analyzedSql(stock.get('name'))
 
 
     # runner.getNewItem(each)

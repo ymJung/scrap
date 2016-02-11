@@ -106,6 +106,7 @@ class DBManager:
         cursor = self.connection.cursor()
         updateLastUseDateSql = "UPDATE `data`.`stock` SET `lastUseDateAt`= now() WHERE `id`= %s"
         result = cursor.execute(updateLastUseDateSql, (stock.get('id')))
+        self.connection.commit()
         print('update' + str(result))
 
     def updateAnalyzedResultItem(self, stock):
@@ -146,7 +147,7 @@ class DBManager:
         selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s WHERE i.stockId = s.id AND s.name = %s AND i.financeId IS NULL order by i.id desc'
         cursor.execute(selectForecastSql, (stockName))
         forecastResult = cursor.fetchall()
-        return analyzedResult, forecastResult
+        return {'analyzed' : analyzedResult, 'forecast': forecastResult}
 
     def existForecatDate(self, forecastAt):
         cursor = self.connection.cursor()

@@ -1,11 +1,9 @@
 __author__ = 'YoungMin'
 
-from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException, \
-    StaleElementReferenceException
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 import datetime
 from dateutil.relativedelta import relativedelta
+import http.cookiejar
+import mechanize
 
 SEQ = "seq"
 TITLE = "title"
@@ -31,88 +29,92 @@ class Ppomppu:
         if lastUseDateAt is not None:
             self.LIMIT = datetime.datetime(lastUseDateAt.year, lastUseDateAt.month, lastUseDateAt.day)
         login_url = "http://m.ppomppu.co.kr/new/login.php?s_url=/new/"
-        stock_url = "http://m.ppomppu.co.kr/new/bbs_list.php?id=stock"
-        driver = None
-        while True :
-            try :
-                if driver is None :
-                    driver = webdriver.Firefox()
-                else :
-                    break
-            except OSError as  e:
-                print('driver get error.' + str(e))
+        # stock_url = "http://m.ppomppu.co.kr/new/bbs_list.php?id=stock"
+        stockUrl = 'http://m.ppomppu.co.kr/new/bbs_list.php?id=stock&page='
+        ppomppu_url = 'http://m.ppomppu.co.kr/new/'
 
-        driver.get(login_url)
-        driver.find_element_by_id("user_id").send_keys(id)
-        driver.find_element_by_id("password").send_keys(password)
-        form = driver.find_element_by_name("zb_login")
-        form.submit()
+        cj = http.cookiejar.CookieJar()
+        br = mechanize.Browser()
+        br.open(login_url)
+        br.set_handle_robots(False)
+        br.set_cookiejar(cj)
+        br.select_form('zb_login')
+        br.form['user_id'] = id
+        br.form['password'] = password
+        br.submit()
 
-        driver.get(stock_url)
-        search = driver.find_element_by_xpath('//*[@id="wrap"]/div[4]/form/div/p/input')
-        search.send_keys(value)
-        search.send_keys(Keys.ENTER)
+        soup = BeautifulSoup(br.response().read())
 
         data = []
         stop = False
-
+        page = 1
         while True:
-            listUrl = driver.current_url
-
-            links = driver.find_elements_by_class_name('noeffect')
+            br.open(stockUrl + str(page))
+            page+=1
+            links = soup.findAll(class_='noeffect')
             linkUrlList = []
             for link in links:
-                linkUrlList.append(link.get_attribute('href'))
+                linkUrlList.append(ppomppu_url + link.get('href'))
 
             seq = 0
             for linkUrl in linkUrlList:
-                try:
-                    driver.get(linkUrl)
-                    dataHtml = driver.find_element_by_css_selector('#wrap > div.ct > div > h4')
-                    dataHtml = dataHtml.text
+                # try:
+                br.open(linkUrl)
+                bss = BeautifulSoup(br.response().read())
 
-                    title = dataHtml.split('\n')[0]
-                    writer = dataHtml.split('\n')[1]
-                    date = self.convertDate(dataHtml.split('\n')[2].split('|')[2].strip())
-                    if date < self.LIMIT:
-                        stop = True
-                        break
+                title =  bss.find(class_='bbs_view').find('h4').text
+                # writer = dataHtml.split('\n')[1]
+                writer = bss.find(class_='bbs_view').find(class_='ct').find('a').text
+                # date = self.convertDate(dataHtml.split('\n')[2].split('|')[2].strip())
+                date = self.convertDate(bss.find(class_='bbs_view').find(class_='hi').text.split('|')[2].strip())
+                if date < self.LIMIT:
+                    stop = True
+                    break
 
-                    content = driver.find_element_by_id('KH_Content').text
+                content = bss.find(id='KH_Content').text
 
-                    seq += 1
-                    comments = driver.find_element_by_css_selector('#wrap > div.ct > div > div.cmAr')  # 개선 필요.
-                    comments = comments.text
-                    comments = comments.split("덧글")
-                except NoSuchElementException as e:
-                    print(e)
-                    continue
-                except UnexpectedAlertPresentException as e:
-                    print(e)
-                    continue
-                except StaleElementReferenceException as e:
-                    print(e)
-                    continue
+                seq += 1
+                # comments = driver.find_element_by_css_selector('#wrap > div.ct > div > div.cmAr')  # 개선 필요.
+                comments = bss.find(class_='cmAr').findAll(class_='sect0')
+                # comments = comments.text
+                # comments = comments.split("덧글")
+                # except NoSuchElementException as e:
+                #     print(e)
+                #     continue
+                # except UnexpectedAlertPresentException as e:
+                #     print(e)
+                #     continue
+                # except StaleElementReferenceException as e:
+                #     print(e)
+                #     continue
                 commentData = []
                 for comment in comments:
-                    try:
-                        comment = comment.strip()
-                        if comment.find('추천') > 0:
-                            commentWriter = comment.split('\n')[-4]
-                            commentContent = comment.split('\n')[-2].replace('\n', '')
-                            commentDate = comment.split('\n')[-1].replace('|', '').strip()
-                            commentDate = self.convertDate(commentDate)
-                            commentMap = {self.SEQ: seq,
-                                          self.WRITER: commentWriter,
-                                          self.DATE: commentDate,
-                                          self.CONTENT_DATA: commentContent}
-                            commentData.append(commentMap)
-                    except NoSuchElementException as e:
-                        print(e)
-                        continue
-                    except IndexError as e:
-                        print(e)
-                        continue
+                    commentWriter = comment.find('a').text
+                    commentContent = comment.find('div').find('td').text
+                    commentDate = self.convertDate(comment.find(class_='cin_02').find('span').text)
+                    commentMap = {self.SEQ: seq,
+                                  self.WRITER: commentWriter,
+                                  self.DATE: commentDate,
+                                  self.CONTENT_DATA: commentContent}
+                    commentData.append(commentMap)
+                    # try:
+                    #     comment = comment.strip()
+                    #     if comment.find('추천') > 0:
+                    #         commentWriter = comment.split('\n')[-4]
+                    #         commentContent = comment.split('\n')[-2].replace('\n', '')
+                    #         commentDate = comment.split('\n')[-1].replace('|', '').strip()
+                    #         commentDate = self.convertDate(commentDate)
+                    #         commentMap = {self.SEQ: seq,
+                    #                       self.WRITER: commentWriter,
+                    #                       self.DATE: commentDate,
+                    #                       self.CONTENT_DATA: commentContent}
+                    #         commentData.append(commentMap)
+                    # except NoSuchElementException as e:
+                    #     print(e)
+                    #     continue
+                    # except IndexError as e:
+                    #     print(e)
+                    #     continue
 
                 dataMap = {self.SEQ: seq,
                            self.TITLE: title,
@@ -124,19 +126,20 @@ class Ppomppu:
             if stop :
                 print('end')
                 break
-            driver.get(listUrl)
-            try:
-                driver.find_element_by_css_selector('#paging_menu > a.next > img').click()
-            except NoSuchElementException as e:
-                print(e)
-                break
-
-        driver.close()
+            # driver.get(listUrl)
+            br.open(stockUrl + str(page))
+            # try:
+            #     driver.find_element_by_css_selector('#paging_menu > a.next > img').click()
+            # except NoSuchElementException as e:
+            #     print(e)
+            #     break
+        #
+        # driver.close()
         return data
 
-    def convertDate(self, target):
+    def convertDate(self, param):
         try:
-            return datetime.datetime.strptime(target, self.DATE_FORMAT)
+            return datetime.datetime.strptime(param, self.DATE_FORMAT)
         except:
             return self.DEFAULT_DATE
 
