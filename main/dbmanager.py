@@ -29,17 +29,18 @@ class DBManager:
                 print('data is wrong' + str(each))
                 continue
 
-            authorId = self.saveAuthorAndGetId(site, authorName)
-            contentId = self.saveContentAndGetId(site, authorId, contentData, date, title, stockName)
             commentList = each.get(self.COMMENT_LIST)
+            if len(commentList) > 0:
+                authorId = self.saveAuthorAndGetId(site, authorName)
+                contentId = self.saveContentAndGetId(site, authorId, contentData, date, title, stockName)
 
-            for comment in commentList:
-                commentWriter = comment.get(self.WRITER)
-                commentAuthorId = self.saveAuthorAndGetId(site, commentWriter)
-                commentDate = comment.get(self.DATE)
-                commentContent = comment.get(self.CONTENT_DATA)
+                for comment in commentList:
+                    commentWriter = comment.get(self.WRITER)
+                    commentAuthorId = self.saveAuthorAndGetId(site, commentWriter)
+                    commentDate = comment.get(self.DATE)
+                    commentContent = comment.get(self.CONTENT_DATA)
 
-                self.insertComment(commentAuthorId, commentContent, contentId, commentDate, stockName)
+                    self.insertComment(commentAuthorId, commentContent, contentId, commentDate, stockName)
 
     def insertComment(self, commentAuthorId, commentContent, contentId, commentDate, stockName):
         try:
@@ -49,7 +50,7 @@ class DBManager:
 
             if commentId == 0:
                 commentDataInsertSql = "INSERT INTO `comment` (`authorId`, `commentData`, `contentId`, `date`, `query`) VALUES (%s, %s, %s, %s, %s)"
-                cursor.execute(commentDataInsertSql, (commentAuthorId, commentContent, contentId, commentDate))
+                cursor.execute(commentDataInsertSql, (commentAuthorId, commentContent, contentId, commentDate, stockName))
         except pymysql.err.InternalError as e:
             print(e)
         except:
@@ -59,6 +60,7 @@ class DBManager:
     def saveContentAndGetId(self, site, authorId, contentData, date, title, stockName):
         cursor = self.connection.cursor()
         contentIdSql = "SELECT `id` FROM `content` WHERE `authorId`=%s AND `title`=%s"
+        print('saveContentAndGetId', authorId,title)
         contentId = cursor.execute(contentIdSql, (authorId, title))
         if contentId == 0:
             contentDataInsertSql = "INSERT INTO `content` (`title`, `contentData`, `authorId`, `date`, `query`, `site`) VALUES (%s, %s, %s, %s, %s, %s)"
@@ -107,6 +109,7 @@ class DBManager:
         updateLastUseDateSql = "UPDATE `data`.`stock` SET `lastUseDateAt`= now() WHERE `id`= %s"
         result = cursor.execute(updateLastUseDateSql, (stock.get('id')))
         print('update' + str(result))
+        self.connection.commit()
 
     def updateAnalyzedResultItem(self, stock):
         cursor = self.connection.cursor()

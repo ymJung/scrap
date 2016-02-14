@@ -55,7 +55,7 @@ class DSStock:
             totalCount = self.ins.GetCount()
             for i in range(0, totalCount):
                 if self.ins.GetData(0, i) == str(stockCode) or self.ins.GetData(0, i).replace('A','') == str(stockCode):
-                    cursor.execute("INSERT INTO `data`.`stock` (`code`,`name`) VALUES (%s, %s);", (self.ins.getData(0, i), self.ins.getData(1, i)))
+                    cursor.execute("INSERT INTO `data`.`stock` (`code`,`name`,`use`) VALUES (%s, %s, %s);", (self.ins.getData(0, i), self.ins.getData(1, i), 1))
                     print("insert [", self.ins.getData(0, i) , "][", self.ins.getData(1, i) , "]")
                     return self.selectStock(stockCode)
             print("Not found name : " + str(stockCode))
@@ -106,6 +106,7 @@ class DSStock:
             cursor.execute("INSERT INTO `data`.`finance` (`stockId`,`date`,`high`,`low`,`start`,`final`) "
                            "VALUES (%s, %s, %s, %s, %s, %s);", (stockId, date, high, low, start, final))
             print('insert finance' + str(date))
+        self.connection.commit()
 
 
     def isFinanceTarget(self, date, stockId):

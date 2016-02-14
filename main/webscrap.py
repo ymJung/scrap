@@ -33,14 +33,12 @@ class Ppomppu:
         login_url = "http://m.ppomppu.co.kr/new/login.php?s_url=/new/"
         stock_url = "http://m.ppomppu.co.kr/new/bbs_list.php?id=stock"
         driver = None
-        while True :
-            try :
-                if driver is None :
-                    driver = webdriver.Firefox()
-                else :
-                    break
-            except OSError as  e:
-                print('driver get error.' + str(e))
+        try :
+            if driver is None :
+                driver = webdriver.Firefox()
+        except OSError as  e:
+            print('driver get error.' + str(e))
+            return []
 
         driver.get(login_url)
         driver.find_element_by_id("user_id").send_keys(id)
@@ -315,5 +313,78 @@ class NaverStock:
     def convertDate(self, param):
         try:
             return datetime.datetime.strptime(param, self.DATE_FORMAT)  # '2016.01.06 21:23'
+        except:
+            return self.DEFAULT_DATE
+
+
+class DaumStock:
+    def __init__(self):
+        self.SEQ = SEQ
+        self.TITLE = TITLE
+        self.CONTENT_DATA = CONTENT_DATA
+        self.DATE = DATE
+        self.WRITER = WRITER
+        self.COMMENT_LIST = COMMENT_LIST
+        self.DATE_FORMAT = '%Y.%m.%d %H:%M'
+        self.LIMIT = datetime.datetime.now() - relativedelta(month=2)
+        self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
+        self.CODE_EXP = '[^0-9]'
+        self.SITE = "DAUM_STOCK"
+
+    def getTrendByCode(self, code, lastUseDateAt):
+        if lastUseDateAt is not None:
+            self.LIMIT = datetime.datetime(lastUseDateAt.year, lastUseDateAt.month, lastUseDateAt.day)
+        code = re.sub(self.CODE_EXP, '', code).replace(' ', '')
+        data = []
+        page = 1
+        seq = 0
+        while True:
+            print('code(' + code + ') seq : ' + str(seq) + ' page : ' + str(page) + ' data len : ' + str(len(data)))
+            url = 'http://board2.finance.daum.net/gaia/do/stock/list?bbsId=stock&pageIndex=' + str(page) + '&objCate2=2-' + code
+            soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
+            listTD = soup.findAll('td', class_='subj')
+            links = []
+            breakFlag = False
+            for td in listTD:
+                links.append('http://board2.finance.daum.net/gaia/do/stock/' + td.find('a').get('href'))
+            if listTD is None or len(listTD) == 0:
+                breakFlag = True
+            for link in links:
+                try:
+                    interval = random.randrange(300, 1500) / 1000
+                    time.sleep(interval)
+                    seq += 1
+                    lsoup = BeautifulSoup(urllib.request.urlopen(link), 'lxml')
+                    title = lsoup.find(id='bbsTitle').text
+                    content = lsoup.find(id='bbsContent').text
+                    writer = lsoup.find(id='bbsInfo').find('a').text
+                    date = self.convertDate(lsoup.find(id='bbsInfo').find(class_='datetime').text)
+                    if date < self.LIMIT:
+                        breakFlag = True
+                        break
+                    else :
+                        print('daum stock link date : ' + str(date))
+
+                    dataMap = {
+                        self.SEQ: seq,
+                        self.TITLE: title,
+                        self.CONTENT_DATA: content,
+                        self.WRITER: writer,
+                        self.DATE: date,
+                        self.COMMENT_LIST: []}
+                    data.append(dataMap)
+                except:
+                    print('some thing are wrong. but continue.')
+                    continue
+            if breakFlag:
+                print('end')
+                break
+            else:
+                page += 1
+        return data
+
+    def convertDate(self, param):
+        try:
+            return datetime.datetime.strptime(param, self.DATE_FORMAT)  # 2016.02.13 20:30
         except:
             return self.DEFAULT_DATE
