@@ -25,10 +25,8 @@ class Analyzer:
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
 
-    def finalize(self):
+    def commit(self):
         self.connection.commit()
-        self.connection.close()
-
     def analyze(self):
         while True :
             target = self.analyzeTarget()
@@ -86,6 +84,7 @@ class Analyzer:
                     if findWord is False and dic.existWord(splitString) is False:
                         dic.insertGarbageWord(splitString, contentId)
                     idx = i
+                dic.connection.commit()
             idx = 0
         except urllib.error.URLError as e:
             print(e)

@@ -20,7 +20,7 @@ class runner :
         ds = stockscrap.DSStock(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         datas = ds.getChartDataList(stockCode, 365 * 2)
         ds.insertFinanceData(datas, str(stockId))
-        ds.connection.commit()
+        ds.commit()
     def insertPpomppuResult(self, stock):
         lastUseDateAt = stock.get('lastUseDateAt')
         stockName = stock.get('name')
@@ -28,7 +28,7 @@ class runner :
         ppomppuResult = ppomppu.getTrend(self.PPOMPPU_ID, self.PPOMPPU_PWD, stockName, lastUseDateAt)  # id , password , search
         saveDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         saveDbm.saveData(ppomppu.SITE, ppomppuResult, stockName)
-        saveDbm.connection.commit()
+        saveDbm.commit()
     def insertPaxnetResult(self, stock) :
         lastUseDateAt = stock.get('lastUseDateAt')
         stockCode = stock.get('code')
@@ -37,7 +37,7 @@ class runner :
         paxnetResult = paxnet.getTrendByCode(stockCode, lastUseDateAt)
         paxnetSaveDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         paxnetSaveDbm.saveData(paxnet.SITE,  paxnetResult, stockName)
-        paxnetSaveDbm.connection.commit()
+        paxnetSaveDbm.commit()
     def insertNaverResult(self, stock) :
         lastUseDateAt = stock.get('lastUseDateAt')
         stockCode = stock.get('code')
@@ -46,7 +46,7 @@ class runner :
         naverResult = ns.getTrendByCode(stockCode, lastUseDateAt)
         naverSaveDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         naverSaveDbm.saveData(ns.SITE, naverResult, stockName)
-        naverSaveDbm.connection.commit()
+        naverSaveDbm.commit()
     def insertDaumResult(self, stock) :
         lastUseDateAt = stock.get('lastUseDateAt')
         stockCode = stock.get('code')
@@ -55,25 +55,24 @@ class runner :
         daumResult = ds.getTrendByCode(stockCode, lastUseDateAt)
         daumSaveDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         daumSaveDbm.saveData(ds.SITE, daumResult, stockName)
-        daumSaveDbm.connection.commit()
-
-    def insertAnalyzedResult(self, stock, targetAt, period) :
+        daumSaveDbm.commit()
+    def insertAnalyzedResult(self, stock, targetAt, period, contents) :
         stockName = stock.get('name')
         forecastAt = targetAt + timedelta(days=period)
         stockDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        if stockDbm.existForecatDate(forecastAt) :
+        if stockDbm.existForecastDate(forecastAt, stock.get('id')) :
+            print('exist forecast date', forecastAt)
             return
         mine = miner.Miner(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(targetAt, period, stockName)
+        plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(targetAt, period, stockName, contents)
         result = {'name' : stockName, 'pluscnt': plusCnt, 'minuscnt':minusCnt}
         print(str(result))
-
         stockDbm.saveAnalyzedData(stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, forecastAt, targetPlusAvg, targetMinusAvg, period)
-        stockDbm.connection.commit()
+        stockDbm.commit()
         self.update(stock)
 
 
-    def run(self, stock, targetAt, period, busy):
+    def run(self, stock, targetAt, period, busy, contents):
         if busy is False :
             self.insertFinance(stock)
             # self.insertPpomppuResult(stock)
@@ -82,31 +81,25 @@ class runner :
             self.insertDaumResult(stock)
             anal = analyzer.Analyzer(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
             anal.analyze()
+            anal.commit()
             upd = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
             upd.updateLastUseDate(stock)
-        self.insertAnalyzedResult(stock, targetAt, period)
+            upd.commit()
+        self.insertAnalyzedResult(stock, targetAt, period, contents)
 
 
     def update(self, stock) :
         runDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         runDbm.updateAnalyzedResultItem(stock)
-        runDbm.connection.commit()
+        runDbm.commit()
 
-    def migration(self, stock, period, dayLimit):
-        print('migration')
+    def migration(self, stock, period, dayLimit, contents):
+        print('migration', stock.get('name'))
         for minusDay in range(dayLimit - 1):
             targetAt = date.today() - timedelta(days=minusDay + 1)
             print('migration target at ' + str(targetAt) + ' period ' + str(minusDay + 1) + '/' + str(dayLimit))
-            self.run(stock, targetAt, period, True)
+            self.run(stock, targetAt, period, True, contents)
 
-
-
-    def getNewItem(self, stockCode):
-        ds = stockscrap.DSStock(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        insert = ds.getStock(stockCode)
-        datas = ds.getChartDataList(insert.get('code'), 365 * 2)
-        ds.insertFinanceData(datas, str(insert.get('id')))
-        ds.connection.commit()
     def getDivideNum(self, num1, num2) :
         if num2 == 0 :
             return 0
@@ -114,11 +107,11 @@ class runner :
 
 
 
-    def printForecastData(self, forecastResult, analyzedResult):
+    def printForecastData(self, input):
         plusPoint = []
         minusPoint = []
 
-        for each in forecastResult:
+        for each in input.get('analyzed'):
             resultPrice = each.get('final') - each.get('start')
             plus = each.get('plus')
             plusAvg = each.get('plusAvg')
@@ -137,7 +130,7 @@ class runner :
             print (each.get('name'), 'plus',each.get('point'))
         for each in minusPoint :
             print (each.get('name'), 'minus',each.get('point'))
-        for each in analyzedResult :
+        for each in input.get('forecast') :
             print(each.get('name'), 'plus',each.get('plus'),'minus',each.get('minus'), 'point', each.get('plus')/each.get('plus')+each.get('minus'))
 
 
@@ -161,16 +154,20 @@ busy = False
 runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
 
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
-stocks = dbm.getUsefulStockList()
 period = 2
-targetAt = date.today()
-
-
-# for stock in stocks : runner.printForecastData(analyzed, forecast)
-for stock in stocks : runner.run(stock, targetAt, period, busy)
+today = date.today()
+while True :
+    stock = dbm.getUsefulStock()
+    if stock is None :
+        break
+    else :
+        runner.migration(stock, period, 365, miner.Miner(DB_IP, DB_USER, DB_PWD, DB_SCH).getStockNameContent(stock.get('name'), today, today - timedelta(days=3 * 365)))
+        # runner.printForecastData(dbm.analyzedSql(stock.get('name')))
+        # runner.run(stock, today, period, busy, contents)
 # analyzer.Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH).analyze()
-# runner.getNewItem('')
-# for stock in stocks : runner.migration(stock, period, 365)
+# stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock('')
+dbm.connection.close()
+
 
 
 

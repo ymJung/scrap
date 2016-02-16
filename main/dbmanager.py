@@ -3,6 +3,13 @@ import pymysql.cursors
 import sys
 
 
+class DBManagerError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return repr(self.msg)
+
 class DBManager:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
         self.connection = pymysql.connect(host=DB_IP,
@@ -18,7 +25,11 @@ class DBManager:
         self.DATE = "date"
         self.WRITER = "writer"
         self.COMMENT_LIST = "commentList"
+        self.LIMIT_COUNT = 5
 
+    def commit(self):
+        self.connection.commit()
+        print('end')
     def saveData(self, site, results, stockName):
         for each in results:
             authorName = each.get(self.WRITER)
@@ -84,17 +95,15 @@ class DBManager:
             authorId = cursor.fetchone().get('id')
         return authorId
 
-    def finalize(self):
-        self.connection.commit()
-        self.connection.close()
-        print('end')
 
-    def getUsefulStockList(self):
+
+    def getUsefulStock(self):
         cursor = self.connection.cursor()
-        usefulStockSql = "SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1"
-        cursor.execute(usefulStockSql)
-        stocks = cursor.fetchall()
-        return stocks
+        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1 ORDER BY id ASC LIMIT 1")
+        stock = cursor.fetchone()
+        cursor.execute(("UPDATE stock SET `use` = 0 WHERE `id` = %s"), stock.get('id'))
+        self.connection.commit()
+        return stock
 
     def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, targetPlusAvg, targetMinusAvg, period):
         cursor = self.connection.cursor()
@@ -149,15 +158,14 @@ class DBManager:
         selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s WHERE i.stockId = s.id AND s.name = %s AND i.financeId IS NULL order by i.id desc'
         cursor.execute(selectForecastSql, (stockName))
         forecastResult = cursor.fetchall()
-        return analyzedResult, forecastResult
 
-    def existForecatDate(self, forecastAt):
+        return {'analyzed':analyzedResult, 'forecast':forecastResult}
+
+    def existForecastDate(self, forecastAt, stockId):
         cursor = self.connection.cursor()
-        selectAnalyzedSql = 'SELECT * FROM item WHERE targetAt = %s'
-        result = cursor.execute(selectAnalyzedSql, (forecastAt))
+        selectAnalyzedSql = 'SELECT * FROM item WHERE targetAt = %s and stockId = %s'
+        result = cursor.execute(selectAnalyzedSql, (forecastAt, stockId))
         if result != 0:
-            print('exist item date ' + str(forecastAt))
+            print('exist item date ', forecastAt, stockId)
             return True
         return False
-
-

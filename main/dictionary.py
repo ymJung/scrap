@@ -5,6 +5,7 @@ import time
 import random
 import pymysql.cursors
 import urllib
+from datetime import timedelta
 
 class Dictionary:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
@@ -24,11 +25,51 @@ class Dictionary:
         self.MAX_WORD_LEN = 50
         # self.REGULAR_EXP = '[^가-힝0-9a-zA-Z]' TODO - check.
         self.REGULAR_EXP = '[^가-힝]'
+        self.START_NAME = 'start'
+        self.FINAL_NAME = 'final'
+        self.CONTENT_DATA_NAME = 'contentData'
+        self.DATE_NAME = 'date'
 
-    def finalize(self):
+    def commit(self):
         self.connection.commit()
-        self.connection.close()
 
+    def getFinanceChangePrice(self, sliceDate, stockName, cacheFinanceChangePrices):
+        try:
+            return cacheFinanceChangePrices[str(sliceDate) + stockName]
+        except KeyError:
+            print('found new finance data. ' + str(sliceDate) + stockName)
+        cursor = self.connection.cursor()
+        financeCursor = cursor.execute("SELECT s.name, f.start, f.final, f.date FROM finance f, stock s WHERE f.stockId = s.id and s.name = %s and f.date like %s", (stockName, sliceDate + "%"))
+        if financeCursor != 0:
+            finance = cursor.fetchone()  # one ? many?
+            stockPrice = int(finance.get(self.START_NAME)) - int(finance.get(self.FINAL_NAME))
+            cacheFinanceChangePrices[str(sliceDate) + stockName] = stockPrice
+            return stockPrice
+        else:
+            cacheFinanceChangePrices[str(sliceDate) + stockName] = None
+            print('finance data not found.' + sliceDate)
+    def getWordChangePriceMap(self, contentDataList, stockName, period):
+        wordDataMap = {}
+        cacheFinanceChangePrices = {}
+        print('getWordChangePriceMap, len ', len(contentDataList))
+        for idx in range(len(contentDataList)):
+            result = contentDataList[idx]
+            print(idx,'/',len(contentDataList))
+            contentData = result.get(self.CONTENT_DATA_NAME)
+            date = result.get(self.DATE_NAME)
+            sliceDate = (date + timedelta(days=period)).strftime('%Y-%m-%d')
+            change = self.getFinanceChangePrice(sliceDate, stockName, cacheFinanceChangePrices) ## -- TODO - multi threading. lock ..
+            if change is None:
+                continue
+            splitWords = self.splitStr(contentData)
+            for target in splitWords:
+                if self.existSplitWord(target):
+                    word = self.getWordByStr(target)
+                    try:
+                        wordDataMap[word].append(change)
+                    except KeyError:
+                        wordDataMap[word] = [change]
+        return wordDataMap
     def splitStr(self, str):
         str = str.replace('\n', ' ')
         return str.split()
@@ -46,10 +87,7 @@ class Dictionary:
         cursor = self.connection.cursor()
         selectWordIdSql = "SELECT `id` FROM `word` WHERE `word`=%s"
         selectWordIdCursor = cursor.execute(selectWordIdSql, (data))
-        if selectWordIdCursor != 0:
-            return True
-        else:
-            return False
+        return selectWordIdCursor != 0
 
     def existSplitWord(self, fullWord):
         if self.getExistWordIdx(fullWord) > 0:
@@ -118,9 +156,3 @@ class Dictionary:
                     continue
         return False
 
-DB_IP = "localhost"
-DB_USER = "root"
-DB_PWD = "1234"
-DB_SCH = "data"
-dic = Dictionary(DB_IP, DB_USER, DB_PWD, DB_SCH)
-dic.existSplitWord('건전성이')

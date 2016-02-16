@@ -36,9 +36,8 @@ class DSStock:
         self.LOW = 'low'
         self.FINAL = 'final'
 
-    def finalize(self):
+    def commit(self):
         self.connection.commit()
-        self.connection.close()
         print('finish')
 
     def selectStock(self, stockCode):
@@ -116,5 +115,10 @@ class DSStock:
             return True
         return False
 
+    def insertNewStock(self, stockCode):
+        insert = self.getStock(stockCode)
+        datas = self.getChartDataList(insert.get('code'), 365 * 2)
+        self.insertFinanceData(datas, str(insert.get('id')))
+        self.connection.commit()
 
 
