@@ -1,6 +1,7 @@
 import numpy
 from datetime import timedelta
-from multiprocessing.pool import ThreadPool
+import multiprocessing
+import threading
 import pymysql.cursors
 import dictionary
 
@@ -30,7 +31,10 @@ class Miner:
         self.PLUS_NAME = 'plus'
         self.MINUS_NAME = 'minus'
         self.CONTENT_DATA_NAME = 'contentData'
-        self.ASYNC_ARRAY_NUM = 1000
+        self.ASYNC_ARRAY_NUM = 3000
+        self.START_NAME = 'start'
+        self.FINAL_NAME = 'final'
+        self.DATE_NAME = 'date'
 
     def commit(self):
         self.connection.commit()
@@ -66,7 +70,7 @@ class Miner:
         return contentsList
     def getTargetContentWords(self, stockName, targetDate, periodDate):
         words = []
-        dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH) #TODO -- multi .
         contents = self.getStockNameContent(stockName, targetDate, periodDate)
         for result in contents:
             contentData = result.get(self.CONTENT_DATA_NAME)
@@ -108,7 +112,7 @@ class Miner:
             plusList = []
             minusList = []
             for price in wordMap[word]:
-                price = numpy.nan_to_num(price)
+                price = numpy.nan_to_num(price) # --
                 try :
                     if price > 0:
                         plusList.append(price)
@@ -155,32 +159,84 @@ class Miner:
             plusCnt += len(chart.get(self.PLUS_NAME))
             minusCnt += len(chart.get(self.MINUS_NAME))
         return plusCnt, minusCnt
-    def asyncWordChangePriceMap(self, contents, stockName, period):
-        asyncList = []
+
+    def getFinanceChangePrice(self, sliceDate, stockName, cacheFinanceChangePrices):
+        try:
+            return cacheFinanceChangePrices[str(sliceDate) + stockName]
+        except KeyError:
+            print('found new finance data. ' + str(sliceDate) + stockName)
+        cursor = self.connection.cursor()
+        financeCursor = cursor.execute("SELECT s.name, f.start, f.final, f.date FROM finance f, stock s WHERE f.stockId = s.id and s.name = %s and f.date like %s", (stockName, sliceDate + "%"))
+        if financeCursor != 0:
+            finance = cursor.fetchone()  # one ? many?
+            stockPrice = int(finance.get(self.START_NAME)) - int(finance.get(self.FINAL_NAME))
+            cacheFinanceChangePrices[str(sliceDate) + stockName] = stockPrice
+            return stockPrice
+        else:
+            cacheFinanceChangePrices[str(sliceDate) + stockName] = None
+            print('finance data not found.' + sliceDate)
+
+    def getWordChangePriceMap(self, contentDataList, stockName, period, lock, queue):
+        wordDataMap = {}
+        cacheFinanceChangePrices = {}
+        print('getWordChangePriceMap, len ', len(contentDataList))
         dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        for idx in range(len(contentDataList)):
+            result = contentDataList[idx]
+            print(idx,'/',len(contentDataList))
+            contentData = result.get(self.CONTENT_DATA_NAME)
+            date = result.get(self.DATE_NAME)
+            sliceDate = (date + timedelta(days=period)).strftime('%Y-%m-%d')
+            lock.acquire()
+            try :
+                change = self.getFinanceChangePrice(sliceDate, stockName, cacheFinanceChangePrices)
+            finally :
+                lock.release()
+            if change is None:
+                continue
+            splitWords = dic.splitStr(contentData)
+            for target in splitWords:
+                if dic.existSplitWord(target):
+                    word = dic.getWordByStr(target)
+                    try:
+                        wordDataMap[word].append(change)
+                    except KeyError:
+                        wordDataMap[word] = [change]
+        queue.put(wordDataMap)
+
+    def multiThreadWordChangePriceMap(self, contents, stockName, period):
+        queueList = []
+        threadList = []
         for idx in range(int(len(contents) / self.ASYNC_ARRAY_NUM) + 1) :
             start = idx * self.ASYNC_ARRAY_NUM
             end = idx * self.ASYNC_ARRAY_NUM + self.ASYNC_ARRAY_NUM
             if end > len(contents) :
                 end = len(contents)
-            asyncContentTarget = contents[start : end]
-
-            asyncResult = ThreadPool(processes=1).apply_async(dic.getWordChangePriceMap, (asyncContentTarget, stockName, period))
-            asyncList.append(asyncResult)
+            splitedContentTarget = contents[start : end]
+            queue = multiprocessing.Queue()
+            lock = threading.Lock()
+            thread = threading.Thread(target=self.getWordChangePriceMap, args=(splitedContentTarget, stockName, period, lock, queue))
+            thread.start()
+            threadList.append(thread)
+            queueList.append(queue)
         totalWordChangePriceMap = {}
-        for asyncWordMap in asyncList :
-            wordMap = asyncWordMap.get()
+
+        for thread in threadList :
+            thread.join()
+
+        for queue in queueList :
+            wordMap = queue.get()
             for word in wordMap.keys() :
                 if wordMap[word] == None :
                     continue
                 try :
-                    totalWordChangePriceMap[word] = totalWordChangePriceMap[word].append(wordMap[word])
+                    totalWordChangePriceMap[word] = totalWordChangePriceMap[word] + wordMap[word]
                 except KeyError :
                     totalWordChangePriceMap[word] = []
-                    totalWordChangePriceMap[word].append(wordMap[word])
+                    totalWordChangePriceMap[word] = totalWordChangePriceMap[word] + wordMap[word]
         return totalWordChangePriceMap
     def getAnalyzedCnt(self, targetDate, period, stockName, contents):
-        totalWordPriceMap = self.asyncWordChangePriceMap(contents, stockName, period)
+        totalWordPriceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
         # totalWordPriceMap = self.getWordChangePriceMap(contents, stockName, period)
         targetWords = self.getTargetContentWords(stockName, targetDate, targetDate - timedelta(days=period))
 
