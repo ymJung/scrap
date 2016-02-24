@@ -22,7 +22,7 @@ class Dictionary:
                                           cursorclass=pymysql.cursors.DictCursor)
         self.MIN_WORD_LEN = 2
         self.MAX_WORD_LEN = 50
-        # self.REGULAR_EXP = '[^가-힝0-9a-zA-Z]' TODO - check.
+        # self.REGULAR_EXP = '[^가-힝0-9a-zA-Z]'
         self.REGULAR_EXP = '[^가-힝]'
         self.CONTENT_DATA_NAME = 'contentData'
 
@@ -32,6 +32,8 @@ class Dictionary:
 
 
     def splitStr(self, str):
+        if str is None :
+            return []
         str = str.replace('\n', ' ')
         return str.split()
 
@@ -45,9 +47,7 @@ class Dictionary:
         return soup
 
     def existWord(self, data):
-        cursor = self.connection.cursor()
-        selectWordIdSql = "SELECT `id` FROM `word` WHERE `word`=%s"
-        selectWordIdCursor = cursor.execute(selectWordIdSql, (data))
+        selectWordIdCursor = self.connection.cursor().execute("SELECT `id` FROM `word` WHERE `word`=%s", (data))
         return selectWordIdCursor != 0
 
     def existSplitWord(self, fullWord):

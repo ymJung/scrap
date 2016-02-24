@@ -56,7 +56,7 @@ class runner :
         daumSaveDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         daumSaveDbm.saveData(ds.SITE, daumResult, stockName)
         daumSaveDbm.commit()
-    def insertAnalyzedResult(self, stock, targetAt, period, contents) :
+    def insertAnalyzedResult(self, stock, targetAt, period) :
         stockName = stock.get('name')
         forecastAt = targetAt + timedelta(days=period)
         stockDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
@@ -64,6 +64,7 @@ class runner :
             print('exist forecast date', forecastAt)
             return
         mine = miner.Miner(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        contents = mine.getStockNameContent(stock.get('name'), today, today - timedelta(days=365))
         plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(targetAt, period, stockName, contents)
         result = {'name' : stockName, 'pluscnt': plusCnt, 'minuscnt':minusCnt}
         print(str(result))
@@ -72,7 +73,7 @@ class runner :
         self.update(stock)
 
 
-    def run(self, stock, targetAt, period, busy, contents):
+    def run(self, stock, targetAt, period, busy):
         if busy is False :
             self.insertFinance(stock)
             # self.insertPpomppuResult(stock)
@@ -85,7 +86,7 @@ class runner :
             upd = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
             upd.updateLastUseDate(stock)
             upd.commit()
-        self.insertAnalyzedResult(stock, targetAt, period, contents)
+        self.insertAnalyzedResult(stock, targetAt, period)
 
 
     def update(self, stock) :
@@ -93,12 +94,12 @@ class runner :
         runDbm.updateAnalyzedResultItem(stock)
         runDbm.commit()
 
-    def migration(self, stock, period, dayLimit, contents):
+    def migration(self, stock, period, dayLimit):
         print('migration', stock.get('name'))
         for minusDay in range(dayLimit - 1):
             targetAt = date.today() - timedelta(days=minusDay + 1)
             print('migration target at ' + str(targetAt) + ' period ' + str(minusDay + 1) + '/' + str(dayLimit))
-            self.run(stock, targetAt, period, True, contents)
+            self.run(stock, targetAt, period, True)
 
     def getDivideNum(self, num1, num2) :
         if num2 == 0 :
@@ -156,14 +157,15 @@ runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 period = 2
 today = date.today()
+dbm.getUsefulStock(False, True)
 while True :
-    stock = dbm.getUsefulStock()
+    stock = dbm.getUsefulStock(True, False)
     if stock is None :
         break
     else :
-        runner.migration(stock, period, 365, miner.Miner(DB_IP, DB_USER, DB_PWD, DB_SCH).getStockNameContent(stock.get('name'), today, today - timedelta(days=3 * 365)))
+        runner.migration(stock, period, 365) #, miner.Miner(DB_IP, DB_USER, DB_PWD, DB_SCH).getStockNameContent(stock.get('name'), today, today - timedelta(days=3 * 365))
         # runner.printForecastData(dbm.analyzedSql(stock.get('name')))
-        # runner.run(stock, today, period, busy, contents)
+        # runner.run(stock, today, period, busy)
 # analyzer.Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH).analyze()
 # stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock('')
 dbm.connection.close()

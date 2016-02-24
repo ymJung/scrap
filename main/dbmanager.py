@@ -97,11 +97,16 @@ class DBManager:
 
 
 
-    def getUsefulStock(self):
+    def getUsefulStock(self, used, init):
         cursor = self.connection.cursor()
+        if init is True :
+            cursor.execute("UPDATE stock SET `use` = 1")
         cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1 ORDER BY id ASC LIMIT 1")
         stock = cursor.fetchone()
-        cursor.execute(("UPDATE stock SET `use` = 0 WHERE `id` = %s"), stock.get('id'))
+        if stock is None :
+            return None
+        if used is True :
+            cursor.execute(("UPDATE stock SET `use` = 0 WHERE `id` = %s"), stock.get('id'))
         self.connection.commit()
         return stock
 
