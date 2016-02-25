@@ -117,3 +117,6 @@ class Dictionary:
                     continue
         return False
 
+    def close(self):
+        self.connection.close()
+

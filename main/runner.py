@@ -4,6 +4,7 @@ import analyzer
 import miner
 import webscrap
 from datetime import date, timedelta
+import time
 
 class runner :
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC) :
@@ -67,9 +68,11 @@ class runner :
         contents = mine.getStockNameContent(stock.get('name'), today, today - timedelta(days=365))
         plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(targetAt, period, stockName, contents)
         result = {'name' : stockName, 'pluscnt': plusCnt, 'minuscnt':minusCnt}
+        mine.close()
         print(str(result))
         stockDbm.saveAnalyzedData(stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, forecastAt, targetPlusAvg, targetMinusAvg, period)
         stockDbm.commit()
+        stockDbm.close()
         self.update(stock)
 
 
@@ -86,6 +89,7 @@ class runner :
             upd = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
             upd.updateLastUseDate(stock)
             upd.commit()
+            upd.close()
         self.insertAnalyzedResult(stock, targetAt, period)
 
 
@@ -93,12 +97,13 @@ class runner :
         runDbm = dbmanager.DBManager(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         runDbm.updateAnalyzedResultItem(stock)
         runDbm.commit()
+        runDbm.close()
 
     def migration(self, stock, period, dayLimit):
         print('migration', stock.get('name'))
         for minusDay in range(dayLimit - 1):
             targetAt = date.today() - timedelta(days=minusDay + 1)
-            print('migration target at ' + str(targetAt) + ' period ' + str(minusDay + 1) + '/' + str(dayLimit))
+            print('migration target at ', targetAt, 'period ',minusDay + 1, '/')
             self.run(stock, targetAt, period, True)
 
     def getDivideNum(self, num1, num2) :
@@ -157,7 +162,7 @@ runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 period = 2
 today = date.today()
-dbm.getUsefulStock(False, True)
+# dbm.getUsefulStock(False, True)
 while True :
     stock = dbm.getUsefulStock(True, False)
     if stock is None :
@@ -168,7 +173,7 @@ while True :
         # runner.run(stock, today, period, busy)
 # analyzer.Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH).analyze()
 # stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock('')
-dbm.connection.close()
+dbm.close()
 
 
 

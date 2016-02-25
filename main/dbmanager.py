@@ -29,7 +29,10 @@ class DBManager:
 
     def commit(self):
         self.connection.commit()
-        print('end')
+        print('commit')
+    def close(self):
+        print('close')
+        self.connection.close()
     def saveData(self, site, results, stockName):
         for each in results:
             authorName = each.get(self.WRITER)
@@ -115,8 +118,7 @@ class DBManager:
         authorDataInsertSql = "INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `plusAvg`, `minusAvg`, `period`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
         cursor.execute('SELECT id FROM stock WHERE name = %s', stockName)
         stock = cursor.fetchone()
-        cursor.execute(authorDataInsertSql, (
-        stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, float(targetPlusAvg), float(targetMinusAvg), period))
+        cursor.execute(authorDataInsertSql, (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, float(targetPlusAvg), float(targetMinusAvg), period))
 
     def updateLastUseDate(self, stock):
         cursor = self.connection.cursor()

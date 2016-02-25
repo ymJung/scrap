@@ -1,7 +1,7 @@
 import numpy
 from datetime import timedelta
-import multiprocessing
-import threading
+# import multiprocessing
+from multiprocessing import Process, freeze_support, Lock, Queue
 import pymysql.cursors
 import dictionary
 import sys
@@ -32,7 +32,7 @@ class Miner:
         self.PLUS_NAME = 'plus'
         self.MINUS_NAME = 'minus'
         self.CONTENT_DATA_NAME = 'contentData'
-        self.ASYNC_ARRAY_NUM = 500
+        self.SPLIT_COUNT = 500
         self.START_NAME = 'start'
         self.FINAL_NAME = 'final'
         self.DATE_NAME = 'date'
@@ -71,10 +71,13 @@ class Miner:
             except MinerError:
                 print('data is empty.')
                 continue
+            except MemoryError as e :
+                print('memory error', e)
+                continue
         return contentsList
     def getTargetContentWords(self, stockName, targetDate, periodDate):
         words = []
-        dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH) #TODO -- multi .
+        dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         contents = self.getStockNameContent(stockName, targetDate, periodDate)
         print('target content word find. content length . ', len(contents))
         for result in contents:
@@ -84,6 +87,7 @@ class Miner:
                 if dic.existSplitWord(target):
                     word = dic.getWordByStr(target)
                     words.append(word)
+        dic.close()
         return words
 
     def getWordPriceMap(self, words, totalWordPrices):
@@ -183,11 +187,11 @@ class Miner:
                 return stockPrice
             else:
                 cacheFinanceChangePrices[str(sliceDate) + stockName] = None
-                print('finance data not found.', sliceDate)
+                return None
         except :
             print('except', stockName, sliceDate, len(cacheFinanceChangePrices))
-            print("Unexpected error:", sys.exc_info()[0])
-            pass
+            print("miner unexpected error:", sys.exc_info())
+            return None
         finally :
             lock.release()
 
@@ -207,7 +211,8 @@ class Miner:
                 continue
             splitWords = dic.splitStr(contentData)
             for target in splitWords:
-                if dic.existSplitWord(target):
+                existTargetWord = dic.existSplitWord(target)
+                if existTargetWord :
                     word = dic.getWordByStr(target)
                     try:
                         wordDataMap[word].append(change)
@@ -215,30 +220,34 @@ class Miner:
                         wordDataMap[word] = [change]
         print('put word data map to queue ', len(wordDataMap))
         queue.put(wordDataMap)
+        dic.close()
 
     def multiThreadWordChangePriceMap(self, contents, stockName, period):
         queueList = []
-        threadList = []
-        for idx in range(int(len(contents) / self.ASYNC_ARRAY_NUM) + 1) :
-            start = idx * self.ASYNC_ARRAY_NUM
-            end = idx * self.ASYNC_ARRAY_NUM + self.ASYNC_ARRAY_NUM
+        processList = []
+        for idx in range(int(len(contents) / self.SPLIT_COUNT) + 1) :
+            start = idx * self.SPLIT_COUNT
+            end = idx * self.SPLIT_COUNT + self.SPLIT_COUNT
             if end > len(contents) :
                 end = len(contents)
             splitedContentTarget = contents[start : end]
-            queue = multiprocessing.Queue()
-            lock = threading.Lock()
-            thread = threading.Thread(target=self.getWordChangePriceMap, args=(splitedContentTarget, stockName, period, lock, queue), name=stockName+str(len(splitedContentTarget)))
-            thread.start()
-            threadList.append(thread)
-            queueList.append(queue)
+
+            if __name__ == '__main__':
+                freeze_support()
+                lock = Lock()
+                queue = Queue()
+                process = Process(target=self.getWordChangePriceMap, args=(splitedContentTarget, stockName, period, lock, queue), name=stockName+str(len(splitedContentTarget)))
+                process.start()
+                processList.append(process)
+                queueList.append(queue)
         totalWordChangePriceMap = {}
 
-        for thread in threadList :
-            print('run ', thread.getName())
-            thread.join()
+        for process in processList :
+            print('process', process.getName())
+            process.join()
 
-        for queue in queueList :
-            wordMap = queue.get()
+        for result in queueList :
+            wordMap = result.get()
             for word in wordMap.keys() :
                 if wordMap[word] == None :
                     continue
@@ -262,3 +271,6 @@ class Miner:
         targetPlusAvg, targetMinusAvg = self.getAnalyzedAvgChartList(targetChartList)
 
         return targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg
+
+    def close(self):
+        self.connection.close()
