@@ -158,19 +158,21 @@ DB_SCH = "data"
 PPOMPPU_ACC = { 'id': "", 'pwd' : ""}
 busy = False
 runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
-
+from multiprocessing import freeze_support
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 period = 2
 today = date.today()
 # dbm.getUsefulStock(False, True)
 while True :
-    stock = dbm.getUsefulStock(True, False)
-    if stock is None :
-        break
-    else :
-        runner.migration(stock, period, 365) #, miner.Miner(DB_IP, DB_USER, DB_PWD, DB_SCH).getStockNameContent(stock.get('name'), today, today - timedelta(days=3 * 365))
-        # runner.printForecastData(dbm.analyzedSql(stock.get('name')))
-        # runner.run(stock, today, period, busy)
+    if __name__ == '__main__' :
+        freeze_support()
+        stock = dbm.getUsefulStock(True, False)
+        if stock is None :
+            break
+        else :
+            runner.migration(stock, period, 365) #, miner.Miner(DB_IP, DB_USER, DB_PWD, DB_SCH).getStockNameContent(stock.get('name'), today, today - timedelta(days=3 * 365))
+            # runner.printForecastData(dbm.analyzedSql(stock.get('name')))
+            # runner.run(stock, today, period, busy)
 # analyzer.Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH).analyze()
 # stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock('')
 dbm.close()

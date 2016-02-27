@@ -1,10 +1,13 @@
 import numpy
 from datetime import timedelta
 # import multiprocessing
-from multiprocessing import Process, freeze_support, Lock, Queue
+#from multiprocessing import Process, freeze_support, Lock, Queue
 import pymysql.cursors
 import dictionary
 import sys
+import dbmanager
+import threading
+import queue
 
 
 class MinerError(Exception):
@@ -36,7 +39,6 @@ class Miner:
         self.START_NAME = 'start'
         self.FINAL_NAME = 'final'
         self.DATE_NAME = 'date'
-
     def commit(self):
         self.connection.commit()
     def getContent(self, stockName, startPos, endPos):
@@ -77,7 +79,7 @@ class Miner:
         return contentsList
     def getTargetContentWords(self, stockName, targetDate, periodDate):
         words = []
-        dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        dic= dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         contents = self.getStockNameContent(stockName, targetDate, periodDate)
         print('target content word find. content length . ', len(contents))
         for result in contents:
@@ -107,13 +109,19 @@ class Miner:
 
     def divideAvgList(self, list):
         newList = []
-        for i in range(len(list)) :
-            idx = i*2
-            if (idx + 1) >= len(list) :
-                break
-            split = list[idx:idx+1]
-            newList.append(numpy.mean(split))
-        return newList
+        try :
+            for i in range(len(list)) :
+                idx = i*2
+                if (idx + 1) >= len(list) :
+                    break
+                split = list[idx:idx+1]
+                newList.append(numpy.mean(split))
+            return newList
+        except MemoryError :
+            print('divideAvgList memory error', len(list))
+            return self.divideAvgList(newList)
+
+
 
 
     def getAnalyzedChartList(self, wordMap):
@@ -171,12 +179,11 @@ class Miner:
             minusCnt += len(chart.get(self.MINUS_NAME))
         return plusCnt, minusCnt
 
-    def getFinanceChangePrice(self, sliceDate, stockName, cacheFinanceChangePrices, lock):
+    def getFinanceChangePrice(self, sliceDate, stockName, cacheFinanceChangePrices):
         try:
             return cacheFinanceChangePrices[str(sliceDate) + stockName]
         except KeyError:
             pass
-        lock.acquire()
         try :
             cursor = self.connection.cursor()
             financeCursor = cursor.execute("SELECT s.name, f.start, f.final, f.date FROM finance f, stock s WHERE f.stockId = s.id and s.name = %s and f.date = %s", (stockName, sliceDate))
@@ -192,39 +199,50 @@ class Miner:
             print('except', stockName, sliceDate, len(cacheFinanceChangePrices))
             print("miner unexpected error:", sys.exc_info())
             return None
-        finally :
-            lock.release()
 
-    def getWordChangePriceMap(self, contentDataList, stockName, period, lock, queue):
+    def getWordChangePriceMap(self, contentDataList, stockName, period,  queue, lock, dic):
         wordDataMap = {}
         cacheFinanceChangePrices = {}
+
         print('getWordChangePriceMap, len ', len(contentDataList))
-        dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         for idx in range(len(contentDataList)):
             result = contentDataList[idx]
             contentData = result.get(self.CONTENT_DATA_NAME)
             date = result.get(self.DATE_NAME)
             sliceDate = (date + timedelta(days=period)).strftime('%Y-%m-%d')
-
-            change = self.getFinanceChangePrice(sliceDate, stockName, cacheFinanceChangePrices, lock)
+            lock.acquire()
+            try :
+                change = self.getFinanceChangePrice(sliceDate, stockName, cacheFinanceChangePrices)
+            finally:
+                lock.release()
             if change is None:
                 continue
             splitWords = dic.splitStr(contentData)
             for target in splitWords:
-                existTargetWord = dic.existSplitWord(target)
+                lock.acquire()
+                try :
+                    existTargetWord = dic.existSplitWord(target)
+                finally :
+                    lock.release()
                 if existTargetWord :
-                    word = dic.getWordByStr(target)
+                    lock.acquire()
+                    try :
+                        word = dic.getWordByStr(target)
+                    finally:
+                        lock.release()
                     try:
                         wordDataMap[word].append(change)
                     except KeyError:
                         wordDataMap[word] = [change]
         print('put word data map to queue ', len(wordDataMap))
         queue.put(wordDataMap)
-        dic.close()
 
     def multiThreadWordChangePriceMap(self, contents, stockName, period):
         queueList = []
-        processList = []
+        threadList = []
+        lock = threading.Lock()
+        dic= dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+
         for idx in range(int(len(contents) / self.SPLIT_COUNT) + 1) :
             start = idx * self.SPLIT_COUNT
             end = idx * self.SPLIT_COUNT + self.SPLIT_COUNT
@@ -232,19 +250,17 @@ class Miner:
                 end = len(contents)
             splitedContentTarget = contents[start : end]
 
-            if __name__ == '__main__':
-                freeze_support()
-                lock = Lock()
-                queue = Queue()
-                process = Process(target=self.getWordChangePriceMap, args=(splitedContentTarget, stockName, period, lock, queue), name=stockName+str(len(splitedContentTarget)))
-                process.start()
-                processList.append(process)
-                queueList.append(queue)
+            #freeze_support()
+            resultQueue = queue.Queue()
+            thread = threading.Thread(target=self.getWordChangePriceMap, args=(splitedContentTarget, stockName, period, resultQueue, lock, dic), name=stockName+str(len(splitedContentTarget)))
+            thread.start()
+            threadList.append(thread)
+            queueList.append(resultQueue)
         totalWordChangePriceMap = {}
 
-        for process in processList :
-            print('process', process.getName())
-            process.join()
+        for thread in threadList :
+            print('thread', thread.getName())
+            thread.join()
 
         for result in queueList :
             wordMap = result.get()
