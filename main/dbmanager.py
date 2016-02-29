@@ -98,13 +98,16 @@ class DBManager:
             authorId = cursor.fetchone().get('id')
         return authorId
 
-
+    def getUsefulStockList(self):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock ORDER BY id ASC")
+        return cursor.fetchall()
 
     def getUsefulStock(self, used, init):
         cursor = self.connection.cursor()
         if init is True :
             cursor.execute("UPDATE stock SET `use` = 1")
-        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1 ORDER BY id ASC LIMIT 1")
+        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1 AND `much` = 0 ORDER BY id desc LIMIT 1")
         stock = cursor.fetchone()
         if stock is None :
             return None
@@ -166,7 +169,7 @@ class DBManager:
         cursor.execute(selectForecastSql, (stockName))
         forecastResult = cursor.fetchall()
 
-        return {'analyzed':analyzedResult, 'forecast':forecastResult}
+        return {'name':stockName, 'analyzed':analyzedResult, 'forecast':forecastResult}
 
     def existForecastDate(self, forecastAt, stockId):
         cursor = self.connection.cursor()

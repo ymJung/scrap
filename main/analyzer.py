@@ -96,6 +96,3 @@ class Analyzer:
             dic.connection.commit()
         finally:
             dic.connection.commit()
-
-
-

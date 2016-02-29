@@ -106,17 +106,17 @@ class runner :
             print('migration target at ', targetAt, 'period ',minusDay + 1, '/')
             self.run(stock, targetAt, period, True)
 
-    def getDivideNum(self, num1, num2) :
+    def getDivideNumPercent(self, num1, num2) :
         if num2 == 0 :
             return 0
-        return num1 / num2
+        return int((num1 / num2) * 100)
 
 
 
     def printForecastData(self, input):
         plusPoint = []
         minusPoint = []
-
+        sumPoint = []
         for each in input.get('analyzed'):
             resultPrice = each.get('final') - each.get('start')
             plus = each.get('plus')
@@ -126,18 +126,23 @@ class runner :
             stockName = each.get('name')
             minusAvg = each.get('minusAvg')
             targetAt = each.get('targetAt')
-            if total > 0 :
-                if resultPrice > 0:  # plus
-                    plusPoint.append({'name': stockName, 'result': resultPrice, 'point': plus / total, 'avg': plusAvg, 'targetAt': str(targetAt)})
-                else:
-                    minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minus / total,'avg': minusAvg, 'targetAt': str(targetAt)})
 
-        for each in plusPoint :
-            print (each.get('name'), 'plus',each.get('point'))
-        for each in minusPoint :
-            print (each.get('name'), 'minus',each.get('point'))
-        for each in input.get('forecast') :
-            print(each.get('name'), 'plus',each.get('plus'),'minus',each.get('minus'), 'point', each.get('plus')/each.get('plus')+each.get('minus'))
+            plusPercent = self.getDivideNumPercent(plus, total)
+            minusPercent = self.getDivideNumPercent(minus, total)
+
+            if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
+                sumPoint.append({'name': stockName, 'result': resultPrice, 'plus_point': plusPercent, 'minus_point': minusPercent, 'plus_avg': plusAvg, 'minus_avg':minusAvg, 'plus':plus, 'minus':minus, 'targetAt': str(targetAt)})
+                if resultPrice > 0:  # plus
+                    plusPoint.append({'name': stockName, 'result': resultPrice, 'point': plusPercent, 'avg': plusAvg, 'targetAt': str(targetAt)})
+                else:
+                    minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minusPercent, 'avg': minusAvg, 'targetAt': str(targetAt)})
+
+        for each in plusPoint : print (each.get('name'), 'plus',each.get('point'), 'targetAt', each.get('targetAt'), 'result', each.get('result'))
+        print(input.get('name'), self.getDivideNumPercent(len(plusPoint), len(sumPoint)))
+        # for each in minusPoint :
+        #     print (each.get('name'), 'minus',each.get('point'), 'targetAt', each.get('targetAt'), 'result', each.get('result'))
+        # for each in sumPoint : print (each.get('name'), 'plus',each.get('plus_point'), 'minus', each.get('minus_point'), 'targetAt', each.get('targetAt'), 'result', each.get('result'), 'plus', each.get('plus'), 'minus', each.get('minus'))
+        for each in input.get('forecast') : print('forecast', each.get('name'), 'targetAt',each.get('targetAt'), 'plus', each.get('plus'),'minus', each.get('minus'), 'point', self.getDivideNumPercent(each.get('plus'), each.get('plus') + each.get('minus')))
 
 
 
@@ -156,23 +161,22 @@ DB_USER = "root"
 DB_PWD = "1234"
 DB_SCH = "data"
 PPOMPPU_ACC = { 'id': "", 'pwd' : ""}
-busy = False
 runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
-from multiprocessing import freeze_support
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 period = 2
 today = date.today()
 # dbm.getUsefulStock(False, True)
+
 while True :
-    if __name__ == '__main__' :
-        freeze_support()
-        stock = dbm.getUsefulStock(True, False)
-        if stock is None :
-            break
-        else :
-            runner.migration(stock, period, 365) #, miner.Miner(DB_IP, DB_USER, DB_PWD, DB_SCH).getStockNameContent(stock.get('name'), today, today - timedelta(days=3 * 365))
-            # runner.printForecastData(dbm.analyzedSql(stock.get('name')))
-            # runner.run(stock, today, period, busy)
+    stock = dbm.getUsefulStock(True, False)
+    if stock is None :
+        break
+    else :
+        runner.migration(stock, period, 365)
+while False :
+    stock = dbm.getUsefulStock(True, False)
+    runner.run(stock, today, period, False)
+# for stock in dbm.getUsefulStockList() : runner.printForecastData(dbm.analyzedSql(stock.get('name')))
 # analyzer.Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH).analyze()
 # stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock('')
 dbm.close()

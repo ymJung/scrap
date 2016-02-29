@@ -250,7 +250,6 @@ class Miner:
                 end = len(contents)
             splitedContentTarget = contents[start : end]
 
-            #freeze_support()
             resultQueue = queue.Queue()
             thread = threading.Thread(target=self.getWordChangePriceMap, args=(splitedContentTarget, stockName, period, resultQueue, lock, dic), name=stockName+str(len(splitedContentTarget)))
             thread.start()
