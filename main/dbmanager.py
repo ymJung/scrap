@@ -29,9 +29,9 @@ class DBManager:
 
     def commit(self):
         self.connection.commit()
-        print('commit')
+        print('dbm commit')
     def close(self):
-        print('close')
+        print('dbm close')
         self.connection.close()
     def saveData(self, site, results, stockName):
         for each in results:
@@ -98,19 +98,21 @@ class DBManager:
             authorId = cursor.fetchone().get('id')
         return authorId
 
-    def getUsefulStockList(self):
+    def getStockList(self):
         cursor = self.connection.cursor()
         cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock ORDER BY id ASC")
         return cursor.fetchall()
 
-    def getUsefulStock(self, used, init):
+    def initStock(self):
+        self.connection.cursor().execute("UPDATE stock SET `use` = 1 WHERE `much` = 0")
+        self.connection.commit()
+
+    def getUsefulStock(self, used):
         cursor = self.connection.cursor()
-        if init is True :
-            cursor.execute("UPDATE stock SET `use` = 1")
         cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1 AND `much` = 0 ORDER BY id desc LIMIT 1")
         stock = cursor.fetchone()
         if stock is None :
-            return None
+            raise DBManagerError('stock is none')
         if used is True :
             cursor.execute(("UPDATE stock SET `use` = 0 WHERE `id` = %s"), stock.get('id'))
         self.connection.commit()

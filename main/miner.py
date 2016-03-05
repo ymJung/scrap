@@ -67,15 +67,15 @@ class Miner:
                                                (stockName, limitAt, startAt, (i * 10) + 1, (i + 1) * self.LIMIT_COUNT))
                 if contentCursor != 0:
                     contents = cursor.fetchall()
-                    contentsList = contentsList + contents #MEMORY ERROR
+                    contentsList = contentsList + contents # TODO MEMORY ERROR
                 else:
                     raise MinerError('content is not valid.')
             except MinerError:
                 print('data is empty.')
                 continue
-            except MemoryError as e :
-                print('memory error', e)
-                continue
+            except MemoryError :
+                print('memory error', stockName)
+                break
         return contentsList
     def getTargetContentWords(self, stockName, targetDate, periodDate):
         words = []
@@ -252,8 +252,14 @@ class Miner:
 
             resultQueue = queue.Queue()
             thread = threading.Thread(target=self.getWordChangePriceMap, args=(splitedContentTarget, stockName, period, resultQueue, lock, dic), name=stockName+str(len(splitedContentTarget)))
-            thread.start()
             threadList.append(thread)
+            try :
+                thread.start()
+            except RuntimeError :
+                if threadList :
+                    # threadList[0].start()
+                    threadList[0].join()
+                    del threadList[0]
             queueList.append(resultQueue)
         totalWordChangePriceMap = {}
 
@@ -288,4 +294,5 @@ class Miner:
         return targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg
 
     def close(self):
+        print('miner close')
         self.connection.close()

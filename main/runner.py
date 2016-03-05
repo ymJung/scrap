@@ -4,16 +4,15 @@ import analyzer
 import miner
 import webscrap
 from datetime import date, timedelta
-import time
 
 class runner :
-    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC) :
+    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH) :
         self.DB_IP = DB_IP
         self.DB_USER = DB_USER
         self.DB_PWD = DB_PWD
         self.DB_SCH = DB_SCH
-        self.PPOMPPU_ID = PPOMPPU_ACC.get('id')
-        self.PPOMPPU_PWD = PPOMPPU_ACC.get('pwd')
+        self.PPOMPPU_ID = ''
+        self.PPOMPPU_PWD = ''
 
     def insertFinance(self, stock) :
         stockCode = stock.get('code')
@@ -77,6 +76,8 @@ class runner :
 
 
     def run(self, stock, targetAt, period, busy):
+        if stock is None :
+            return
         if busy is False :
             self.insertFinance(stock)
             # self.insertPpomppuResult(stock)
@@ -137,7 +138,7 @@ class runner :
                 else:
                     minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minusPercent, 'avg': minusAvg, 'targetAt': str(targetAt)})
 
-        for each in plusPoint : print (each.get('name'), 'plus',each.get('point'), 'targetAt', each.get('targetAt'), 'result', each.get('result'))
+        # for each in plusPoint : print (each.get('name'), 'plus',each.get('point'), 'targetAt', each.get('targetAt'), 'result', each.get('result'))
         print(input.get('name'), self.getDivideNumPercent(len(plusPoint), len(sumPoint)))
         # for each in minusPoint :
         #     print (each.get('name'), 'minus',each.get('point'), 'targetAt', each.get('targetAt'), 'result', each.get('result'))
@@ -160,25 +161,18 @@ DB_IP = "localhost"
 DB_USER = "root"
 DB_PWD = "1234"
 DB_SCH = "data"
-PPOMPPU_ACC = { 'id': "", 'pwd' : ""}
-runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH, PPOMPPU_ACC)
+
+runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 period = 2
 today = date.today()
-# dbm.getUsefulStock(False, True)
+# dbm.initStock()
 
-while True :
-    stock = dbm.getUsefulStock(True, False)
-    if stock is None :
-        break
-    else :
-        runner.migration(stock, period, 365)
-while False :
-    stock = dbm.getUsefulStock(True, False)
-    runner.run(stock, today, period, False)
-# for stock in dbm.getUsefulStockList() : runner.printForecastData(dbm.analyzedSql(stock.get('name')))
+#while True : runner.migration(dbm.getUsefulStock(True), period, 365)
+while True : runner.run(dbm.getUsefulStock(True), today, period, False)
+# for stock in dbm.getStockList() : runner.printForecastData(dbm.analyzedSql(stock.get('name')))
 # analyzer.Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH).analyze()
-# stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock('')
+# stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock('012280')
 dbm.close()
 
 
