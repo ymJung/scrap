@@ -1,11 +1,9 @@
 import numpy
 from datetime import timedelta
-# import multiprocessing
-#from multiprocessing import Process, freeze_support, Lock, Queue
 import pymysql.cursors
 import dictionary
 import sys
-import dbmanager
+from datetime import date
 import threading
 import queue
 
@@ -39,6 +37,8 @@ class Miner:
         self.START_NAME = 'start'
         self.FINAL_NAME = 'final'
         self.DATE_NAME = 'date'
+        self.LIMIT_YEAR_SEPERATOR = 5
+        self.INTERVAL_YEAR_SEPERATOR = 73
     def commit(self):
         self.connection.commit()
     def getContent(self, stockName, startPos, endPos):
@@ -67,7 +67,7 @@ class Miner:
                                                (stockName, limitAt, startAt, (i * 10) + 1, (i + 1) * self.LIMIT_COUNT))
                 if contentCursor != 0:
                     contents = cursor.fetchall()
-                    contentsList = contentsList + contents # TODO MEMORY ERROR
+                    contentsList = contentsList + contents
                 else:
                     raise MinerError('content is not valid.')
             except MinerError:
@@ -113,7 +113,7 @@ class Miner:
             for i in range(len(list)) :
                 idx = i*2
                 if (idx + 1) >= len(list) :
-                    break
+                    return newList
                 split = list[idx:idx+1]
                 newList.append(numpy.mean(split))
             return newList
@@ -137,9 +137,8 @@ class Miner:
                         plusList.append(price)
                     if price < 0:
                         minusList.append(price)
-                except MemoryError as e :
-                    print('Memory Error. getAnalyzedChartList')
-                    print(e)
+                except MemoryError :
+                    print('Memory Error. getAnalyzedChartList plus ', word, len(plusList), len(minusList))
                     plusList = self.divideAvgList(plusList)
                     minusList = self.divideAvgList(minusList)
             chart = {self.WORD_NAME: word, self.PLUS_NAME: plusList, self.MINUS_NAME: minusList}
@@ -158,9 +157,7 @@ class Miner:
             minusAvg = numpy.nan_to_num(numpy.mean(minusWordList))
             minusAvgList.append(minusAvg)
 
-            print(chart[self.WORD_NAME]
-                  + ': PLUS: ' + str(len(plusWordList)) + ' , PLUS_AVG: ' + str(plusAvg)
-                  + ' , MINUS: ' + str(len(minusWordList)) + ' , MINUS_AVG: ' + str(minusAvg))
+            print(chart[self.WORD_NAME], 'PLUS',len(plusWordList),'PLUS_AVG',plusAvg, 'MINUS',len(minusWordList),'MINUS_AVG',minusAvg)
         if len(plusAvgList) > 0 :
             plusAvgList = list(set(plusAvgList))
             plusAvgList.sort(reverse=True)
@@ -261,26 +258,36 @@ class Miner:
                     threadList[0].join()
                     del threadList[0]
             queueList.append(resultQueue)
-        totalWordChangePriceMap = {}
-
+        totalWordPriceMap = {}
         for thread in threadList :
             print('thread', thread.getName())
             thread.join()
 
         for result in queueList :
             wordMap = result.get()
-            for word in wordMap.keys() :
-                if wordMap[word] == None :
-                    continue
-                try :
-                    totalWordChangePriceMap[word] = totalWordChangePriceMap[word] + wordMap[word]
-                except KeyError :
-                    totalWordChangePriceMap[word] = []
-                    totalWordChangePriceMap[word] = totalWordChangePriceMap[word] + wordMap[word]
-        return totalWordChangePriceMap
-    def getAnalyzedCnt(self, targetDate, period, stockName, contents):
-        totalWordPriceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
-        # totalWordPriceMap = self.getWordChangePriceMap(contents, stockName, period)
+            self.appendWordPriceMap(wordMap, totalWordPriceMap)
+
+        return totalWordPriceMap
+    def appendWordPriceMap(self, wordMap, totalWordPriceMap):
+         for word in wordMap.keys() :
+            if wordMap[word] == None :
+                continue
+            try :
+                totalWordPriceMap[word] = totalWordPriceMap[word] + wordMap[word]
+            except KeyError :
+                totalWordPriceMap[word] = []
+                totalWordPriceMap[word] = totalWordPriceMap[word] + wordMap[word]
+    def getAnalyzedCnt(self, targetDate, period, stockName):
+        today = date.today()
+        totalWordPriceMap = {}
+
+        for idx in range(self.LIMIT_YEAR_SEPERATOR) : # 73 * 5
+            interval = idx * self.INTERVAL_YEAR_SEPERATOR
+            contents = self.getStockNameContent(stockName, today - timedelta(days=interval), today - timedelta(days=interval + self.INTERVAL_YEAR_SEPERATOR))
+            wordMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
+            self.appendWordPriceMap(wordMap, totalWordPriceMap)
+
+
         targetWords = self.getTargetContentWords(stockName, targetDate, targetDate - timedelta(days=period))
 
         resultWordPriceMap = self.getWordPriceMap(targetWords, totalWordPriceMap)

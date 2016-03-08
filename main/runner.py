@@ -64,8 +64,7 @@ class runner :
             print('exist forecast date', forecastAt)
             return
         mine = miner.Miner(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        contents = mine.getStockNameContent(stock.get('name'), today, today - timedelta(days=365))
-        plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(targetAt, period, stockName, contents)
+        plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetPlusAvg, targetMinusAvg = mine.getAnalyzedCnt(targetAt, period, stockName)
         result = {'name' : stockName, 'pluscnt': plusCnt, 'minuscnt':minusCnt}
         mine.close()
         print(str(result))
@@ -114,45 +113,48 @@ class runner :
 
 
 
-    def printForecastData(self, input):
-        plusPoint = []
-        minusPoint = []
-        sumPoint = []
-        for each in input.get('analyzed'):
-            resultPrice = each.get('final') - each.get('start')
-            plus = each.get('plus')
-            plusAvg = each.get('plusAvg')
-            minus = each.get('minus')
-            total = plus + minus
-            stockName = each.get('name')
-            minusAvg = each.get('minusAvg')
-            targetAt = each.get('targetAt')
+    def printForecastData(self):
+        goodDicts = []
 
-            plusPercent = self.getDivideNumPercent(plus, total)
-            minusPercent = self.getDivideNumPercent(minus, total)
+        for stock in dbm.getStockList() :
+            input = dbm.analyzedSql(stock.get('name'))
+            plusPoint = []
+            minusPoint = []
+            sumPoint = []
+            for each in input.get('analyzed'):
+                resultPrice = each.get('final') - each.get('start')
+                plus = each.get('plus')
+                plusAvg = each.get('plusAvg')
+                minus = each.get('minus')
+                total = plus + minus
+                stockName = each.get('name')
+                minusAvg = each.get('minusAvg')
+                targetAt = each.get('targetAt')
 
-            if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
-                sumPoint.append({'name': stockName, 'result': resultPrice, 'plus_point': plusPercent, 'minus_point': minusPercent, 'plus_avg': plusAvg, 'minus_avg':minusAvg, 'plus':plus, 'minus':minus, 'targetAt': str(targetAt)})
-                if resultPrice > 0:  # plus
-                    plusPoint.append({'name': stockName, 'result': resultPrice, 'point': plusPercent, 'avg': plusAvg, 'targetAt': str(targetAt)})
-                else:
-                    minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minusPercent, 'avg': minusAvg, 'targetAt': str(targetAt)})
+                plusPercent = self.getDivideNumPercent(plus, total)
+                minusPercent = self.getDivideNumPercent(minus, total)
 
-        # for each in plusPoint : print (each.get('name'), 'plus',each.get('point'), 'targetAt', each.get('targetAt'), 'result', each.get('result'))
-        print(input.get('name'), self.getDivideNumPercent(len(plusPoint), len(sumPoint)))
-        # for each in minusPoint :
-        #     print (each.get('name'), 'minus',each.get('point'), 'targetAt', each.get('targetAt'), 'result', each.get('result'))
-        # for each in sumPoint : print (each.get('name'), 'plus',each.get('plus_point'), 'minus', each.get('minus_point'), 'targetAt', each.get('targetAt'), 'result', each.get('result'), 'plus', each.get('plus'), 'minus', each.get('minus'))
-        for each in input.get('forecast') : print('forecast', each.get('name'), 'targetAt',each.get('targetAt'), 'plus', each.get('plus'),'minus', each.get('minus'), 'point', self.getDivideNumPercent(each.get('plus'), each.get('plus') + each.get('minus')))
+                if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
+                    sumPoint.append({'name': stockName, 'result': resultPrice, 'plus_point': plusPercent, 'minus_point': minusPercent, 'plus_avg': plusAvg, 'minus_avg':minusAvg, 'plus':plus, 'minus':minus, 'targetAt': str(targetAt)})
+                    if resultPrice > 0:  # plus
+                        plusPoint.append({'name': stockName, 'result': resultPrice, 'point': plusPercent, 'avg': plusAvg, 'targetAt': str(targetAt)})
+                    else:
+                        minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minusPercent, 'avg': minusAvg, 'targetAt': str(targetAt)})
 
+            # for each in plusPoint : print (each.get('name'), 'plus',each.get('point'), 'targetAt', each.get('targetAt'), 'result', each.get('result'))
+            pointDict = {input.get('name'): self.getDivideNumPercent(len(plusPoint), len(sumPoint))}
+            print(pointDict)
 
+            for each in input.get('forecast') :
+                point = self.getDivideNumPercent(each.get('plus'), each.get('plus') + each.get('minus'))
+                if point > 60 and each.get('targetAt').day == (date.today() + timedelta(days=1)).day : # ?
+                    goodDicts.append({each.get('name'): point, 'point':pointDict.get(each.get('name')), 'targetAt':each.get('targetAt')})
+                print('forecast', each.get('name'), 'targetAt',each.get('targetAt'), 'plus', each.get('plus'),'minus', each.get('minus'), 'point', point)
 
+        print('good dictionary')
+        for goodDic in goodDicts :
+            print(goodDic)
 
-
-        # for each in forecastResult :
-        #     print('plus[' + str(each.get('plus')) + '] avg [' + str(each.get('plusAvg')) + '] minus[' + str(each.get('minus')) + '] avg [' + str(each.get('minusAvg')) + '] result  [' +  str(each.get('final') - each.get('start')) + '] target  : ' +  str(each.get('targetAt')))
-        # for each in analyzedResult:
-        #     print(each.get('name') + ' plus[' + str(each.get('plus')) + '] avg [' + str(each.get('plusAvg')) + '] minus[' + str(each.get('minus')) + '] avg [' + str(each.get('minusAvg')) + '] target  : ' +  str(each.get('targetAt')))
 
 
 
@@ -165,12 +167,12 @@ DB_SCH = "data"
 runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 period = 2
-today = date.today()
 # dbm.initStock()
 
-#while True : runner.migration(dbm.getUsefulStock(True), period, 365)
-while True : runner.run(dbm.getUsefulStock(True), today, period, False)
-# for stock in dbm.getStockList() : runner.printForecastData(dbm.analyzedSql(stock.get('name')))
+# while True : runner.migration(dbm.getUsefulStock(True), period, 365)
+# while True : runner.run(dbm.getUsefulStock(True), date.today() - timedelta(days=1), period, False)
+runner.printForecastData()
+
 # analyzer.Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH).analyze()
 # stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock('012280')
 dbm.close()
