@@ -101,9 +101,12 @@ class Miner:
             except KeyError:
                 continue
             try:
-                wordPriceDict[word] = wordPriceDict[word] + totalWordPrices[word] # TODO - memory error.
+                wordPriceDict[word] = wordPriceDict[word] + totalWordPrices[word]
             except KeyError:
                 wordPriceDict[word] = totalWordPrices[word]
+            except MemoryError:
+                totalWordPrices[word] = self.divideAvgList(totalWordPrices[word])
+                wordPriceDict[word] = wordPriceDict[word] + totalWordPrices[word]
 
         return wordPriceDict
 

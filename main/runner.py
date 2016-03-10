@@ -117,11 +117,11 @@ class runner :
         goodDicts = []
 
         for stock in dbm.getStockList() :
-            input = dbm.analyzedSql(stock.get('name'))
+            analyzedResult = dbm.analyzedSql(stock.get('name'))
             plusPoint = []
             minusPoint = []
             sumPoint = []
-            for each in input.get('analyzed'):
+            for each in analyzedResult.get('analyzed'):
                 resultPrice = each.get('final') - each.get('start')
                 plus = each.get('plus')
                 plusAvg = each.get('plusAvg')
@@ -142,16 +142,17 @@ class runner :
                         minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minusPercent, 'avg': minusAvg, 'targetAt': str(targetAt)})
 
             # for each in plusPoint : print (each.get('name'), 'plus',each.get('point'), 'targetAt', each.get('targetAt'), 'result', each.get('result'))
-            pointDict = {input.get('name'): self.getDivideNumPercent(len(plusPoint), len(sumPoint))}
+            pointDict = {analyzedResult.get('name'): [self.getDivideNumPercent(len(plusPoint), len(sumPoint)), len(analyzedResult.get('analyzed'))]}
             print(pointDict)
 
-            for each in input.get('forecast') :
+            for each in analyzedResult.get('forecast') :
                 point = self.getDivideNumPercent(each.get('plus'), each.get('plus') + each.get('minus'))
-                if point > 60 and each.get('targetAt').day == (date.today() + timedelta(days=1)).day : # ?
-                    goodDicts.append({each.get('name'): point, 'point':pointDict.get(each.get('name')), 'targetAt':each.get('targetAt')})
-                print('forecast', each.get('name'), 'targetAt',each.get('targetAt'), 'plus', each.get('plus'),'minus', each.get('minus'), 'point', point)
+                if point > 60 :
+                    if each.get('targetAt').day == (date.today().day) : # + timedelta(days=1)).day : # ?
+                        goodDicts.append({each.get('name'): point, 'point':pointDict.get(each.get('name')), 'targetAt':each.get('targetAt')})
+                print('forecast', each.get('name'), 'targetAt',each.get('targetAt'), 'plus', each.get('plus'),'minus', each.get('minus'), 'percent', point)
 
-        print('good dictionary')
+        print('FILTERED TARGET')
         for goodDic in goodDicts :
             print(goodDic)
 
@@ -170,11 +171,12 @@ period = 2
 # dbm.initStock()
 
 # while True : runner.migration(dbm.getUsefulStock(True), period, 365)
-# while True : runner.run(dbm.getUsefulStock(True), date.today() - timedelta(days=1), period, False)
+# while True : runner.run(dbm.getUsefulStock(True), date.today(), period, False)
 runner.printForecastData()
 
 # analyzer.Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH).analyze()
-# stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock('012280')
+# for stock in dbm.getStockList() :
+#     stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock(stock.get('code'))
 dbm.close()
 
 

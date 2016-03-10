@@ -35,6 +35,7 @@ class DSStock:
         self.HIGH = 'high'
         self.LOW = 'low'
         self.FINAL = 'final'
+        self.MARKET_OFF = 15
 
     def commit(self):
         self.connection.commit()
@@ -91,29 +92,28 @@ class DSStock:
             temp[self.FINAL] = float(format(self.chart.GetDataValue(4, i), '.2f'))
             data.append(temp)
         return data
-
     def insertFinanceData(self, datas, stockId):
         cursor = self.connection.cursor()
         for data in datas:
             date = datetime.datetime.strptime(str(data.get(self.DATE)), self.DATE_FORMAT)
-            if self.isFinanceTarget(date, stockId) is False:
-                return
             start = data.get(self.START)
             high = data.get(self.HIGH)
             low = data.get(self.LOW)
             final = data.get(self.FINAL)
-            cursor.execute("INSERT INTO `data`.`finance` (`stockId`,`date`,`high`,`low`,`start`,`final`) "
-                           "VALUES (%s, %s, %s, %s, %s, %s);", (stockId, date, high, low, start, final))
-            print('insert finance' + str(date))
+            if (int(date.today().strftime(self.DATE_FORMAT)) == data.get(self.DATE)) and date.now().hour < self.MARKET_OFF :
+                continue
+            selectSql = "SELECT `id`,`stockId`,`date` FROM `finance` WHERE `stockId`=%s AND date = %s"
+            selectCursor = cursor.execute(selectSql, (stockId, date))
+            if selectCursor == 0 :
+                cursor.execute("INSERT INTO `data`.`finance` (`stockId`,`date`,`high`,`low`,`start`,`final`) VALUES (%s, %s, %s, %s, %s, %s);", (stockId, date, high, low, start, final))
+                print('insert finance' + str(date))
+            updateCursor = cursor.execute(selectSql +" AND createdAt < %s", (stockId, date, datetime.datetime.strptime(str(data.get(self.DATE)) +'15', self.DATE_FORMAT + '%H')))
+            if updateCursor != 0 :
+                updateTarget = cursor.fetchone()
+                cursor.execute("UPDATE `data`.`finance` SET `high`=%s,`low`=%s,`start`=%s,`final`=%s WHERE `id`=%s;", (high, low, start, final, updateTarget.get('id')))
+                print('update finance' + str(date))
         self.connection.commit()
 
-
-    def isFinanceTarget(self, date, stockId):
-        cursor = self.connection.cursor()
-        stockCursor = cursor.execute("SELECT `id`,`stockId`,`date` FROM `finance` WHERE `stockId`=%s AND date = %s", (stockId, date))
-        if stockCursor == 0 :
-            return True
-        return False
 
     def insertNewStock(self, stockCode):
         insert = self.getStock(stockCode)
