@@ -109,7 +109,7 @@ class DBManager:
 
     def getUsefulStock(self, used):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1 AND `much` = 0 ORDER BY id desc LIMIT 1")
+        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1 AND `much` = 0 ORDER BY id asc LIMIT 1")
         stock = cursor.fetchone()
         if stock is None :
             raise DBManagerError('stock is none')

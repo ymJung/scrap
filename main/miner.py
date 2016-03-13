@@ -105,6 +105,7 @@ class Miner:
             except KeyError:
                 wordPriceDict[word] = totalWordPrices[word]
             except MemoryError:
+                print('memory error', len(totalWordPrices[word]))
                 totalWordPrices[word] = self.divideAvgList(totalWordPrices[word])
                 wordPriceDict[word] = wordPriceDict[word] + totalWordPrices[word]
 
@@ -289,7 +290,6 @@ class Miner:
             contents = self.getStockNameContent(stockName, today - timedelta(days=interval), today - timedelta(days=interval + self.INTERVAL_YEAR_SEPERATOR))
             wordMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
             self.appendWordPriceMap(wordMap, totalWordPriceMap)
-
 
         targetWords = self.getTargetContentWords(stockName, targetDate, targetDate - timedelta(days=period))
 

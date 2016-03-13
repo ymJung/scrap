@@ -170,13 +170,14 @@ dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 period = 2
 # dbm.initStock()
 
+
+
 # while True : runner.migration(dbm.getUsefulStock(True), period, 365)
 # while True : runner.run(dbm.getUsefulStock(True), date.today(), period, False)
 runner.printForecastData()
 
 # analyzer.Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH).analyze()
-# for stock in dbm.getStockList() :
-#     stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock(stock.get('code'))
+# stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock('005180')
 dbm.close()
 
 
