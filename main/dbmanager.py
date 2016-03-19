@@ -118,12 +118,13 @@ class DBManager:
         self.connection.commit()
         return stock
 
-    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, targetPlusAvg, targetMinusAvg, period):
+    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period):
         cursor = self.connection.cursor()
-        authorDataInsertSql = "INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `plusAvg`, `minusAvg`, `period`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
         cursor.execute('SELECT id FROM stock WHERE name = %s', stockName)
         stock = cursor.fetchone()
-        cursor.execute(authorDataInsertSql, (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, float(targetPlusAvg), float(targetMinusAvg), period))
+        cursor.execute("INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `period`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period))
+        cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s', (stock.get('id'), targetAt, period))
+        return cursor.fetchone().get('id')
 
     def updateLastUseDate(self, stock):
         cursor = self.connection.cursor()
@@ -164,20 +165,56 @@ class DBManager:
 
     def analyzedSql(self, stockName):
         cursor = self.connection.cursor()
-        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s group by i.targetAt order by i.targetAt desc'
+        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s group by i.targetAt order by i.targetAt desc'
         cursor.execute(selectAnalyzedSql, (stockName))
         analyzedResult = cursor.fetchall()
-        selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus,i.plusAvg,i.minusAvg, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s WHERE i.stockId = s.id AND s.name = %s AND i.financeId IS NULL order by i.id desc'
-        cursor.execute(selectForecastSql, (stockName))
-        forecastResult = cursor.fetchall()
 
-        return {'name':stockName, 'analyzed':analyzedResult, 'forecast':forecastResult}
+        return analyzedResult
 
-    def existForecastDate(self, forecastAt, stockId):
+    def forecastTarget(self, forecastAt, stock, targetAt):
+        stockId = stock.get('id')
+        stockName = stock.get('name')
         cursor = self.connection.cursor()
-        selectAnalyzedSql = 'SELECT * FROM item WHERE targetAt = %s and stockId = %s'
-        result = cursor.execute(selectAnalyzedSql, (forecastAt, stockId))
+        result = cursor.execute('SELECT id FROM item WHERE targetAt = %s and stockId = %s', (forecastAt, stockId))
         if result != 0:
             print('exist item date ', forecastAt, stockId)
             return True
+        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` BETWEEN %s AND %s AND `query` = %s', (targetAt, forecastAt, stockName))
+        if result != 0:
+            print('empty content data.', targetAt, forecastAt, stockName)
+            return True
         return False
+
+
+
+    def saveAnalyzedItemFinanceList(self, itemId, financeIdList):
+        cursor = self.connection.cursor()
+        for financeId in financeIdList :
+            cursor.execute("INSERT INTO chart_map (itemId, financeId) VALUES (%s, %s)", (itemId, financeId))
+
+    def getFinanceListFromItemId(self, itemId):
+        cursor = self.connection.cursor()
+        financeIds = cursor.execute('SELECT cm.financeId FROM chart_map cm WHERE cm.itemId=%s', (itemId))
+        results = []
+        if financeIds != 0 :
+            for each in cursor.fetchall() :
+                results.append(each.get('financeId'))
+                results = list(set(results))
+        return results
+
+    def getFinanceDataIn(self, financeIdList):
+        if len(financeIdList) == 0 :
+            return []
+        cursor = self.connection.cursor()
+        selectFinanceQuery = 'SELECT f.id, f.start, f.final, f.date, f.createdAt FROM finance f WHERE f.id IN (%s)'
+        inquery = ', '.join(list(map(lambda x: '%s', financeIdList)))
+        selectFinanceQuery = selectFinanceQuery % inquery
+        cursor.execute(selectFinanceQuery, financeIdList)
+        return cursor.fetchall()
+
+    def getForecastResult(self, stockName, limitAt):
+        cursor = self.connection.cursor()
+        selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s WHERE i.stockId = s.id AND s.name = %s AND i.targetAt >= %s ORDER BY i.id DESC' # AND i.financeId IS NULL
+        cursor.execute(selectForecastSql, (stockName, limitAt))
+        return cursor.fetchall()
+

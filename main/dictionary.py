@@ -46,6 +46,11 @@ class Dictionary:
             urllib.request.urlopen(self.url + urllib.parse.quote(text)), "lxml")
         return soup
 
+    def getWordId(self, data):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT `id` FROM `word` WHERE `word`=%s", (data))
+        return cursor.fetchone().get('id')
+
     def existWord(self, data):
         selectWordIdCursor = self.connection.cursor().execute("SELECT `id` FROM `word` WHERE `word`=%s", (data))
         return selectWordIdCursor != 0
@@ -64,7 +69,7 @@ class Dictionary:
     def getWordByStr(self, fullWord):
         idx = self.getExistWordIdx(fullWord)
         if idx > 0:
-            return fullWord[0:idx]
+            return self.getWordId(fullWord[0:idx])
         else:
             return ''
 
