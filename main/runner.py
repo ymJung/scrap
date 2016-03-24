@@ -119,66 +119,13 @@ class runner:
         return int((num1 / num2) * 100)
 
     def printForecastData(self, period):
-        filteredTarget = []
-
+        filteredTargets = []
         for stock in dbm.getStockList():
-            analyzedResult = dbm.analyzedSql(stock.get('name'))
-            plusPoint = []
-            minusPoint = []
-            sumPoint = []
-            for each in analyzedResult:
-                resultPrice = each.get('final') - each.get('start')
-                plus = each.get('plus')
-                minus = each.get('minus')
-                total = plus + minus
-                stockName = each.get('name')
-                targetAt = each.get('targetAt')
-                itemId = each.get('id')
-                financeList = dbm.getFinanceListFromItemId(itemId)
-                financeMap = self.getFinanceDataMap(financeList) # avg chance danger
+            plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
+            filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period)
+            filteredTargets = filteredTargetList + filteredTargets
+        self.printFilteredTarget(filteredTargets)
 
-                plusPercent = self.getDivideNumPercent(plus, total)
-                minusPercent = self.getDivideNumPercent(minus, total)
-
-                if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
-                    sumPoint.append({'name': stockName, 'result': resultPrice, 'plus_point': plusPercent, 'minus_point': minusPercent, 'plus': plus, 'minus': minus, 'targetAt': str(targetAt)})
-                    if resultPrice > 0:  # plus
-                        plusPoint.append({'name': stockName, 'result': resultPrice, 'point': plusPercent, 'targetAt': str(targetAt), 'financeMap': financeMap})
-                    else:
-                        minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minusPercent, 'targetAt': str(targetAt)})
-            plusChanceIds = []
-            for point in plusPoint :
-                chanceIds = point.get('financeMap').get('chance')
-                plusChanceIds += chanceIds
-                plusChanceIds = list(set(plusChanceIds))
-
-            pointDict = {stock.get('name'): {'percent': (self.getDivideNumPercent(len(plusPoint), len(sumPoint))), 'total':len(analyzedResult)}}
-            print(pointDict)
-
-            forecastResult = dbm.getForecastResult(stock.get('name'), date.today() - timedelta(days=period + 1))
-            for each in forecastResult :
-                plus = each.get('plus')
-                minus = each.get('minus')
-                point = self.getDivideNumPercent(plus, plus + minus)
-                stockName = each.get('name')
-                targetAt = each.get('targetAt')
-
-
-                if point > self.FILTER_LIMIT :
-                    itemId = each.get('id')
-                    financeList = dbm.getFinanceListFromItemId(itemId)
-                    chanceIds = []
-                    for chanceId in plusChanceIds :
-                        if chanceId in financeList :
-                            chanceIds.append(chanceId)
-                    filteredTarget.append({stockName: point, 'point': pointDict.get(stockName), 'targetAt': targetAt, 'chance' : chanceIds})
-
-
-                print('forecast', stockName, 'targetAt', targetAt, 'plus', plus, 'minus', minus, 'percent', point)
-
-        print('FILTERED TARGET')
-        for goodDic in filteredTarget:
-            print(goodDic)
 
     def getFinanceDataMap(self, financeIdList):
         chanceIds = []
@@ -187,15 +134,125 @@ class runner:
         financeDataList = dbm.getFinanceDataIn(financeIdList)
         for finance in financeDataList:
             price = finance.get('start') - finance.get('final')
-            compare = price - finance.get('final')
+            compare = finance.get('final') - price
             percent = (price / compare)
             if percent > self.CHANCE_PERCENT:
                 chanceIds.append(finance.get('id'))
             if percent < -self.CHANCE_PERCENT:
                 dangerIds.append(finance.get('id'))
             prices.append(price)
-        return {'avg': numpy.mean(prices), 'chance': chanceIds, 'danger': dangerIds}
+        avg = 0
+        if len(prices) > 0 :
+            avg = numpy.mean(prices)
+        return {'avg': avg, 'chance': chanceIds, 'danger': dangerIds}
 
+    def insertNewStockAndMigrate(self, stockCode, period):
+        stocks.insertNewStock(stockCode)
+        stock = stocks.getStock(stockCode)
+        self.scrapWebAndMigration(stock, period)
+    def scrapWebAndMigration(self, stock, period):
+        runner.run(stock, date.today(), period, False)
+        runner.migration(stock, period, 365)
+
+    def filteredTarget(self, period):
+        filteredTargets = []
+        for stock in dbm.getStockList():
+            plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
+            filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period)
+            filteredTargets = filteredTargets + filteredTargetList
+        return filteredTargets
+
+    def getAnalyzeExistData(self, stock):
+        analyzedResult = dbm.analyzedSql(stock.get('name'))
+        plusPoint = []
+        minusPoint = []
+        sumPoint = []
+        for each in analyzedResult:
+            resultPrice = each.get('final') - each.get('start')
+            plus = each.get('plus')
+            minus = each.get('minus')
+            total = plus + minus
+            stockName = each.get('name')
+            targetAt = each.get('targetAt')
+            itemId = each.get('id')
+            financeList = dbm.getFinanceListFromItemId(itemId)
+            financeMap = self.getFinanceDataMap(financeList)  # avg chance danger
+
+            plusPercent = self.getDivideNumPercent(plus, total)
+            minusPercent = self.getDivideNumPercent(minus, total)
+
+            if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
+                sumPoint.append(
+                    {'name': stockName, 'result': resultPrice, 'plus_point': plusPercent, 'minus_point': minusPercent,
+                     'plus': plus, 'minus': minus, 'targetAt': str(targetAt)})
+                if resultPrice > 0:  # plus
+                    plusPoint.append(
+                        {'name': stockName, 'result': resultPrice, 'point': plusPercent, 'targetAt': str(targetAt),
+                         'financeMap': financeMap})
+                else:
+                    minusPoint.append(
+                        {'name': stockName, 'result': resultPrice, 'point': minusPercent, 'targetAt': str(targetAt)})
+        plusChanceIds = []
+        for point in plusPoint:
+            chanceIds = point.get('financeMap').get('chance')
+            plusChanceIds += chanceIds
+            plusChanceIds = list(set(plusChanceIds))
+
+        trustPercent = self.getDivideNumPercent(len(plusPoint), len(sumPoint))
+        pointDict = {stock.get('name'): {'percent': trustPercent, 'total': len(analyzedResult)}}
+        return plusChanceIds, pointDict
+
+
+    def getFilteredTarget(self, plusChanceIds, pointDict, stock, period):
+        filteredTargets = []
+        forecastResult = dbm.getForecastResult(stock.get('name'), date.today() - timedelta(days=period + 1))
+        for each in forecastResult:
+            plus = each.get('plus')
+            minus = each.get('minus')
+            point = self.getDivideNumPercent(plus, plus + minus)
+            stockName = each.get('name')
+            targetAt = each.get('targetAt')
+
+            if point > self.FILTER_LIMIT:
+                itemId = each.get('id')
+                financeList = dbm.getFinanceListFromItemId(itemId)
+                chanceIds = []
+                for chanceId in plusChanceIds:
+                    if chanceId in financeList:
+                        chanceIds.append(chanceId)
+                filteredTargets.append({stockName: point, 'point': pointDict.get(stockName), 'targetAt': targetAt, 'chance': chanceIds})
+        return filteredTargets
+
+    def trustedTarget(self):
+        trustedTargets = []
+        for stock in dbm.getStockList():
+            plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
+            target = pointDict.get(stock.get('name'))
+            percent = target.get('percent')
+            if self.FILTER_LIMIT < percent :
+                trustedTargets.append(target)
+        return trustedTargets
+
+    def dailyRun(self, period):
+        while True :
+            stock = dbm.getUsefulStock(True)
+            busy = False
+            targetAt = date.today()
+            runner.run(stock, targetAt, period, busy)
+
+    def targetAnalyze(self, stockCode):
+        stock = stocks.getStock(stockCode)
+        print('targetAnalyze', stock)
+        plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
+        filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period)
+        return filteredTargetList
+
+
+
+    def printFilteredTarget(self, filteredTargets):
+        print('FILTERED TARGET')
+        for goodDic in filteredTargets:
+            print(goodDic)
 
 
 DB_IP = "localhost"
@@ -205,15 +262,28 @@ DB_SCH = "data"
 
 runner = runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
+stocks = stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH)
 period = 2
 
+# 1. filteredTarget
+# 2. trustedTarget
+# 3. dailyRun
+# 4. insertNewAndMigrate
+# 5. targetAnalyze
+# filteredTargets = runner.filteredTarget(period)
+# trustedTargets = runner.trustedTarget()
+# runner.dailyRun(period)
+# runner.insertNewStockAndMigrate('011780', period)
+# runner.targetAnalyze('011780')
+
+
 # dbm.initStock()
-
-
 # while True : runner.migration(dbm.getUsefulStock(True), period, 365)
 # while True : runner.run(dbm.getUsefulStock(True), date.today(), period, False)
-runner.printForecastData(period)
+# while True : runner.scrapWebAndMigration(dbm.getUsefulStock(True), period)
+# runner.printForecastData(period)
 
 # analyzer.Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH).analyze()
-# stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertNewStock('011780')
-dbm.close()
+# runner.insertNewStock('011780')
+
+# dbm.close()

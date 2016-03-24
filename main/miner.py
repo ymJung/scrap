@@ -56,7 +56,7 @@ class Miner:
         count = 0
         cursor = self.connection.cursor()
         conditionQuery = ' WHERE c.query = %s and c.date between %s and %s'
-        countCursor = cursor.execute("SELECT COUNT(c.id) as cnt FROM content c " + conditionQuery, (stockName, limitAt, startAt)) #TODO - 확인 , a 와 b ? b 와 a  ?
+        countCursor = cursor.execute("SELECT COUNT(c.id) as cnt FROM content c " + conditionQuery, (stockName, limitAt, startAt))
         if countCursor != 0:
             count = cursor.fetchone().get('cnt')
             if count == None :

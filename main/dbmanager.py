@@ -1,7 +1,7 @@
 import datetime
 import pymysql.cursors
 import sys
-
+import re
 
 class DBManagerError(Exception):
     def __init__(self, msg):
@@ -73,6 +73,7 @@ class DBManager:
 
     def saveContentAndGetId(self, site, authorId, contentData, date, title, stockName):
         cursor = self.connection.cursor()
+        contentData = re.escape(contentData)
         contentIdSql = "SELECT `id` FROM `content` WHERE `authorId`=%s AND `title`=%s"
         print('saveContentAndGetId', authorId,title)
         contentId = cursor.execute(contentIdSql, (authorId, title))
@@ -112,7 +113,14 @@ class DBManager:
         cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1 AND `much` = 0 ORDER BY id asc LIMIT 1")
         stock = cursor.fetchone()
         if stock is None :
-            raise DBManagerError('stock is none')
+            cursor.execute("select lastUseDateAt from stock order by lastUseDateAt desc limit 1")
+            lastUseDateAt = cursor.fetchone().get('lastUseDateAt')
+            today = datetime.date.today()
+            if (today.year == lastUseDateAt.year) and (today.month == lastUseDateAt.month) and (today.day == lastUseDateAt.day) :
+                raise DBManagerError('stock is none')
+            else :
+                print('init stock')
+                self.initStock()
         if used is True :
             cursor.execute(("UPDATE stock SET `use` = 0 WHERE `id` = %s"), stock.get('id'))
         self.connection.commit()
