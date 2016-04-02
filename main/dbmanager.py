@@ -12,6 +12,7 @@ class DBManagerError(Exception):
 
 class DBManager:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
+        self.LIMIT_HOUR = 16
         self.connection = pymysql.connect(host=DB_IP,
                                           user=DB_USER,
                                           password=DB_PWD,
@@ -26,6 +27,8 @@ class DBManager:
         self.WRITER = "writer"
         self.COMMENT_LIST = "commentList"
         self.LIMIT_COUNT = 5
+        self.REGULAR_EXP = '[^가-힝0-9a-zA-Z]'
+
 
     def commit(self):
         self.connection.commit()
@@ -43,17 +46,16 @@ class DBManager:
                 print('data is wrong' + str(each))
                 continue
 
+            authorId = self.saveAuthorAndGetId(site, authorName)
+            contentId = self.saveContentAndGetId(site, authorId, contentData, date, title, stockName)
+
             commentList = each.get(self.COMMENT_LIST)
             if len(commentList) > 0:
-                authorId = self.saveAuthorAndGetId(site, authorName)
-                contentId = self.saveContentAndGetId(site, authorId, contentData, date, title, stockName)
-
                 for comment in commentList:
                     commentWriter = comment.get(self.WRITER)
                     commentAuthorId = self.saveAuthorAndGetId(site, commentWriter)
                     commentDate = comment.get(self.DATE)
                     commentContent = comment.get(self.CONTENT_DATA)
-
                     self.insertComment(commentAuthorId, commentContent, contentId, commentDate, stockName)
 
     def insertComment(self, commentAuthorId, commentContent, contentId, commentDate, stockName):
@@ -70,12 +72,17 @@ class DBManager:
         except:
             print("Unexpected error:", sys.exc_info()[0])
             pass
+    def replaceEscape(self, text):
+        return re.sub(self.REGULAR_EXP, ' ', text)
+
+
 
     def saveContentAndGetId(self, site, authorId, contentData, date, title, stockName):
         cursor = self.connection.cursor()
-        contentData = re.escape(contentData)
+        title = self.replaceEscape(title)
+        contentData = self.replaceEscape(contentData)
         contentIdSql = "SELECT `id` FROM `content` WHERE `authorId`=%s AND `title`=%s"
-        print('saveContentAndGetId', authorId,title)
+        print(u'saveContentAndGetId', authorId, title)
         contentId = cursor.execute(contentIdSql, (authorId, title))
         if contentId == 0:
             contentDataInsertSql = "INSERT INTO `content` (`title`, `contentData`, `authorId`, `date`, `query`, `site`) VALUES (%s, %s, %s, %s, %s, %s)"
@@ -101,28 +108,32 @@ class DBManager:
 
     def getStockList(self):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock ORDER BY id ASC")
+        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock where `much` = 0 ORDER BY id ASC")
         return cursor.fetchall()
 
     def initStock(self):
         self.connection.cursor().execute("UPDATE stock SET `use` = 1 WHERE `much` = 0")
         self.connection.commit()
 
-    def getUsefulStock(self, used):
+    def getUsefulStock(self, checkDate):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1 AND `much` = 0 ORDER BY id asc LIMIT 1")
+        selectSql = "SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock WHERE `use` = 1 AND `much` = 0 ORDER BY id asc LIMIT 1"
+        cursor.execute(selectSql)
         stock = cursor.fetchone()
         if stock is None :
             cursor.execute("select lastUseDateAt from stock order by lastUseDateAt desc limit 1")
             lastUseDateAt = cursor.fetchone().get('lastUseDateAt')
             today = datetime.date.today()
-            if (today.year == lastUseDateAt.year) and (today.month == lastUseDateAt.month) and (today.day == lastUseDateAt.day) :
-                raise DBManagerError('stock is none')
-            else :
-                print('init stock')
-                self.initStock()
-        if used is True :
-            cursor.execute(("UPDATE stock SET `use` = 0 WHERE `id` = %s"), stock.get('id'))
+            workIsDone = (today.year == lastUseDateAt.year) and (today.month == lastUseDateAt.month) and (today.day == lastUseDateAt.day) and datetime.datetime.now().hour > self.LIMIT_HOUR
+            if checkDate:
+                if workIsDone:
+                    raise DBManagerError('stock is none')
+                else :
+                    print('init stock')
+                    self.initStock()
+                    cursor.execute(selectSql)
+                    stock = cursor.fetchone()
+        cursor.execute(("UPDATE stock SET `use` = 0 WHERE `id` = %s"), stock.get('id'))
         self.connection.commit()
         return stock
 
@@ -225,4 +236,23 @@ class DBManager:
         selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s WHERE i.stockId = s.id AND s.name = %s AND i.targetAt >= %s ORDER BY i.id DESC' # AND i.financeId IS NULL
         cursor.execute(selectForecastSql, (stockName, limitAt))
         return cursor.fetchall()
+
+    def getUnfilterdGarbageWord(self):
+        cursor = self.connection.cursor()
+        cursor.execute('SELECT `id`, `word` FROM `garbage` WHERE `useful` = "N" ORDER BY `id` ASC LIMIT 1')
+        return cursor.fetchone()
+    def updateGarbageStatus(self, id, status):
+        self.connection.cursor().execute("UPDATE garbage SET `useful` = %s WHERE `id` = %s", (status, id))
+
+    def getGarbageWord(self, garbageId):
+        cursor = self.connection.cursor()
+        cursor.execute('SELECT `id`, `word`, `useful` FROM `garbage` WHERE `id` = %s', (garbageId))
+        return cursor.fetchone()
+
+    def insertWord(self, word):
+        cursor = self.connection.cursor()
+        cursor.execute("INSERT INTO word (word) VALUES (%s)", (word))
+
+
+
 

@@ -75,8 +75,9 @@ class Miner:
                 continue
             except MemoryError :
                 print('memory error', stockName, len(contentsList))
-                contentsList = self.divideList(contentsList)
-                continue
+                # contentsList = self.divideList(contentsList)
+                # continue
+                return contentsList
         return contentsList
     def getTargetContentWordIds(self, stockName, targetDate, periodDate):
         wordIds = []
