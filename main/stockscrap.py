@@ -3,6 +3,7 @@ __author__ = 'YoungMin'
 import win32com.client
 import pymysql.cursors
 import datetime
+import dbmanager
 
 
 # member = win32com.client.Dispatch("dscbo1.StockMember1")
@@ -24,47 +25,34 @@ class DSStock:
         self.chart = win32com.client.Dispatch("CpSysDib.StockChart")
         if self.cybos.IsConnect is not 1:
             raise DSStockError("disconnect")
-        self.connection = pymysql.connect(host=DB_IP,
-                                          user=DB_USER,
-                                          password=DB_PWD,
-                                          db=DB_SCH,
-                                          charset='utf8mb4',
-                                          cursorclass=pymysql.cursors.DictCursor)
         self.DATE = 'date'
         self.START = 'start'
         self.HIGH = 'high'
         self.LOW = 'low'
         self.FINAL = 'final'
         self.MARKET_OFF = 15
+        self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 
-    def commit(self):
-        self.connection.commit()
-        print('finish')
-
-    def selectStock(self, stockCode):
-        cursor = self.connection.cursor()
-        stockCursor = cursor.execute("SELECT `id`,`code`,`name`, `hit` FROM `stock` WHERE `code` like %s", ('%'+stockCode))
-        if stockCursor != 0:
-            return cursor.fetchone()
-        return None
+    def __del__(self):
+        self.dbm.commit()
+        self.dbm.close()
 
     def getStock(self, stockCode):
-        stock = self.selectStock(stockCode)
-        cursor = self.connection.cursor()
+        stock = self.dbm.selectStockByCode(stockCode)
         if stock is None:
             totalCount = self.ins.GetCount()
             for i in range(0, totalCount):
                 if self.ins.GetData(0, i) == str(stockCode) or self.ins.GetData(0, i).replace('A','') == str(stockCode):
-                    cursor.execute("INSERT INTO `data`.`stock` (`code`,`name`,`use`) VALUES (%s, %s, %s);", (self.ins.getData(0, i), self.ins.getData(1, i), 1))
+                    self.dbm.insertStock(self.ins.getData(0, i), self.ins.getData(1, i), 1)
                     print("insert [", self.ins.getData(0, i) , "][", self.ins.getData(1, i) , "]")
-                    return self.selectStock(stockCode)
+                    return self.dbm.selectStockByCode(stockCode)
             print("Not found name : " + str(stockCode))
 
             raise DSStockError('not found stock')
         else:
             hit = int(stock.get('hit')) + 1
-            cursor.execute("UPDATE `stock` SET `hit`=%s WHERE `id`=%s", (hit, stock.get('id')))
-            return self.selectStock(stockCode)
+            self.dbm.updateStockHit(hit, stock.get('id'))
+            return self.dbm.selectStockByCode(stockCode)
 
     def getUpDown(self, code):
         UP_DOWN_CODE = 12
@@ -93,7 +81,7 @@ class DSStock:
             data.append(temp)
         return data
     def insertFinanceData(self, datas, stockId):
-        cursor = self.connection.cursor()
+
         for data in datas:
             date = datetime.datetime.strptime(str(data.get(self.DATE)), self.DATE_FORMAT)
             start = data.get(self.START)
@@ -102,23 +90,23 @@ class DSStock:
             final = data.get(self.FINAL)
             if (int(date.today().strftime(self.DATE_FORMAT)) == data.get(self.DATE)) and date.now().hour < self.MARKET_OFF :
                 continue
-            selectSql = "SELECT `id`,`stockId`,`date` FROM `finance` WHERE `stockId`=%s AND date = %s"
-            selectCursor = cursor.execute(selectSql, (stockId, date))
-            if selectCursor == 0 :
-                cursor.execute("INSERT INTO `data`.`finance` (`stockId`,`date`,`high`,`low`,`start`,`final`) VALUES (%s, %s, %s, %s, %s, %s);", (stockId, date, high, low, start, final))
+
+            finance = self.dbm.selectFinanceByStockIdAndDate(stockId, date)
+            if finance is None :
+                self.dbm.insertFinance(stockId, date, high, low, start, final)
                 print('insert finance' + str(date))
-            updateCursor = cursor.execute(selectSql +" AND createdAt < %s", (stockId, date, datetime.datetime.strptime(str(data.get(self.DATE)) +'15', self.DATE_FORMAT + '%H')))
-            if updateCursor != 0 :
-                updateTarget = cursor.fetchone()
-                cursor.execute("UPDATE `data`.`finance` SET `high`=%s,`low`=%s,`start`=%s,`final`=%s WHERE `id`=%s;", (high, low, start, final, updateTarget.get('id')))
+            dayOfFinanceData = self.dbm.getFinanceDataByDay(stockId, date, datetime.datetime.strptime(str(data.get(self.DATE)) + str(self.MARKET_OFF), self.DATE_FORMAT + '%H'))
+
+            if dayOfFinanceData is not None :
+                self.dbm.updateFinance(high, low, start, final, dayOfFinanceData.get('id'))
                 print('update finance' + str(date))
-        self.connection.commit()
+        self.dbm.commit()
 
 
     def insertNewStock(self, stockCode):
         insert = self.getStock(stockCode)
         datas = self.getChartDataList(insert.get('code'), 365 * 2)
         self.insertFinanceData(datas, str(insert.get('id')))
-        self.connection.commit()
+        self.dbm.commit()
 
 

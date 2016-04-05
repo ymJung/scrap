@@ -1,7 +1,6 @@
-
-import pymysql.cursors
 import urllib
 import dictionary
+import dbmanager
 
 
 class AnalyzerError(Exception):
@@ -18,51 +17,26 @@ class Analyzer:
         self.DB_USER = DB_USER
         self.DB_PWD = DB_PWD
         self.DB_SCH = DB_SCH
-        self.connection = pymysql.connect(host=DB_IP,
-                                          user=DB_USER,
-                                          password=DB_PWD,
-                                          db=DB_SCH,
-                                          charset='utf8mb4',
-                                          cursorclass=pymysql.cursors.DictCursor)
+        self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
 
     def commit(self):
-        self.connection.commit()
+        self.dbm.commit()
+
+    def __del__(self):
+        self.dbm.commit()
+        self.dbm.close()
+
     def analyze(self):
-        while True :
-            target = self.analyzeTarget()
-            if target is None :
+        while True:
+            target = self.dbm.selectAnalyze('N')
+            if target is None:
                 break
-            self.updateAnalyzeFlag(target.get('id'), 'Y')
-            self.connection.commit()
+            self.dbm.updateContentAnalyzeFlag('Y', target.get('id'))
+            self.commit()
             print('start : ' + str(target.get('id')))
             self.analyzeDictionary(target.get('contentData'), target.get('id'), 0)
-            self.connection.commit()
+            self.commit()
             print('fin : ' + str(target.get('id')))
-
-    def analyzeTarget(self):
-        cursor = self.connection.cursor()
-        contentSelectSql = "SELECT `id`,`title`,`contentData`,`authorId`,`date`,`analyze`,`createdAt` FROM `content` WHERE `analyze`=%s LIMIT 1"
-        contentDataCursor = cursor.execute(contentSelectSql, ('N'))
-        if contentDataCursor != 0:
-            result = cursor.fetchone()
-
-            return result
-        return None
-
-    def updateAnalyzeFlag(self, contentId, analyzeFlag):
-        cursor = self.connection.cursor()
-        contentUpdateSql = "UPDATE `content` SET `analyze`=%s WHERE `id`=%s"
-        cursor.execute(contentUpdateSql, (analyzeFlag, contentId))
-
-    def insertDelimiter(self, data):
-        cursor = self.connection.cursor()
-        delimiterIdSelectSql = "SELECT `id` FROM `delimiter` WHERE `word`=%s"
-        delimiterIdCursor = cursor.execute(delimiterIdSelectSql, (data))
-        if delimiterIdCursor == 0:
-            delimiterInsertSql = "INSERT INTO `delimiter` (`word`) VALUES (%s)"
-            cursor.execute(delimiterInsertSql, (data))
-
-        return delimiterIdCursor.fetchone().get('id')
 
     def analyzeDictionary(self, data, contentId, idx):
         dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
@@ -84,15 +58,15 @@ class Analyzer:
                     if findWord is False and dic.existWord(splitString) is False:
                         dic.insertGarbageWord(splitString, contentId)
                     idx = i
-                dic.connection.commit()
+                dic.commit()
             idx = 0
         except urllib.error.URLError as e:
             print(e)
             print('retry analyzeDictionary ' + str(idx))
-            dic.connection.commit()
+            dic.commit()
             self.analyzeDictionary(data, contentId, idx)
         except:
             print('uncaught except')
-            dic.connection.commit()
+            dic.commit()
         finally:
-            dic.connection.commit()
+            dic.commit()

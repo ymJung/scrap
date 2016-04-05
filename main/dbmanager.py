@@ -28,8 +28,6 @@ class DBManager:
         self.COMMENT_LIST = "commentList"
         self.LIMIT_COUNT = 5
         self.REGULAR_EXP = '[^가-힝0-9a-zA-Z]'
-
-
     def commit(self):
         self.connection.commit()
         print('dbm commit')
@@ -249,9 +247,103 @@ class DBManager:
         cursor.execute('SELECT `id`, `word`, `useful` FROM `garbage` WHERE `id` = %s', (garbageId))
         return cursor.fetchone()
 
-    def insertWord(self, word):
+    def selectWord(self, word):
         cursor = self.connection.cursor()
-        cursor.execute("INSERT INTO word (word) VALUES (%s)", (word))
+        cursor.execute("SELECT `id` FROM `word` WHERE `word`=%s", (word))
+        return cursor.fetchone()
+    def selectGarbageWord(self, word):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT `id` FROM `garbage` WHERE `word`=%s", (word))
+        return cursor.fetchone()
+
+    def insertWord(self, word):
+        result = self.selectWord(word)
+        if result is None :
+            cursor = self.connection.cursor()
+            cursor.execute("INSERT INTO word (word) VALUES (%s)", (word))
+            return True
+        return False
+
+    def getMaxGarbageWord(self):
+        cursor = self.connection.cursor()
+        cursor.execute('SELECT `id`, `word` FROM `garbage` ORDER BY `id` DESC LIMIT 1')
+        return cursor.fetchone()
+
+    def getFinanceDataByStockNameAndData(self, stockName, sliceDate):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT f.id, f.start, f.final FROM finance f, stock s WHERE f.stockId = s.id and s.name = %s and f.date = %s", (stockName, sliceDate))
+        return cursor.fetchone()
+
+    def getContent(self, stockName, startPos, endPos):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT `c`.`title`,`c`.`contentData`, `a`.`name`, `c`.`date` FROM `content` as `c`, `author` as `a` WHERE `c`.`query` = %s limit %s , %s", (stockName, startPos, endPos))
+        return cursor.fetchall()
+
+    def countContents(self, stockName, limitAt, startAt):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.query = %s and c.date between %s and %s", (stockName, limitAt, startAt))
+        return cursor.fetchone()
+
+    def getContentBetween(self, stockName, limitAt, startAt, startPos, endPos):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT c.title,c.contentData, a.name, c.date FROM content as c, author as a  WHERE c.query = %s and c.date between %s and %s LIMIT %s , %s",
+                                       (stockName, limitAt, startAt, startPos, endPos))
+        return cursor.fetchall()
+
+    def getFinancePrice(self, financeId):
+        cursor = self.connection.cursor()
+        cursor.execute("select start, final from finance where id = %s", financeId)
+        result = cursor.fetchone()
+        price = result.get('start') - result.get('final')
+        return price
+    def insertGarbage(self, word, contentId) :
+        cursor = self.connection.cursor()
+        insertGarbageSql = "INSERT INTO `garbage` (`word`,`contentId`) VALUES (%s, %s)"
+        cursor.execute(insertGarbageSql, (word, contentId))
+
+    def selectStockByCode(self, stockCode):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT `id`,`code`,`name`, `hit` FROM `stock` WHERE `code` like %s", ('%'+stockCode))
+        return cursor.fetchone()
+
+    def selectFinanceByStockIdAndDate(self, stockId, date):
+        cursor = self.connection.cursor()
+        selectSql = "SELECT `id`,`stockId`,`date` FROM `finance` WHERE `stockId`=%s AND date = %s"
+        cursor.execute(selectSql, (stockId, date))
+        return cursor.fetchone()
+
+    def insertFinance(self, stockId, date, high, low, start, final):
+        cursor = self.connection.cursor()
+        cursor.execute("INSERT INTO `data`.`finance` (`stockId`,`date`,`high`,`low`,`start`,`final`) VALUES (%s, %s, %s, %s, %s, %s);", (stockId, date, high, low, start, final))
+
+    def getFinanceDataByDay(self, stockId, date, dateStr):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT `id`,`stockId`,`date` FROM `finance` WHERE `stockId`=%s AND date = %s AND createdAt < %s", (stockId, date, dateStr))
+        return cursor.fetchone()
+
+    def updateFinance(self, high, low, start, final, financeId):
+        cursor = self.connection.cursor()
+        cursor.execute("UPDATE `data`.`finance` SET `high`=%s,`low`=%s,`start`=%s,`final`=%s WHERE `id`=%s;", (high, low, start, final, financeId))
+
+    def insertStock(self, code, name, use):
+        cursor = self.connection.cursor()
+        cursor.execute("INSERT INTO `data`.`stock` (`code`,`name`,`use`) VALUES (%s, %s, %s);", (code, name, use))
+
+    def updateStockHit(self, hit, stockId):
+        cursor = self.connection.cursor()
+        cursor.execute("UPDATE `stock` SET `hit`=%s WHERE `id`=%s", (hit, stockId))
+
+    def selectAnalyze(self, analyzed):
+        cursor = self.connection.cursor()
+        contentSelectSql = "SELECT `id`,`title`,`contentData`,`authorId`,`date`,`analyze`,`createdAt` FROM `content` WHERE `analyze`=%s LIMIT 1"
+        cursor.execute(contentSelectSql, (analyzed))
+        return cursor.fetchone()
+
+    def updateContentAnalyzeFlag(self, analyzeFlag, contentId):
+        cursor = self.connection.cursor()
+        cursor.execute("UPDATE `content` SET `analyze`=%s WHERE `id`=%s", (analyzeFlag, contentId))
+
+
 
 
 

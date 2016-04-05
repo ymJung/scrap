@@ -274,7 +274,7 @@ class NaverStock:
             breakFlag = False
             for td in listTD:
                 links.append('http://finance.naver.com' + td.find('a').get('href'))
-            if listTD is None or len(listTD) == 0:
+            if listTD is None or len(listTD) == 0 or len(data) > 10000:
                 breakFlag = True
             for link in links:
                 try:

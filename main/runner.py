@@ -7,6 +7,7 @@ import stockscrap
 from datetime import date, timedelta
 import pythoncom
 import sys
+import dictionary
 
 class Runner:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
@@ -20,9 +21,9 @@ class Runner:
         self.PPOMPPU_PWD = ''
         pythoncom.CoInitialize()
         self.stocks = None
-
         self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
         self.analyze = analyzer.Analyzer(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        self.dic = None
     def setStocks(self):
         if self.stocks is None :
             self.stocks = stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH)
@@ -84,7 +85,7 @@ class Runner:
         mine = miner.Miner(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         # plusCnt, minusCnt, totalPlusCnt, totalMinusCnt =  mine.getAnalyzedCnt(targetAt, period, stockName)
         targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList = mine.getAnalyzedCnt(targetAt, period, stockName)
-        mine.close()
+
         savedItemId = self.dbm.saveAnalyzedData(stockName, targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt,forecastAt, period)
         self.dbm.saveAnalyzedItemFinanceList(savedItemId, targetFinanceIdList)
         self.dbm.commit()
@@ -160,11 +161,12 @@ class Runner:
         self.migration(stock, period, 365)
 
     def filteredTarget(self, period):
-        filteredTargets = []
+        filteredTargets = ''
         for stock in self.dbm.getStockList():
             plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
             filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period)
-            filteredTargets = filteredTargets + filteredTargetList
+            if len(filteredTargetList) > 0 :
+                filteredTargets = filteredTargets + str(filteredTargetList) + '\n'
         return filteredTargets
 
     def getAnalyzeExistData(self, stock):
@@ -232,7 +234,7 @@ class Runner:
         return each.get('id'), point, stockName, targetAt
 
     def trustedTarget(self):
-        trustedTargetPoints = []
+        trustedTargetPoints = ''
         for stock in self.dbm.getStockList():
             plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
             target = pointDict.get(stock.get('name'))
@@ -245,8 +247,7 @@ class Runner:
                     itemId, point, stockName, targetAt = self.getFilteredForecastResult(each)
                     filteredResults.append({'point': point,'targetAt': targetAt})
 
-                trustedTargetPoints.append({'pointDict': pointDict, 'forecast': filteredResults})
-
+                trustedTargetPoints = trustedTargetPoints + str({'pointDict': pointDict, 'forecast': filteredResults}) + '\n'
         return trustedTargetPoints
 
     def dailyRun(self, period):
@@ -308,16 +309,35 @@ class Runner:
     def updateGarbageStatus(self, garbageId, process):
         self.dbm.updateGarbageStatus(garbageId, process)
 
-    def getUnfilterdGarbageWord(self):
+    def getUndefinedGarbageWord(self):
         return self.dbm.getUnfilterdGarbageWord()
 
+    def newDictionaryInstance(self):
+        if self.dic is None :
+            self.dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        return self.dic
+    def garbageRecycle(self, maxId):
+        data = self.dbm.getUnfilterdGarbageWord()
+        if data is None or data.get('id') == maxId :
+            raise dbmanager.DBManagerError('garbage is none' + str(maxId))
+        word = data.get('word')
+        dic = self.newDictionaryInstance()
+        wordId = dic.getWordByStr(word)
+        if wordId != '' :
+            print('update garbage recycle', data.get('word'), data.get('id'), maxId)
+            self.dbm.updateGarbageStatus(data.get('id'), 'Y')
+            self.dbm.commit()
+        pass
+    def getMaxGarbageId(self):
+        return self.dbm.getMaxGarbageWord()
     def updateGarbageAndInsertWord(self, garbageId, usefulWord):
         garbageWord = self.dbm.getGarbageWord(garbageId)
         garbage = garbageWord.get('word')
-        if usefulWord in garbage :
+        if usefulWord is None :
+            usefulWord = garbage
+        if usefulWord in garbage:
             self.dbm.updateGarbageStatus(garbageId, 'Y')
-            self.dbm.insertWord(usefulWord)
-            return True
+            return self.dbm.insertWord(usefulWord)
         return False
 
 
@@ -326,16 +346,18 @@ DB_USER = "root"
 DB_PWD = "1234"
 DB_SCH = "data"
 
-# period = 2
-# run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-# # run.initStocks()
-# while True :
-#     try :
-#         stock = run.dbm.getUsefulStock(True)
-#         print(stock.get('name'), 'is start')
-#         run.run(stock, date.today(), period, False)
-#         print(stock.get('name'), 'is done')
-#     except dbmanager.DBManagerError :
-#         print('work is done.')
-#         break
+period = 2
+run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
+# run.initStocks()
+max = run.getMaxGarbageId()
+while True :
+    try :
+        stock = run.dbm.getUsefulStock(True)
+        print(stock.get('name'), 'is start')
+        run.run(stock, date.today(), period, False)
+        print(stock.get('name'), 'is done')
+        # run.garbageRecycle(max.get('id'))
+    except dbmanager.DBManagerError :
+        print('work is done.')
+        break
 

@@ -1,12 +1,12 @@
 import numpy
 from datetime import timedelta
-import pymysql.cursors
+
 import dictionary
 import sys
 from datetime import date
 import threading
 import queue
-
+import dbmanager
 
 class MinerError(Exception):
     def __init__(self, msg):
@@ -19,16 +19,6 @@ class MinerError(Exception):
 class Miner:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
         self.LIMIT_COUNT = 5
-        self.connection = pymysql.connect(host=DB_IP,
-                                          user=DB_USER,
-                                          password=DB_PWD,
-                                          db=DB_SCH,
-                                          charset='utf8mb4',
-                                          cursorclass=pymysql.cursors.DictCursor)
-        self.DB_IP = DB_IP
-        self.DB_USER = DB_USER
-        self.DB_PWD = DB_PWD
-        self.DB_SCH = DB_SCH
         self.WORD_NAME = 'word'
         self.PLUS_NAME = 'plus'
         self.MINUS_NAME = 'minus'
@@ -40,33 +30,33 @@ class Miner:
         self.LIMIT_YEAR_SEPERATOR = 5
         self.INTERVAL_YEAR_SEPERATOR = 73
         self.FINANCE_NAME = 'finance'
-    def commit(self):
-        self.connection.commit()
+        self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
+        self.DB_IP = DB_IP, self.DB_USER = DB_USER, self.DB_PWD = DB_PWD, self.DB_SCH = DB_SCH
+    def __del__(self):
+        self.dbm.commit()
+        self.dbm.close()
+
     def getContent(self, stockName, startPos, endPos):
-        cursor = self.connection.cursor()
-        contentCursor = cursor.execute("SELECT `c`.`title`,`c`.`contentData`, `a`.`name`, `c`.`date` FROM `content` as `c`, `author` as `a` WHERE `c`.`query` = %s limit %s , %s",
-            (stockName, startPos, endPos))
-        if contentCursor != 0:
-            return cursor.fetchall()
+        contents = self.dbm.getContent(stockName, startPos, endPos)
+        if contents is not None:
+            return contents
         else:
             raise MinerError('content is not valid.')
 
     def getStockNameContent(self, stockName, startAt, limitAt):
         contentsList = []
         count = 0
-        cursor = self.connection.cursor()
-        conditionQuery = ' WHERE c.query = %s and c.date between %s and %s'
-        countCursor = cursor.execute("SELECT COUNT(c.id) as cnt FROM content c " + conditionQuery, (stockName, limitAt, startAt))
-        if countCursor != 0:
-            count = cursor.fetchone().get('cnt')
+        cnt = self.dbm.countContents(stockName, limitAt, startAt)
+
+        if cnt is not None:
+            count = cnt.get('cnt')
             if count == None :
                 print('count is None', stockName, startAt, limitAt)
                 return []
         for i in range(int((count / self.LIMIT_COUNT)) + 1):
             try:
-                contentCursor = cursor.execute("SELECT c.title,c.contentData, a.name, c.date FROM content as c, author as a " + conditionQuery + " LIMIT %s , %s", (stockName, limitAt, startAt, (i * 10) + 1, (i + 1) * self.LIMIT_COUNT))
-                if contentCursor != 0:
-                    contents = cursor.fetchall()
+                contents = self.dbm.getContentBetween(stockName, limitAt, startAt, (i * 10) + 1, (i + 1) * self.LIMIT_COUNT)
+                if contents is not None:
                     contentsList = contentsList + contents
                 else:
                     raise MinerError('content is not valid.')
@@ -91,11 +81,10 @@ class Miner:
                 if dic.existSplitWord(target):
                     wordId = dic.getWordByStr(target)
                     wordIds.append(wordId)
-        dic.close()
         return wordIds
 
     def getWordFinanceMap(self, wordIds, totalWordFinances):
-        print('get word price dictionary', len(wordIds))
+        print('get word price ', len(wordIds))
         wordPriceDict = {}
         for wordId in wordIds:
             try:
@@ -138,7 +127,7 @@ class Miner:
             minusList = []
             financeIdList = []
             for financeId in wordFinanceMap[wordId]:
-                price = self.getPriceFromFinanceIds(financeId)
+                price = self.dbm.getFinancePrice(financeId)
                 financeIdList.append(financeId)
                 try :
                     if price > 0:
@@ -167,10 +156,9 @@ class Miner:
         except KeyError:
             pass
         try :
-            cursor = self.connection.cursor()
-            financeCursor = cursor.execute("SELECT f.id FROM finance f, stock s WHERE f.stockId = s.id and s.name = %s and f.date = %s", (stockName, sliceDate))
-            if financeCursor != 0:
-                financeId = cursor.fetchone().get('id')  # one ? many?
+            finance = self.dbm.getFinanceDataByStockNameAndData(stockName, sliceDate)
+            if finance is not None :
+                financeId = finance.get('id')  # one ? many?
                 # stockPrice = int(finance.get(self.START_NAME)) - int(finance.get(self.FINAL_NAME))
                 cacheFinanceChangePrices[str(sliceDate) + stockName] = financeId
                 return financeId
@@ -223,7 +211,7 @@ class Miner:
         queueList = []
         threadList = []
         lock = threading.Lock()
-        dic= dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
 
         for idx in range(int(len(contents) / self.SPLIT_COUNT) + 1) :
             start = idx * self.SPLIT_COUNT
@@ -270,7 +258,7 @@ class Miner:
 
         for idx in range(self.LIMIT_YEAR_SEPERATOR) : # 73 * 5
             interval = idx * self.INTERVAL_YEAR_SEPERATOR
-            contents = self.getStockNameContent(stockName, today - timedelta(days=interval), today - timedelta(days=interval + self.INTERVAL_YEAR_SEPERATOR)) #TODO - 무조건 전부말고 시점 별로.
+            contents = self.getStockNameContent(stockName, today - timedelta(days=interval), today - timedelta(days=interval + self.INTERVAL_YEAR_SEPERATOR))
             wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
             self.appendWordPriceMap(wordIdFinanceMap, totalWordIdFinanceMap)
 
@@ -285,24 +273,6 @@ class Miner:
 
         return targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList
 
-    def close(self):
-        print('miner close')
-        self.connection.close()
-
-    def getPriceFromFinanceIds(self, financeId):
-        # prices = []
-        # for financeId in financeIds :
-        price = self.getFinancePrice(financeId)
-        return price
-        # prices.append(price)
-        # return numpy.nan_to_num(prices)
-
-    def getFinancePrice(self, financeId):
-        cursor = self.connection.cursor()
-        cursor.execute("select start, final from finance where id = %s", financeId)
-        result = cursor.fetchone()
-        price = result.get('start') - result.get('final')
-        return price
 
     def getFinanceIdList(self, chartList):
         financeIdList = []
