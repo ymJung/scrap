@@ -20,7 +20,7 @@ class Simulator :
         finance = self.dbm.getFinanceDataByStockNameAndData(stockName, targetDate)
         start = finance.get('start')
         final = finance.get('final')
-        return final / start
+        return round((final / start) - 1, 5)
     def isTargetPercent(self, percent):
         return percent > self.TRUST_LIMIT
     def simulate(self, stockName, dayLimit):
@@ -37,4 +37,5 @@ class Simulator :
 
         pass
     def calculate(self, startPercent, endPercent, price):
-        pass
+        percent = endPercent - startPercent
+        return price + (price * (percent * 0.01))

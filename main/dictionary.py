@@ -20,9 +20,6 @@ class Dictionary:
     def commit(self):
         self.dbm.commit()
 
-    def __del__(self):
-        self.dbm.commit()
-        self.dbm.close()
 
     def splitStr(self, str):
         if str is None:

@@ -31,7 +31,12 @@ class Miner:
         self.INTERVAL_YEAR_SEPERATOR = 73
         self.FINANCE_NAME = 'finance'
         self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
-        self.DB_IP = DB_IP, self.DB_USER = DB_USER, self.DB_PWD = DB_PWD, self.DB_SCH = DB_SCH
+        self.DB_IP = DB_IP
+        self.DB_USER = DB_USER
+        self.DB_PWD = DB_PWD
+        self.DB_SCH = DB_SCH
+        self.dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+
     def __del__(self):
         self.dbm.commit()
         self.dbm.close()
@@ -71,15 +76,14 @@ class Miner:
         return contentsList
     def getTargetContentWordIds(self, stockName, targetDate, periodDate):
         wordIds = []
-        dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         contents = self.getStockNameContent(stockName, targetDate, periodDate)
         print('target content word find. content length . ', len(contents))
         for result in contents:
             contentData = result.get(self.CONTENT_DATA_NAME)
-            splitWords = dic.splitStr(contentData)
+            splitWords = self.dic.splitStr(contentData)
             for target in splitWords:
-                if dic.existSplitWord(target):
-                    wordId = dic.getWordByStr(target)
+                if self.dic.existSplitWord(target):
+                    wordId = self.dic.getWordByStr(target)
                     wordIds.append(wordId)
         return wordIds
 

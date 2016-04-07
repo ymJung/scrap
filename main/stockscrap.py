@@ -1,7 +1,6 @@
 __author__ = 'YoungMin'
 
 import win32com.client
-import pymysql.cursors
 import datetime
 import dbmanager
 
@@ -17,6 +16,7 @@ class DSStockError(Exception):
 
 class DSStock:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
+        self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
         self.DATE_FORMAT = '%Y%m%d'
         self.cybos = win32com.client.Dispatch("CpUtil.CpCybos")
         self.ins = win32com.client.Dispatch("CpUtil.CpStockCode")
@@ -31,7 +31,7 @@ class DSStock:
         self.LOW = 'low'
         self.FINAL = 'final'
         self.MARKET_OFF = 15
-        self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
+
 
     def __del__(self):
         self.dbm.commit()

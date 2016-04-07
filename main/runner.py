@@ -31,7 +31,7 @@ class Runner:
         self.dbm.commit()
         self.analyze.commit()
         if self.stocks is not None:
-            self.stocks.commit()
+            self.stocks.dbm.commit()
 
     def insertFinance(self, stock):
         stockCode = stock.get('code')
@@ -349,7 +349,7 @@ DB_SCH = "data"
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 # run.initStocks()
-max = run.getMaxGarbageId()
+# max = run.getMaxGarbageId()
 while True :
     try :
         stock = run.dbm.getUsefulStock(True)

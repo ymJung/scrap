@@ -111,7 +111,7 @@ class DBManager:
 
     def initStock(self):
         self.connection.cursor().execute("UPDATE stock SET `use` = 1 WHERE `much` = 0")
-        self.connection.commit()
+        self.commit()
 
     def getUsefulStock(self, checkDate):
         cursor = self.connection.cursor()
@@ -132,7 +132,7 @@ class DBManager:
                     cursor.execute(selectSql)
                     stock = cursor.fetchone()
         cursor.execute(("UPDATE stock SET `use` = 0 WHERE `id` = %s"), stock.get('id'))
-        self.connection.commit()
+        self.commit()
         return stock
 
     def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period):

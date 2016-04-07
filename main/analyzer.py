@@ -18,13 +18,17 @@ class Analyzer:
         self.DB_PWD = DB_PWD
         self.DB_SCH = DB_SCH
         self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
+        self.dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+
 
     def commit(self):
         self.dbm.commit()
+        self.dic.commit()
 
     def __del__(self):
         self.dbm.commit()
         self.dbm.close()
+        self.dic.dbm.close()
 
     def analyze(self):
         while True:
@@ -39,34 +43,30 @@ class Analyzer:
             print('fin : ' + str(target.get('id')))
 
     def analyzeDictionary(self, data, contentId, idx):
-        dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         try:
-            splitStrings = dic.splitStr(data)
+            splitStrings = self.dic.splitStr(data)
             for i in range(len(splitStrings)):
                 if idx > i:
                     print('start in middle ' + str(idx))
                     i = idx
-                splitString = dic.getRegularExpression(splitStrings[i])
-                if dic.existSplitWord(splitString) is False:
+                splitString = self.dic.getRegularExpression(splitStrings[i])
+                if self.dic.existSplitWord(splitString) is False:
                     findWord = False
                     for j in range(len(splitString)):
                         subStr = splitString[0:len(splitString) - j]
-                        if dic.isTargetWord(subStr) and dic.isInsertTarget(subStr) is True:
-                            dic.insertWord(subStr)
+                        if self.dic.isTargetWord(subStr) and self.dic.isInsertTarget(subStr) is True:
+                            self.dic.insertWord(subStr)
                             findWord = True
 
-                    if findWord is False and dic.existWord(splitString) is False:
-                        dic.insertGarbageWord(splitString, contentId)
+                    if findWord is False and self.dic.existWord(splitString) is False:
+                        self.dic.insertGarbageWord(splitString, contentId)
                     idx = i
-                dic.commit()
             idx = 0
         except urllib.error.URLError as e:
             print(e)
             print('retry analyzeDictionary ' + str(idx))
-            dic.commit()
             self.analyzeDictionary(data, contentId, idx)
         except:
             print('uncaught except')
-            dic.commit()
         finally:
-            dic.commit()
+            self.dic.commit()
