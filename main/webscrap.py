@@ -6,6 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 import datetime
 from dateutil.relativedelta import relativedelta
+import sys
 
 SEQ = "seq"
 TITLE = "title"
@@ -254,7 +255,7 @@ class NaverStock:
         self.WRITER = WRITER
         self.COMMENT_LIST = COMMENT_LIST
         self.DATE_FORMAT = '%Y.%m.%d %H:%M'
-        self.LIMIT = datetime.datetime.now() - relativedelta(month=2)
+        self.LIMIT = datetime.datetime.now() - relativedelta(month=3)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
         self.CODE_EXP = '[^0-9]'
         self.SITE = "NAVER_STOCK"
@@ -315,7 +316,9 @@ class NaverStock:
                 time.sleep(0.3)
                 print('url error')
                 print(e)
-
+            except :
+                print('some thing are wrong. will return.', sys.exc_info())
+                return data
         return data
 
     def convertDate(self, param):
@@ -334,7 +337,7 @@ class DaumStock:
         self.WRITER = WRITER
         self.COMMENT_LIST = COMMENT_LIST
         self.DATE_FORMAT = '%Y.%m.%d %H:%M'
-        self.LIMIT = datetime.datetime.now() - relativedelta(month=2)
+        self.LIMIT = datetime.datetime.now() - relativedelta(month=3)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
         self.CODE_EXP = '[^0-9]'
         self.SITE = "DAUM_STOCK"
@@ -396,6 +399,9 @@ class DaumStock:
                 print('url error')
                 time.sleep(0.3)
                 print(e)
+            except :
+                print('some thing are wrong. will return', sys.exc_info())
+                return data
         return data
 
     def convertDate(self, param):

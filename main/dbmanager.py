@@ -35,6 +35,7 @@ class DBManager:
         print('dbm close')
         self.connection.close()
     def saveData(self, site, results, stockName):
+        print('save data. ', stockName, len(results))
         for each in results:
             authorName = each.get(self.WRITER)
             title = each.get(self.TITLE)
@@ -178,7 +179,14 @@ class DBManager:
         updateItemPriceSql = "UPDATE item SET financeId = %s WHERE id= %s"
         cursor.execute(updateItemPriceSql, (financeId, itemId))
 
+    def analyzedSqlTargetAt(self, stockName, targetAt, period):
+        cursor = self.connection.cursor()
+        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f ' \
+                            'WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s AND i.targetAt = %s AND i.period = %s AND f.final IS NOT NULL GROUP BY i.targetAt'
+        cursor.execute(selectAnalyzedSql, (stockName, targetAt, period))
+        analyzedResult = cursor.fetchone()
 
+        return analyzedResult
 
     def analyzedSql(self, stockName):
         cursor = self.connection.cursor()
@@ -229,10 +237,11 @@ class DBManager:
         cursor.execute(selectFinanceQuery, financeIdList)
         return cursor.fetchall()
 
-    def getForecastResult(self, stockName, limitAt):
+    def getForecastResult(self, stockName, limitAt, period):
         cursor = self.connection.cursor()
-        selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s WHERE i.stockId = s.id AND s.name = %s AND i.targetAt >= %s ORDER BY i.id DESC' # AND i.financeId IS NULL
-        cursor.execute(selectForecastSql, (stockName, limitAt))
+        selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s ' \
+                             'WHERE i.stockId = s.id AND s.name = %s AND i.targetAt = %s AND i.period = %s ORDER BY i.id DESC' # AND i.financeId IS NULL
+        cursor.execute(selectForecastSql, (stockName, limitAt, period))
         return cursor.fetchall()
 
     def getUnfilterdGarbageWord(self):
@@ -286,9 +295,11 @@ class DBManager:
 
     def getContentBetween(self, stockName, limitAt, startAt, startPos, endPos):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT c.title,c.contentData, a.name, c.date FROM content as c, author as a  WHERE c.query = %s and c.date between %s and %s LIMIT %s , %s",
-                                       (stockName, limitAt, startAt, startPos, endPos))
-        return cursor.fetchall()
+        cursor.execute("SELECT c.title,c.contentData, a.name, c.date FROM content as c, author as a  WHERE c.query = %s and c.date between %s and %s LIMIT %s , %s", (stockName, limitAt, startAt, startPos, endPos))
+        result = cursor.fetchall()
+        if result is not None :
+            return list(result)
+        return result
 
     def getFinancePrice(self, financeId):
         cursor = self.connection.cursor()

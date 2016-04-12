@@ -30,7 +30,7 @@ class DSStock:
         self.HIGH = 'high'
         self.LOW = 'low'
         self.FINAL = 'final'
-        self.MARKET_OFF = 15
+        self.MARKET_OFF_HOUR = 15
 
 
     def __del__(self):
@@ -88,14 +88,14 @@ class DSStock:
             high = data.get(self.HIGH)
             low = data.get(self.LOW)
             final = data.get(self.FINAL)
-            if (int(date.today().strftime(self.DATE_FORMAT)) == data.get(self.DATE)) and date.now().hour < self.MARKET_OFF :
+            if (int(date.today().strftime(self.DATE_FORMAT)) == data.get(self.DATE)) and date.now().hour < self.MARKET_OFF_HOUR :
                 continue
 
             finance = self.dbm.selectFinanceByStockIdAndDate(stockId, date)
             if finance is None :
                 self.dbm.insertFinance(stockId, date, high, low, start, final)
                 print('insert finance' + str(date))
-            dayOfFinanceData = self.dbm.getFinanceDataByDay(stockId, date, datetime.datetime.strptime(str(data.get(self.DATE)) + str(self.MARKET_OFF), self.DATE_FORMAT + '%H'))
+            dayOfFinanceData = self.dbm.getFinanceDataByDay(stockId, date, datetime.datetime.strptime(str(data.get(self.DATE)) + str(self.MARKET_OFF_HOUR), self.DATE_FORMAT + '%H'))
 
             if dayOfFinanceData is not None :
                 self.dbm.updateFinance(high, low, start, final, dayOfFinanceData.get('id'))
@@ -109,4 +109,19 @@ class DSStock:
         self.insertFinanceData(datas, str(insert.get('id')))
         self.dbm.commit()
 
+    def insertAllStockName(self):
+        totalCount = self.ins.GetCount()
+        for i in range(0, totalCount):
+            word = self.dbm.selectWord(self.ins.getData(0, i))
+            if word is None :
+                self.dbm.insertWord(self.ins.getData(0, i))
+                self.dbm.insertWord(self.ins.getData(1, i))
+            # self.dbm.insertStock(self.ins.getData(0, i), self.ins.getData(1, i), 1)
+            # print("insert [", self.ins.getData(0, i) , "][", self.ins.getData(1, i) , "]")
 
+
+DB_IP = "localhost"
+DB_USER = "root"
+DB_PWD = "1234"
+DB_SCH = "data"
+# DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertAllStockName()

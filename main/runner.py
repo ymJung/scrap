@@ -8,6 +8,7 @@ from datetime import date, timedelta
 import pythoncom
 import sys
 import dictionary
+import simulator
 
 class Runner:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
@@ -23,10 +24,11 @@ class Runner:
         self.stocks = None
         self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
         self.analyze = analyzer.Analyzer(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        self.simul = simulator.Simulator(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         self.dic = None
     def setStocks(self):
         if self.stocks is None :
-            self.stocks = stockscrap.DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH)
+            self.stocks = stockscrap.DSStock(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
     def __del__(self):
         self.dbm.commit()
         self.analyze.commit()
@@ -127,7 +129,7 @@ class Runner:
         filteredTargets = []
         for stock in self.dbm.getStockList():
             plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
-            filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period)
+            filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, 0)
             filteredTargets = filteredTargetList + filteredTargets
         self.printFilteredTarget(filteredTargets)
 
@@ -160,11 +162,11 @@ class Runner:
         self.run(stock, date.today(), period, False)
         self.migration(stock, period, 365)
 
-    def filteredTarget(self, period):
+    def filteredTarget(self, period, afterDayCnt):
         filteredTargets = ''
         for stock in self.dbm.getStockList():
             plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
-            filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period)
+            filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, afterDayCnt)
             if len(filteredTargetList) > 0 :
                 filteredTargets = filteredTargets + str(filteredTargetList) + '\n'
         return filteredTargets
@@ -179,14 +181,16 @@ class Runner:
             plus = each.get('plus')
             minus = each.get('minus')
             total = plus + minus
+            plusPercent = self.getDivideNumPercent(plus, total)
+            minusPercent = self.getDivideNumPercent(minus, total)
+
             stockName = each.get('name')
             targetAt = each.get('targetAt')
             itemId = each.get('id')
             financeList = self.dbm.getFinanceListFromItemId(itemId)
             financeMap = self.getFinanceDataMap(financeList)  # avg chance danger
 
-            plusPercent = self.getDivideNumPercent(plus, total)
-            minusPercent = self.getDivideNumPercent(minus, total)
+
 
             if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
                 sumPoint.append(
@@ -206,13 +210,13 @@ class Runner:
             plusChanceIds = list(set(plusChanceIds))
 
         trustPercent = self.getDivideNumPercent(len(plusPoint), len(sumPoint))
-        pointDict = {stock.get('name'): {'percent': trustPercent, 'total': len(analyzedResult)}}
+        pointDict = {stock.get('name'): {'name': stock.get('name'), 'percent': trustPercent, 'total': len(analyzedResult)}}
         return plusChanceIds, pointDict
 
 
-    def getFilteredTarget(self, plusChanceIds, pointDict, stock, period):
+    def getFilteredTarget(self, plusChanceIds, pointDict, stock, period, afterDayCnt):
         filteredTargets = []
-        forecastResult = self.dbm.getForecastResult(stock.get('name'), date.today() - timedelta(days=period + 1))
+        forecastResult = self.dbm.getForecastResult(stock.get('name'), date.today() + timedelta(days=afterDayCnt), period)
         for each in forecastResult:
             itemId, point, stockName, targetAt = self.getFilteredForecastResult(each)
 
@@ -222,7 +226,7 @@ class Runner:
                 for chanceId in plusChanceIds:
                     if chanceId in financeList:
                         chanceIds.append(chanceId)
-                filteredTargets.append({stockName: point, 'point': pointDict.get(stockName), 'targetAt': targetAt, 'chance': chanceIds})
+                filteredTargets.append({stockName: point, 'percent': pointDict.get(stockName).get('percent'), 'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day, 'chance': chanceIds})
         return filteredTargets
 
     def getFilteredForecastResult(self, each):
@@ -233,7 +237,7 @@ class Runner:
         targetAt = each.get('targetAt')
         return each.get('id'), point, stockName, targetAt
 
-    def trustedTarget(self):
+    def trustedTarget(self, period):
         trustedTargetPoints = ''
         for stock in self.dbm.getStockList():
             plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
@@ -241,7 +245,7 @@ class Runner:
             percent = target.get('percent')
             if self.FILTER_LIMIT < percent :
                 print('trust target', target)
-                forecastResult = self.dbm.getForecastResult(stock.get('name'), date.today())
+                forecastResult = self.dbm.getForecastResult(stock.get('name'), date.today(), period)
                 filteredResults = []
                 for each in forecastResult :
                     itemId, point, stockName, targetAt = self.getFilteredForecastResult(each)
@@ -250,14 +254,14 @@ class Runner:
                 trustedTargetPoints = trustedTargetPoints + str({'pointDict': pointDict, 'forecast': filteredResults}) + '\n'
         return trustedTargetPoints
 
-    def dailyRun(self, period):
+    def dailyRun(self, period, beforeDayCnt):
         while True :
             try :
                 stock = self.dbm.getUsefulStock(True)
                 print(stock.get('name'), 'is start')
 
                 busy = False
-                targetAt = date.today()
+                targetAt = date.today() - timedelta(days=beforeDayCnt)
                 self.run(stock, targetAt, period, busy)
                 print(stock.get('name'), 'is done')
             except dbmanager.DBManagerError :
@@ -275,10 +279,8 @@ class Runner:
             return None
         print('targetAnalyze', stock)
         plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
-        filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period)
+        filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, 0)
         return filteredTargetList
-
-
 
     def printFilteredTarget(self, filteredTargets):
         print('FILTERED TARGET')
@@ -339,6 +341,8 @@ class Runner:
             self.dbm.updateGarbageStatus(garbageId, 'Y')
             return self.dbm.insertWord(usefulWord)
         return False
+    def simulate(self, stockName, limit, period):
+        self.simul.simulate(stockName, limit, period)
 
 
 DB_IP = "localhost"
@@ -348,15 +352,18 @@ DB_SCH = "data"
 
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
+run.insertNewStockAndMigrate('A005300', period)
+# run.targetAnalyze('A089470', period)
+# run.filteredTarget(period, 1)
 # run.initStocks()
-# max = run.getMaxGarbageId()
 while True :
     try :
         stock = run.dbm.getUsefulStock(True)
         print(stock.get('name'), 'is start')
-        run.run(stock, date.today(), period, False)
+        # run.run(stock, date.today() - timedelta(days=0), period, False)
+        run.dailyRun(period, 0)
         print(stock.get('name'), 'is done')
-        # run.garbageRecycle(max.get('id'))
+
     except dbmanager.DBManagerError :
         print('work is done.')
         break
