@@ -26,9 +26,10 @@ class Runner:
         self.analyze = analyzer.Analyzer(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         self.simul = simulator.Simulator(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         self.dic = None
-    def setStocks(self):
+    def getStocks(self):
         if self.stocks is None :
             self.stocks = stockscrap.DSStock(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        return self.stocks
     def __del__(self):
         self.dbm.commit()
         self.analyze.commit()
@@ -38,8 +39,8 @@ class Runner:
     def insertFinance(self, stock):
         stockCode = stock.get('code')
         stockId = stock.get('id')
-        self.setStocks()
-        datas = self.stocks.getChartDataList(stockCode, 365 * 2)
+        stocks = self.getStocks()
+        datas = stocks.getChartDataList(stockCode, 365 * 2)
         self.stocks.insertFinanceData(datas, str(stockId))
 
 
@@ -97,7 +98,7 @@ class Runner:
         if stock is None:
             return
         if busy is False:
-            self.insertFinance(stock)
+
             # self.insertPpomppuResult(stock)
             self.insertPaxnetResult(stock)
             self.insertNaverResult(stock)
@@ -107,6 +108,7 @@ class Runner:
             self.analyze.commit()
             self.dbm.updateLastUseDate(stock)
             self.dbm.commit()
+        self.insertFinance(stock)
         self.insertAnalyzedResult(stock, targetAt, period)
 
     def update(self, stock):
@@ -154,8 +156,8 @@ class Runner:
         return {'avg': avg, 'chance': chanceIds, 'danger': dangerIds}
 
     def insertNewStockAndMigrate(self, stockCode, period):
-        self.setStocks()
-        self.stocks.insertNewStock(stockCode)
+        stocks = self.getStocks()
+        stocks.insertNewStock(stockCode)
         stock = self.stocks.getStock(stockCode)
         self.scrapWebAndMigration(stock, period)
     def scrapWebAndMigration(self, stock, period):
@@ -169,6 +171,7 @@ class Runner:
             filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, afterDayCnt)
             if len(filteredTargetList) > 0 :
                 filteredTargets = filteredTargets + str(filteredTargetList) + '\n'
+        print(filteredTargets)
         return filteredTargets
 
     def getAnalyzeExistData(self, stock):
@@ -219,15 +222,27 @@ class Runner:
         forecastResult = self.dbm.getForecastResult(stock.get('name'), date.today() + timedelta(days=afterDayCnt), period)
         for each in forecastResult:
             itemId, point, stockName, targetAt = self.getFilteredForecastResult(each)
-
             if point > self.FILTER_LIMIT:
-                financeList = self.dbm.getFinanceListFromItemId(itemId)
-                chanceIds = []
-                for chanceId in plusChanceIds:
-                    if chanceId in financeList:
-                        chanceIds.append(chanceId)
-                filteredTargets.append({stockName: point, 'percent': pointDict.get(stockName).get('percent'), 'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day, 'chance': chanceIds})
+                analyzedTargetData = self.getAnalyzedTarget(itemId, plusChanceIds, point, pointDict, stockName, targetAt)
+                filteredTargets.append(analyzedTargetData)
         return filteredTargets
+    def getForecastTarget(self, plusChanceIds, pointDict, stock, period, afterDayCnt):
+        results = list()
+        forecastResult = self.dbm.getForecastResult(stock.get('name'), date.today() + timedelta(days=afterDayCnt), period)
+        for each in forecastResult:
+            itemId, point, stockName, targetAt = self.getFilteredForecastResult(each)
+            analyzedTargetData = self.getAnalyzedTarget(itemId, plusChanceIds, point, pointDict, stockName, targetAt)
+            results.append(analyzedTargetData)
+        return results
+
+
+    def getAnalyzedTarget(self, itemId, plusChanceIds, point, pointDict, stockName, targetAt):
+        financeList = self.dbm.getFinanceListFromItemId(itemId)
+        chanceIds = []
+        for chanceId in plusChanceIds:
+            if chanceId in financeList:
+                chanceIds.append(chanceId)
+        return {stockName: point, 'percent': pointDict.get(stockName).get('percent'),'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds}
 
     def getFilteredForecastResult(self, each):
         plus = each.get('plus')
@@ -273,13 +288,13 @@ class Runner:
 
 
     def targetAnalyze(self, stockCode, period):
-        self.setStocks()
-        stock = self.stocks.getStock(stockCode)
+        stock = self.dbm.selectStockByCode(stockCode)
         if stock is None :
             return None
         print('targetAnalyze', stock)
         plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
-        filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, 0)
+        filteredTargetList = self.getForecastTarget(plusChanceIds, pointDict, stock, period, 0)
+        print(filteredTargetList)
         return filteredTargetList
 
     def printFilteredTarget(self, filteredTargets):
@@ -339,6 +354,7 @@ class Runner:
             usefulWord = garbage
         if usefulWord in garbage:
             self.dbm.updateGarbageStatus(garbageId, 'Y')
+
             return self.dbm.insertWord(usefulWord)
         return False
     def simulate(self, stockName, limit, period):
@@ -352,19 +368,20 @@ DB_SCH = "data"
 
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-run.insertNewStockAndMigrate('A005300', period)
-# run.targetAnalyze('A089470', period)
-# run.filteredTarget(period, 1)
+run.insertNewStockAndMigrate('192250', period)
+# run.targetAnalyze('A005300', period)
+# run.filteredTarget(period, 0)
 # run.initStocks()
-while True :
-    try :
-        stock = run.dbm.getUsefulStock(True)
-        print(stock.get('name'), 'is start')
-        # run.run(stock, date.today() - timedelta(days=0), period, False)
-        run.dailyRun(period, 0)
-        print(stock.get('name'), 'is done')
-
-    except dbmanager.DBManagerError :
-        print('work is done.')
-        break
+# targetAt = date.today() - timedelta(days=0)
+# while True :
+#     try :
+#         stock = run.dbm.getUsefulStock(True)
+#         print(stock.get('name'), 'is start')
+#         run.run(stock, targetAt, period, True)
+# #         # run.migration(stock, period, 365)
+#         print(stock.get('name'), 'is done')
+# #
+#     except dbmanager.DBManagerError :
+#         print('work is done.')
+#         break
 

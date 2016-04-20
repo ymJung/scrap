@@ -123,7 +123,7 @@ class DBManager:
             cursor.execute("select lastUseDateAt from stock order by lastUseDateAt desc limit 1")
             lastUseDateAt = cursor.fetchone().get('lastUseDateAt')
             today = datetime.date.today()
-            workIsDone = (today.year == lastUseDateAt.year) and (today.month == lastUseDateAt.month) and (today.day == lastUseDateAt.day) and datetime.datetime.now().hour > self.LIMIT_HOUR
+            workIsDone = (today.year == lastUseDateAt.year) and (today.month == lastUseDateAt.month) and (today.day == lastUseDateAt.day) # and datetime.datetime.now().hour > self.LIMIT_HOUR
             if checkDate:
                 if workIsDone:
                     raise DBManagerError('stock is none')
@@ -140,7 +140,15 @@ class DBManager:
         cursor = self.connection.cursor()
         cursor.execute('SELECT id FROM stock WHERE name = %s', stockName)
         stock = cursor.fetchone()
-        cursor.execute("INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `period`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period))
+        cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s LIMIT 1', (stock.get('id'), targetAt, period))
+        item = cursor.fetchone()
+        if item is  None :
+            cursor.execute("INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `period`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period))
+
+        # else :
+        #     cursor.execute("UPDATE `data`.`item` SET `stockId`=%s, `plus`=%s, `minus`=%s, `totalPlus`=%s, `totalMinus`=%s, `targetAt`=%s, `period` WHERE `id`=%s",
+        #                    (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period, item.get('id')))
+
         cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s', (stock.get('id'), targetAt, period))
         return cursor.fetchone().get('id')
 
@@ -199,15 +207,20 @@ class DBManager:
     def forecastTarget(self, forecastAt, stock, targetAt):
         stockId = stock.get('id')
         stockName = stock.get('name')
+        lastUseDateAt = stock.get('lastUseDateAt')
+        if lastUseDateAt.date() < targetAt :
+            print('not yet to scrap.', stockName, targetAt)
+            return True
         cursor = self.connection.cursor()
         result = cursor.execute('SELECT id FROM item WHERE targetAt = %s and stockId = %s', (forecastAt, stockId))
         if result != 0:
             print('exist item date ', forecastAt, stockId)
             return True
-        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` BETWEEN %s AND %s AND `query` = %s', (targetAt, forecastAt, stockName))
-        if result != 0:
+        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` BETWEEN %s AND %s AND `query` = %s', (targetAt, forecastAt + datetime.timedelta(days=1), stockName))
+        if result == 0:
             print('empty content data.', targetAt, forecastAt, stockName)
             return True
+
         return False
 
 
@@ -293,9 +306,9 @@ class DBManager:
         cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.query = %s and c.date between %s and %s", (stockName, limitAt, startAt))
         return cursor.fetchone()
 
-    def getContentBetween(self, stockName, limitAt, startAt, startPos, endPos):
+    def getContentBetween(self, stockName, startAt, limitAt, startPos, endPos):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT c.title,c.contentData, a.name, c.date FROM content as c, author as a  WHERE c.query = %s and c.date between %s and %s LIMIT %s , %s", (stockName, limitAt, startAt, startPos, endPos))
+        cursor.execute("SELECT c.title,c.contentData, c.date FROM content c WHERE c.query = %s and c.date > %s and c.date <= %s ORDER BY c.id DESC LIMIT %s , %s", (stockName, startAt, limitAt + datetime.timedelta(days=1), startPos, endPos))
         result = cursor.fetchall()
         if result is not None :
             return list(result)
@@ -314,7 +327,7 @@ class DBManager:
 
     def selectStockByCode(self, stockCode):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT `id`,`code`,`name`, `hit` FROM `stock` WHERE `code` like %s", ('%'+stockCode))
+        cursor.execute("SELECT `id`,`code`,`name`,`lastUseDateAt`, `hit` FROM `stock` WHERE `code` like %s", ('%'+stockCode))
         return cursor.fetchone()
 
     def selectFinanceByStockIdAndDate(self, stockId, date):
@@ -336,9 +349,9 @@ class DBManager:
         cursor = self.connection.cursor()
         cursor.execute("UPDATE `data`.`finance` SET `high`=%s,`low`=%s,`start`=%s,`final`=%s WHERE `id`=%s;", (high, low, start, final, financeId))
 
-    def insertStock(self, code, name, use):
+    def insertStock(self, code, name):
         cursor = self.connection.cursor()
-        cursor.execute("INSERT INTO `data`.`stock` (`code`,`name`,`use`) VALUES (%s, %s, %s);", (code, name, use))
+        cursor.execute("INSERT INTO `data`.`stock` (`code`,`name`,`use`, `scrap`) VALUES (%s, %s, 1, 1);", (code, name))
 
     def updateStockHit(self, hit, stockId):
         cursor = self.connection.cursor()

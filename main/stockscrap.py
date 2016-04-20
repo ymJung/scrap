@@ -37,14 +37,19 @@ class DSStock:
         self.dbm.commit()
         self.dbm.close()
 
+    def getStockByCode(self, stockCode):
+        return self.dbm.selectStockByCode(stockCode)
     def getStock(self, stockCode):
-        stock = self.dbm.selectStockByCode(stockCode)
+        stock = self.getStockByCode(stockCode)
         if stock is None:
             totalCount = self.ins.GetCount()
             for i in range(0, totalCount):
-                if self.ins.GetData(0, i) == str(stockCode) or self.ins.GetData(0, i).replace('A','') == str(stockCode):
-                    self.dbm.insertStock(self.ins.getData(0, i), self.ins.getData(1, i), 1)
-                    print("insert [", self.ins.getData(0, i) , "][", self.ins.getData(1, i) , "]")
+                dsCode = self.ins.GetData(0, i)
+                dsName = self.ins.getData(1, i)
+
+                if dsCode == str(stockCode) or dsCode.replace('A','') == str(stockCode):
+                    self.dbm.insertStock(dsCode, dsName)
+                    print("insert [", dsCode , "][", dsName , "]")
                     return self.dbm.selectStockByCode(stockCode)
             print("Not found name : " + str(stockCode))
 
@@ -109,19 +114,3 @@ class DSStock:
         self.insertFinanceData(datas, str(insert.get('id')))
         self.dbm.commit()
 
-    def insertAllStockName(self):
-        totalCount = self.ins.GetCount()
-        for i in range(0, totalCount):
-            word = self.dbm.selectWord(self.ins.getData(0, i))
-            if word is None :
-                self.dbm.insertWord(self.ins.getData(0, i))
-                self.dbm.insertWord(self.ins.getData(1, i))
-            # self.dbm.insertStock(self.ins.getData(0, i), self.ins.getData(1, i), 1)
-            # print("insert [", self.ins.getData(0, i) , "][", self.ins.getData(1, i) , "]")
-
-
-DB_IP = "localhost"
-DB_USER = "root"
-DB_PWD = "1234"
-DB_SCH = "data"
-# DSStock(DB_IP, DB_USER, DB_PWD, DB_SCH).insertAllStockName()

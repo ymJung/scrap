@@ -23,7 +23,7 @@ class Miner:
         self.PLUS_NAME = 'plus'
         self.MINUS_NAME = 'minus'
         self.CONTENT_DATA_NAME = 'contentData'
-        self.SPLIT_COUNT = 500
+        self.SPLIT_COUNT = 1000
         self.START_NAME = 'start'
         self.FINAL_NAME = 'final'
         self.DATE_NAME = 'date'
@@ -36,6 +36,7 @@ class Miner:
         self.DB_PWD = DB_PWD
         self.DB_SCH = DB_SCH
         self.dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        self.THREAD_LIMIT_COUNT = 30
 
     def __del__(self):
         self.dbm.commit()
@@ -60,7 +61,9 @@ class Miner:
                 return []
         for i in range(int((count / self.LIMIT_COUNT)) + 1):
             try:
-                contents = self.dbm.getContentBetween(stockName, limitAt, startAt, (i * 10) + 1, (i + 1) * self.LIMIT_COUNT)
+                startPos = (i * 10) + 1
+                endPos = (i + 1) * self.LIMIT_COUNT
+                contents = self.dbm.getContentBetween(stockName, limitAt, startAt, startPos, endPos)
                 if contents is not None:
                     contentsList = contentsList + contents
                 else:
@@ -178,7 +181,6 @@ class Miner:
         wordIdFinanceMap = {}
         cacheFinanceChangePrices = {}
 
-        print('getWordChangePriceMap, len ', len(contentDataList))
         for idx in range(len(contentDataList)):
             result = contentDataList[idx]
             contentData = result.get(self.CONTENT_DATA_NAME)
@@ -227,24 +229,40 @@ class Miner:
             resultQueue = queue.Queue()
             thread = threading.Thread(target=self.getWordChangePriceMap, args=(splitedContentTarget, stockName, period, resultQueue, lock, dic), name=stockName+str(len(splitedContentTarget)))
             threadList.append(thread)
-            try :
-                thread.start()
-            except RuntimeError :
-                if threadList :
-                    # threadList[0].start()
-                    threadList[0].join()
-                    del threadList[0]
             queueList.append(resultQueue)
-        totalWordPriceMap = {}
-        for thread in threadList :
-            print('thread', thread.getName())
-            thread.join()
 
-        for result in queueList :
-            wordIdFinanceMap = result.get()
-            self.appendWordPriceMap(wordIdFinanceMap, totalWordPriceMap)
+        totalWordPriceMap = self.getTotalPriceMap(queueList, threadList)
 
         return totalWordPriceMap
+
+    def getTotalPriceMap(self, queueList, threadList):
+        # try:
+        #     thread.start()
+        # except RuntimeError:
+        #     if threadList:
+        #         # threadList[0].start()
+        #         threadList[0].join()
+        #         del threadList[0]
+        for idx in range(int(len(threadList) / self.THREAD_LIMIT_COUNT) + 1) :
+            start = idx * self.THREAD_LIMIT_COUNT
+            end = idx * self.THREAD_LIMIT_COUNT + self.THREAD_LIMIT_COUNT
+            if end > len(threadList) :
+                end = len(threadList)
+            splitedThreads = threadList[start : end]
+            for thread in splitedThreads:
+                print('thread start', thread.getName())
+                thread.start()
+            for thread in splitedThreads:
+                print('thread join', thread.getName())
+                thread.join()
+
+        totalWordPriceMap = {}
+
+        for que in queueList:
+            wordIdFinanceMap = que.get()
+            self.appendWordPriceMap(wordIdFinanceMap, totalWordPriceMap)
+        return totalWordPriceMap
+
     def appendWordPriceMap(self, wordIdFinanceMap, totalWordPriceMap):
          for wordId in wordIdFinanceMap.keys() :
             if wordIdFinanceMap[wordId] == None :
