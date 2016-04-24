@@ -107,7 +107,7 @@ class DBManager:
 
     def getStockList(self):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt` FROM stock where `much` = 0 ORDER BY id ASC")
+        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` FROM stock where `much` = 0 ORDER BY id ASC")
         return cursor.fetchall()
 
     def initStock(self):
@@ -135,29 +135,50 @@ class DBManager:
         cursor.execute(("UPDATE stock SET `use` = 0 WHERE `id` = %s"), stock.get('id'))
         self.commit()
         return stock
-
+    def getScrapStockTarget(self, checkDate):
+        cursor = self.connection.cursor()
+        selectSql = "SELECT `id`, `code`, `name`, `lastScrapAt` FROM stock WHERE `scrap` = 1 AND `much` = 0 ORDER BY id asc LIMIT 1"
+        cursor.execute(selectSql)
+        stock = cursor.fetchone()
+        if stock is None :
+            cursor.execute("select lastScrapAt from stock order by lastScrapAt desc limit 1")
+            lastScrapAt = cursor.fetchone().get('lastScrapAt')
+            today = datetime.date.today()
+            workIsDone = (today.year == lastScrapAt.year) and (today.month == lastScrapAt.month) and (today.day == lastScrapAt.day) # and datetime.datetime.now().hour > self.LIMIT_HOUR
+            if checkDate is False:
+                if workIsDone:
+                    raise DBManagerError('stock is none')
+                else :
+                    print('init stock')
+                    self.initScrapStock()
+                    cursor.execute(selectSql)
+                    stock = cursor.fetchone()
+        cursor.execute(("UPDATE stock SET `scrap` = 0 WHERE `id` = %s"), stock.get('id'))
+        self.commit()
+        return stock
     def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period):
         cursor = self.connection.cursor()
         cursor.execute('SELECT id FROM stock WHERE name = %s', stockName)
         stock = cursor.fetchone()
         cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s LIMIT 1', (stock.get('id'), targetAt, period))
         item = cursor.fetchone()
-        if item is  None :
+        if item is None :
             cursor.execute("INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `period`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period))
 
-        # else :
+        else :
+            print(item)
         #     cursor.execute("UPDATE `data`.`item` SET `stockId`=%s, `plus`=%s, `minus`=%s, `totalPlus`=%s, `totalMinus`=%s, `targetAt`=%s, `period` WHERE `id`=%s",
         #                    (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period, item.get('id')))
 
         cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s', (stock.get('id'), targetAt, period))
         return cursor.fetchone().get('id')
 
-    def updateLastUseDate(self, stock):
+    def updateLastScrapDate(self, stock):
         cursor = self.connection.cursor()
-        updateLastUseDateSql = "UPDATE `data`.`stock` SET `lastUseDateAt`= now() WHERE `id`= %s"
+        updateLastUseDateSql = "UPDATE `data`.`stock` SET `lastScrapAt`= now() WHERE `id`= %s"
         result = cursor.execute(updateLastUseDateSql, (stock.get('id')))
-        print('update' + str(result))
-        self.connection.commit()
+        print('update scrap date. ', result)
+        self.commit()
 
     def updateAnalyzedResultItem(self, stock):
         cursor = self.connection.cursor()
@@ -166,23 +187,25 @@ class DBManager:
 
         selectTargetItemsSql = 'SELECT id, targetAt FROM item WHERE financeId IS NULL AND stockId = %s'
         cursor.execute(selectTargetItemsSql, (stockId))
-        targets = cursor.fetchall()
-        for target in targets:
-            updated = False
-            selectTargetStockSql = 'SELECT f.id, s.name, f.date, f.start, f.final, f.date FROM finance f, stock s WHERE f.stockId = s.id AND s.name = %s'
-            cursor.execute(selectTargetStockSql + ' AND f.date = %s', (stockName, target.get('targetAt')))
-            targetFinances = cursor.fetchall()
+        itemList = cursor.fetchall()
+        for item in itemList:
+            itemId = item.get('id')
+            itemTargetAt = item.get('targetAt')
+            cursor.execute(
+                'SELECT f.id, s.name, f.date, f.start, f.final FROM finance f, stock s WHERE f.stockId = s.id AND s.name = %s AND f.date = %s ORDER BY f.createdAt DESC LIMIT 1',
+                (stockName, itemTargetAt))
+            targetFinance = cursor.fetchone()
+            if targetFinance is not None:
+                print('update finance date.', stock.get('name'), itemTargetAt)
+                self.updateItemFinanceId(targetFinance.get('id'), itemId)
+            else :
+                print('finance date is null')
+                # existFinance = cursor.execute(selectTargetStockSql + ' AND f.date > %s LIMIT 1', (stockName, itemTargetAt))
+                # if existFinance != 0 :
+                #     targetFinance = cursor.fetchone()
+                #     self.updateItemPrice(targetFinance.get('id'), itemId)
 
-            for targetFinance in targetFinances: # 아마 로직에 변경 없으면 1개임.
-                updated = True
-                self.updateItemPrice(targetFinance.get('id'), target.get('id'))
-            if updated is False :
-                existFinance = cursor.execute(selectTargetStockSql +  ' AND f.date > %s LIMIT 1' , (stockName, target.get('targetAt')))
-                if existFinance != 0 :
-                    targetFinance = cursor.fetchone()
-                    self.updateItemPrice(targetFinance.get('id'), target.get('id'))
-
-    def updateItemPrice(self, financeId, itemId):
+    def updateItemFinanceId(self, financeId, itemId):
         cursor = self.connection.cursor()
         updateItemPriceSql = "UPDATE item SET financeId = %s WHERE id= %s"
         cursor.execute(updateItemPriceSql, (financeId, itemId))
@@ -207,8 +230,11 @@ class DBManager:
     def forecastTarget(self, forecastAt, stock, targetAt):
         stockId = stock.get('id')
         stockName = stock.get('name')
-        lastUseDateAt = stock.get('lastUseDateAt')
-        if lastUseDateAt.date() < targetAt :
+        lastScrapAt = stock.get('lastScrapAt')
+        if targetAt.weekday() in [5,6]:
+            print('weekend day', stockName, targetAt)
+            return True
+        if lastScrapAt.date() < targetAt :
             print('not yet to scrap.', stockName, targetAt)
             return True
         cursor = self.connection.cursor()
@@ -327,7 +353,7 @@ class DBManager:
 
     def selectStockByCode(self, stockCode):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT `id`,`code`,`name`,`lastUseDateAt`, `hit` FROM `stock` WHERE `code` like %s", ('%'+stockCode))
+        cursor.execute("SELECT `id`,`code`,`name`,`lastUseDateAt`, `hit`, `lastScrapAt` FROM `stock` WHERE `code` like %s", ('%'+stockCode))
         return cursor.fetchone()
 
     def selectFinanceByStockIdAndDate(self, stockId, date):
@@ -366,6 +392,10 @@ class DBManager:
     def updateContentAnalyzeFlag(self, analyzeFlag, contentId):
         cursor = self.connection.cursor()
         cursor.execute("UPDATE `content` SET `analyze`=%s WHERE `id`=%s", (analyzeFlag, contentId))
+
+    def initScrapStock(self):
+        self.connection.cursor().execute("UPDATE stock SET `scrap` = 1 WHERE `much` = 0")
+        self.commit()
 
 
 

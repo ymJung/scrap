@@ -37,10 +37,8 @@ class DSStock:
         self.dbm.commit()
         self.dbm.close()
 
-    def getStockByCode(self, stockCode):
-        return self.dbm.selectStockByCode(stockCode)
     def getStock(self, stockCode):
-        stock = self.getStockByCode(stockCode)
+        stock = self.dbm.selectStockByCode(stockCode)
         if stock is None:
             totalCount = self.ins.GetCount()
             for i in range(0, totalCount):

@@ -45,38 +45,37 @@ class Runner:
 
 
     def insertPpomppuResult(self, stock):
-        lastUseDateAt = stock.get('lastUseDateAt')
+        lastScrapAt = stock.get('lastScrapAt')
         stockName = stock.get('name')
         ppomppu = webscrap.Ppomppu()
-        ppomppuResult = ppomppu.getTrend(self.PPOMPPU_ID, self.PPOMPPU_PWD, stockName,
-                                         lastUseDateAt)  # id , password , search
+        ppomppuResult = ppomppu.getTrend(self.PPOMPPU_ID, self.PPOMPPU_PWD, stockName, lastScrapAt)  # id , password , search
         self.dbm.saveData(ppomppu.SITE, ppomppuResult, stockName)
         self.dbm.commit()
 
     def insertPaxnetResult(self, stock):
-        lastUseDateAt = stock.get('lastUseDateAt')
+        lastScrapAt = stock.get('lastScrapAt')
         stockCode = stock.get('code')
         stockName = stock.get('name')
         paxnet = webscrap.Paxnet()
-        paxnetResult = paxnet.getTrendByCode(stockCode, lastUseDateAt)
+        paxnetResult = paxnet.getTrendByCode(stockCode, lastScrapAt)
         self.dbm.saveData(paxnet.SITE, paxnetResult, stockName)
         self.dbm.commit()
 
     def insertNaverResult(self, stock):
-        lastUseDateAt = stock.get('lastUseDateAt')
+        lastScrapAt = stock.get('lastScrapAt')
         stockCode = stock.get('code')
         stockName = stock.get('name')
         ns = webscrap.NaverStock()
-        naverResult = ns.getTrendByCode(stockCode, lastUseDateAt)
+        naverResult = ns.getTrendByCode(stockCode, lastScrapAt)
         self.dbm.saveData(ns.SITE, naverResult, stockName)
         self.dbm.commit()
 
     def insertDaumResult(self, stock):
-        lastUseDateAt = stock.get('lastUseDateAt')
+        lastScrapAt = stock.get('lastScrapAt')
         stockCode = stock.get('code')
         stockName = stock.get('name')
         ds = webscrap.DaumStock()
-        daumResult = ds.getTrendByCode(stockCode, lastUseDateAt)
+        daumResult = ds.getTrendByCode(stockCode, lastScrapAt)
         self.dbm.saveData(ds.SITE, daumResult, stockName)
         self.dbm.commit()
 
@@ -86,41 +85,29 @@ class Runner:
         if self.dbm.forecastTarget(forecastAt, stock, targetAt):
             return
         mine = miner.Miner(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-        # plusCnt, minusCnt, totalPlusCnt, totalMinusCnt =  mine.getAnalyzedCnt(targetAt, period, stockName)
         targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList = mine.getAnalyzedCnt(targetAt, period, stockName)
-
         savedItemId = self.dbm.saveAnalyzedData(stockName, targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt,forecastAt, period)
         self.dbm.saveAnalyzedItemFinanceList(savedItemId, targetFinanceIdList)
-        self.dbm.commit()
-        self.update(stock)
-
-    def run(self, stock, targetAt, period, busy):
-        if stock is None:
-            return
-        if busy is False:
-
-            # self.insertPpomppuResult(stock)
-            self.insertPaxnetResult(stock)
-            self.insertNaverResult(stock)
-            self.insertDaumResult(stock)
-
-            self.analyze.analyze()
-            self.analyze.commit()
-            self.dbm.updateLastUseDate(stock)
-            self.dbm.commit()
-        self.insertFinance(stock)
-        self.insertAnalyzedResult(stock, targetAt, period)
-
-    def update(self, stock):
         self.dbm.updateAnalyzedResultItem(stock)
         self.dbm.commit()
 
-    def migration(self, stock, period, dayLimit):
+    def run(self, stock, targetAt, period):
+        if stock is None:
+            print("stock is none")
+            return
+        self.insertFinance(stock)
+        self.insertAnalyzedResult(stock, targetAt, period)
+
+
+
+    def migration(self, stock, period):
         print('migration', stock.get('name'))
+        # dayLimit = self.dbm.selectLast(stock.get('id'))
+        dayLimit = 365
         for minusDay in range(dayLimit - 1):
             targetAt = date.today() - timedelta(days=minusDay + 1)
             print('migration target at ', targetAt, 'period ', minusDay + 1, '/')
-            self.run(stock, targetAt, period, True)
+            self.run(stock, targetAt, period)
 
     def getDivideNumPercent(self, num1, num2):
         if num2 == 0:
@@ -161,8 +148,16 @@ class Runner:
         stock = self.stocks.getStock(stockCode)
         self.scrapWebAndMigration(stock, period)
     def scrapWebAndMigration(self, stock, period):
-        self.run(stock, date.today(), period, False)
-        self.migration(stock, period, 365)
+        # self.insertPpomppuResult(stock)
+        self.insertPaxnetResult(stock)
+        self.insertNaverResult(stock)
+        self.insertDaumResult(stock)
+
+        self.analyze.analyze()
+        self.dbm.updateLastScrapDate(stock)
+        self.dbm.commit()
+        self.run(stock, date.today(), period)
+        self.migration(stock, period)
 
     def filteredTarget(self, period, afterDayCnt):
         filteredTargets = ''
@@ -275,9 +270,8 @@ class Runner:
                 stock = self.dbm.getUsefulStock(True)
                 print(stock.get('name'), 'is start')
 
-                busy = False
                 targetAt = date.today() - timedelta(days=beforeDayCnt)
-                self.run(stock, targetAt, period, busy)
+                self.run(stock, targetAt, period)
                 print(stock.get('name'), 'is done')
             except dbmanager.DBManagerError :
                 print('work is done.')
@@ -310,7 +304,7 @@ class Runner:
             try :
                 stock = self.dbm.getUsefulStock(False)
                 print(stock.get('name'), 'is start')
-                self.migration(stock, period, 365 * 2)
+                self.migration(stock, period)
                 print(stock.get('name'), 'is done')
             except dbmanager.DBManagerError :
                 print('work is done.')
@@ -368,20 +362,21 @@ DB_SCH = "data"
 
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-run.insertNewStockAndMigrate('192250', period)
-# run.targetAnalyze('A005300', period)
+
+# run.insertNewStockAndMigrate('018310', period)
+# run.targetAnalyze('', period)
 # run.filteredTarget(period, 0)
-# run.initStocks()
-# targetAt = date.today() - timedelta(days=0)
-# while True :
-#     try :
-#         stock = run.dbm.getUsefulStock(True)
-#         print(stock.get('name'), 'is start')
-#         run.run(stock, targetAt, period, True)
-# #         # run.migration(stock, period, 365)
-#         print(stock.get('name'), 'is done')
-# #
-#     except dbmanager.DBManagerError :
-#         print('work is done.')
-#         break
+run.initStocks()
+targetAt = date.today() - timedelta(days=0)
+while True :
+    try :
+        stock = run.dbm.getUsefulStock(True)
+        print(stock.get('name'), 'is start')
+        run.run(stock, targetAt, period)
+        # run.migration(stock, period, 365)
+        print(stock.get('name'), 'is done')
+#
+    except dbmanager.DBManagerError :
+        print('work is done.')
+        break
 
