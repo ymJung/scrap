@@ -37,6 +37,20 @@ class DSStock:
         self.dbm.commit()
         self.dbm.close()
 
+    def updateStockInfo(self):
+        totalCount = self.ins.GetCount()
+        for i in range(0, totalCount):
+            dsCode = self.ins.GetData(0, i)
+            dsName = self.ins.getData(1, i)
+            stock = self.dbm.selectStockByCode(dsCode)
+            if stock is not None :
+                if stock.get('name') != dsName :
+                    print('update stock name', stock.get('name'), dsName)
+                    self.dbm.updateStockName(stock.get('id'), dsName, dsCode)
+                    contentIdList = self.dbm.selectContentIdListByQuery(stock.get('name'))
+                    for contentId in contentIdList :
+                        self.dbm.updateContentQuery(contentId.get('id'), dsName)
+                    self.dbm.commit()
     def getStock(self, stockCode):
         stock = self.dbm.selectStockByCode(stockCode)
         if stock is None:
@@ -56,13 +70,6 @@ class DSStock:
             hit = int(stock.get('hit')) + 1
             self.dbm.updateStockHit(hit, stock.get('id'))
             return self.dbm.selectStockByCode(stockCode)
-
-    def getUpDown(self, code):
-        UP_DOWN_CODE = 12
-        self.stock.setInputValue(0, code)
-        self.stock.BlockRequest()
-        print(self.stock.GetHeaderValue(UP_DOWN_CODE))
-
     def getChartDataList(self, code, count):
         self.chart.SetInputValue(0, code)  # 대신증권 종목 코드
         self.chart.SetInputValue(1, ord('2'))  # 요청 구분 (개수로 요청)
@@ -84,7 +91,6 @@ class DSStock:
             data.append(temp)
         return data
     def insertFinanceData(self, datas, stockId):
-
         for data in datas:
             date = datetime.datetime.strptime(str(data.get(self.DATE)), self.DATE_FORMAT)
             start = data.get(self.START)
