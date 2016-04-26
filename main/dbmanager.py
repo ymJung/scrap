@@ -35,7 +35,7 @@ class DBManager:
     def close(self):
         print('dbm close')
         self.connection.close()
-    def saveData(self, site, results, stockName):
+    def saveData(self, site, results, stockName, stockId):
         print('save data. ', stockName, len(results))
         for each in results:
             authorName = each.get(self.WRITER)
@@ -47,7 +47,7 @@ class DBManager:
                 continue
 
             authorId = self.saveAuthorAndGetId(site, authorName)
-            contentId = self.saveContentAndGetId(site, authorId, contentData, date, title, stockName)
+            contentId = self.saveContentAndGetId(site, authorId, contentData, date, title, stockName, stockId)
 
             commentList = each.get(self.COMMENT_LIST)
             if len(commentList) > 0:
@@ -56,17 +56,17 @@ class DBManager:
                     commentAuthorId = self.saveAuthorAndGetId(site, commentWriter)
                     commentDate = comment.get(self.DATE)
                     commentContent = comment.get(self.CONTENT_DATA)
-                    self.insertComment(commentAuthorId, commentContent, contentId, commentDate, stockName)
+                    self.insertComment(commentAuthorId, commentContent, contentId, commentDate, stockName, stockId)
 
-    def insertComment(self, commentAuthorId, commentContent, contentId, commentDate, stockName):
+    def insertComment(self, commentAuthorId, commentContent, contentId, commentDate, stockName, stockId):
         try:
             cursor = self.connection.cursor()
             commentIdSql = "SELECT `id` FROM `comment` WHERE `authorId`=%s AND `commentData`=%s"
             commentId = cursor.execute(commentIdSql, (commentAuthorId, commentContent))
 
             if commentId == 0:
-                commentDataInsertSql = "INSERT INTO `comment` (`authorId`, `commentData`, `contentId`, `date`, `query`) VALUES (%s, %s, %s, %s, %s)"
-                cursor.execute(commentDataInsertSql, (commentAuthorId, commentContent, contentId, commentDate, stockName))
+                commentDataInsertSql = "INSERT INTO `comment` (`authorId`, `commentData`, `contentId`, `date`, `query`, `stockId`) VALUES (%s, %s, %s, %s, %s, %s)"
+                cursor.execute(commentDataInsertSql, (commentAuthorId, commentContent, contentId, commentDate, stockName, stockId))
         except pymysql.err.InternalError as e:
             print(e)
         except:
@@ -77,7 +77,7 @@ class DBManager:
 
 
 
-    def saveContentAndGetId(self, site, authorId, contentData, date, title, stockName):
+    def saveContentAndGetId(self, site, authorId, contentData, date, title, stockName, stockId):
         cursor = self.connection.cursor()
         title = self.replaceEscape(title)
         contentData = self.replaceEscape(contentData)
@@ -85,8 +85,8 @@ class DBManager:
         print(u'saveContentAndGetId', authorId, title)
         contentId = cursor.execute(contentIdSql, (authorId, title))
         if contentId == 0:
-            contentDataInsertSql = "INSERT INTO `content` (`title`, `contentData`, `authorId`, `date`, `query`, `site`) VALUES (%s, %s, %s, %s, %s, %s)"
-            cursor.execute(contentDataInsertSql, (title, contentData, authorId, date, stockName, site))
+            contentDataInsertSql = "INSERT INTO `content` (`title`, `contentData`, `authorId`, `date`, `query`, `site`, `stockId`) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+            cursor.execute(contentDataInsertSql, (title, contentData, authorId, date, stockName, site, stockId))
             cursor.execute(contentIdSql, (authorId, title))
             contentId = cursor.fetchone().get('id')
         else:
@@ -243,7 +243,7 @@ class DBManager:
         if result != 0:
             print('exist item date ', forecastAt, stockId)
             return True
-        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` BETWEEN %s AND %s AND `query` = %s', (targetAt, forecastAt + datetime.timedelta(days=1), stockName))
+        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` BETWEEN %s AND %s AND `stockId` = %s', (targetAt, forecastAt + datetime.timedelta(days=1), stockId))
         if result == 0:
             print('empty content data.', targetAt, forecastAt, stockName)
             return True
@@ -323,19 +323,19 @@ class DBManager:
         cursor.execute("SELECT f.id, f.start, f.final FROM finance f, stock s WHERE f.stockId = s.id and s.name = %s and f.date = %s", (stockName, sliceDate))
         return cursor.fetchone()
 
-    def getContent(self, stockName, startPos, endPos):
+    def getContent(self, stockId, startPos, endPos):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT `c`.`title`,`c`.`contentData`, `a`.`name`, `c`.`date` FROM `content` as `c`, `author` as `a` WHERE `c`.`query` = %s limit %s , %s", (stockName, startPos, endPos))
+        cursor.execute("SELECT `c`.`title`,`c`.`contentData`, `a`.`name`, `c`.`date` FROM `content` as `c`, `author` as `a` WHERE `c`.`stockId` = %s limit %s , %s", (stockId, startPos, endPos))
         return cursor.fetchall()
 
-    def countContents(self, stockName, limitAt, startAt):
+    def countContents(self, stockId, limitAt, startAt):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.query = %s and c.date between %s and %s", (stockName, limitAt, startAt))
+        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date between %s and %s", (stockId, limitAt, startAt))
         return cursor.fetchone()
 
-    def getContentBetween(self, stockName, startAt, limitAt, startPos, endPos):
+    def getContentBetween(self, stockId, startAt, limitAt, startPos, endPos):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT c.title,c.contentData, c.date FROM content c WHERE c.query = %s and c.date > %s and c.date <= %s ORDER BY c.id DESC LIMIT %s , %s", (stockName, startAt, limitAt + datetime.timedelta(days=1), startPos, endPos))
+        cursor.execute("SELECT c.title,c.contentData, c.date FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s ORDER BY c.id DESC LIMIT %s , %s", (stockId, startAt, limitAt + datetime.timedelta(days=1), startPos, endPos))
         result = cursor.fetchall()
         if result is not None :
             return list(result)
@@ -407,14 +407,14 @@ class DBManager:
         cursor = self.connection.cursor()
         cursor.execute("UPDATE `stock` SET `name`=%s, `code`=%s WHERE `id`=%s", (dsName, dsCode, stockId))
 
-    def selectContentIdListByQuery(self, query):
+    def selectContentIdList(self, stockId):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT id FROM content WHERE query=%s", query)
+        cursor.execute("SELECT id FROM content WHERE stockId=%s", stockId)
         return cursor.fetchall()
 
-    def updateContentQuery(self, contentId, dsName):
+    def updateContentQuery(self, contentId, stockId):
         cursor = self.connection.cursor()
-        cursor.execute("UPDATE `content` SET `query`=%s WHERE `id`=%s", (dsName, contentId))
+        cursor.execute("UPDATE `content` SET `stockId`=%s WHERE `id`=%s", (stockId, contentId))
 
     def updateStockUse(self, stockId, useFlag):
         cursor = self.connection.cursor()
@@ -429,9 +429,9 @@ class DBManager:
             return result.get('targetAt').date()
         return None
 
-    def selectFirstContent(self, stockName):
+    def selectFirstContent(self, stockId):
         cursor = self.connection.cursor()
-        cursor.execute("select date from content where query = %s order by id asc limit 1;", (stockName))
+        cursor.execute("select date from content where stockId = %s order by id asc limit 1;", (stockId))
         result = cursor.fetchone()
         if result is not None :
             return result.get('date').date()

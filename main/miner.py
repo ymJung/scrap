@@ -42,17 +42,17 @@ class Miner:
         self.dbm.commit()
         self.dbm.close()
 
-    def getContent(self, stockName, startPos, endPos):
-        contents = self.dbm.getContent(stockName, startPos, endPos)
+    def getContent(self, stockId, startPos, endPos):
+        contents = self.dbm.getContent(stockId, startPos, endPos)
         if contents is not None:
             return contents
         else:
             raise MinerError('content is not valid.')
 
-    def getStockNameContent(self, stockName, startAt, limitAt):
+    def getStockNameContent(self, stockName, startAt, limitAt, stockId):
         contentsList = []
         count = 0
-        cnt = self.dbm.countContents(stockName, limitAt, startAt)
+        cnt = self.dbm.countContents(stockId, limitAt, startAt)
 
         if cnt is not None:
             count = cnt.get('cnt')
@@ -63,7 +63,7 @@ class Miner:
             try:
                 startPos = (i * 10) + 1
                 endPos = (i + 1) * self.LIMIT_COUNT
-                contents = self.dbm.getContentBetween(stockName, limitAt, startAt, startPos, endPos)
+                contents = self.dbm.getContentBetween(stockId, limitAt, startAt, startPos, endPos)
                 if contents is not None:
                     contentsList = contentsList + contents
                 else:
@@ -77,9 +77,9 @@ class Miner:
                 # continue
                 return contentsList
         return contentsList
-    def getTargetContentWordIds(self, stockName, targetDate, periodDate):
+    def getTargetContentWordIds(self, stockName, targetDate, periodDate, stockId):
         wordIds = []
-        contents = self.getStockNameContent(stockName, targetDate, periodDate)
+        contents = self.getStockNameContent(stockName, targetDate, periodDate, stockId)
         print('target content word find. content length . ', len(contents))
         for result in contents:
             contentData = result.get(self.CONTENT_DATA_NAME)
@@ -274,17 +274,17 @@ class Miner:
                 totalWordPriceMap[wordId] = totalWordPriceMap[wordId] + wordIdFinanceMap[wordId]
             totalWordPriceMap[wordId] = list(set(totalWordPriceMap[wordId]))
 
-    def getAnalyzedCnt(self, targetDate, period, stockName):
+    def getAnalyzedCnt(self, targetDate, period, stockName, stockId):
         today = date.today()
         totalWordIdFinanceMap = {}
 
         for idx in range(self.LIMIT_YEAR_SEPERATOR) : # 73 * 5
             interval = idx * self.INTERVAL_YEAR_SEPERATOR
-            contents = self.getStockNameContent(stockName, today - timedelta(days=interval), today - timedelta(days=interval + self.INTERVAL_YEAR_SEPERATOR))
+            contents = self.getStockNameContent(stockName, today - timedelta(days=interval), today - timedelta(days=interval + self.INTERVAL_YEAR_SEPERATOR), stockId)
             wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
             self.appendWordPriceMap(wordIdFinanceMap, totalWordIdFinanceMap)
 
-        targetWordIds = self.getTargetContentWordIds(stockName, targetDate, targetDate - timedelta(days=period))
+        targetWordIds = self.getTargetContentWordIds(stockName, targetDate, targetDate - timedelta(days=period), stockId)
 
         resultWordFinanceMap = self.getWordFinanceMap(targetWordIds, totalWordIdFinanceMap)
         targetChartList = self.getAnalyzedChartList(resultWordFinanceMap)

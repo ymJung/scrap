@@ -47,9 +47,9 @@ class DSStock:
                 if stock.get('name') != dsName :
                     print('update stock name', stock.get('name'), dsName)
                     self.dbm.updateStockName(stock.get('id'), dsName, dsCode)
-                    contentIdList = self.dbm.selectContentIdListByQuery(stock.get('name'))
+                    contentIdList = self.dbm.selectContentIdList(stock.get('id'))
                     for contentId in contentIdList :
-                        self.dbm.updateContentQuery(contentId.get('id'), dsName)
+                        self.dbm.updateContentQuery(contentId.get('id'), stock.get('id'))
                     self.dbm.commit()
     def getStock(self, stockCode):
         stock = self.dbm.selectStockByCode(stockCode)
