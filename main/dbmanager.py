@@ -220,15 +220,15 @@ class DBManager:
 
         return analyzedResult
 
-    def analyzedSql(self, stockName):
+    def analyzedSql(self, stockName, period):
         cursor = self.connection.cursor()
-        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s group by i.targetAt order by i.targetAt desc'
-        cursor.execute(selectAnalyzedSql, (stockName))
+        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s AND i.period = %s group by i.targetAt order by i.targetAt desc'
+        cursor.execute(selectAnalyzedSql, (stockName, period))
         analyzedResult = cursor.fetchall()
 
         return analyzedResult
 
-    def forecastTarget(self, forecastAt, stock, targetAt):
+    def forecastTarget(self, forecastAt, stock, targetAt, period):
         stockId = stock.get('id')
         stockName = stock.get('name')
         lastScrapAt = stock.get('lastScrapAt')
@@ -239,7 +239,7 @@ class DBManager:
             print('not yet to scrap.', stockName, targetAt)
             return True
         cursor = self.connection.cursor()
-        result = cursor.execute('SELECT id FROM item WHERE targetAt = %s and stockId = %s', (forecastAt, stockId))
+        result = cursor.execute('SELECT id FROM item WHERE targetAt = %s and stockId = %s and period = %s', (forecastAt,stockId,period))
         if result != 0:
             print('exist item date ', forecastAt, stockId)
             return True
@@ -431,11 +431,41 @@ class DBManager:
 
     def selectFirstContent(self, stockId):
         cursor = self.connection.cursor()
-        cursor.execute("select date from content where stockId = %s order by id asc limit 1;", (stockId))
+        cursor.execute("select date from content where stockId = %s and date !='1970-12-31 23:59:59' order by date asc limit 1;", (stockId))
         result = cursor.fetchone()
         if result is not None :
             return result.get('date').date()
         return None
+
+    def insertStockPotential(self, stockId, period, potential, count):
+        cursor = self.connection.cursor()
+        cursor.execute("select id from potential where stockId = %s and period = %s", (stockId, period))
+        result = cursor.fetchone()
+        if result is not None :
+            cursor.execute("update potential set potential = %s, count = %s where id = %s ", (potential, count, result.get('id')))
+        else :
+            cursor.execute("INSERT INTO potential (`stockId`,`period`,`potential`, `count`) VALUES (%s, %s, %s, %s)", (stockId, period, potential, count))
+
+    def selectPotentialStock(self, stockId, period):
+        cursor = self.connection.cursor()
+        cursor.execute("select stockId, potential, count from potential where stockId = %s and period = %s", (stockId, period))
+        return cursor.fetchone()
+
+    def updateStockMuch(self, stockId, much):
+        cursor = self.connection.cursor()
+        cursor.execute("update stock set much = %s where id = %s ", (much, stockId))
+
+    def getAllStockList(self):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` FROM stock ORDER BY id ASC")
+        return cursor.fetchall()
+
+    def selectItemByFinanceIsNull(self, stockId):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, targetAt FROM item WHERE stockId = %s AND financeId is NULL", (stockId))
+        return cursor.fetchall()
+
+
 
 
 

@@ -12,6 +12,7 @@ import simulator
 
 class Runner:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
+        self.GUARANTEE_COUNT = 150
         self.FILTER_LIMIT = 50
         self.FILTER_TARGET_LIMIT = 70
         self.CHANCE_PERCENT = 0.10
@@ -31,6 +32,8 @@ class Runner:
         if self.stocks is None :
             self.stocks = stockscrap.DSStock(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
             self.stocks.updateStockInfo()
+            self.updateAllStockFinance()
+
         return self.stocks
     def __del__(self):
         self.dbm.commit()
@@ -89,7 +92,7 @@ class Runner:
     def insertAnalyzedResult(self, stock, targetAt, period):
         stockName = stock.get('name')
         forecastAt = targetAt + timedelta(days=period)
-        if self.dbm.forecastTarget(forecastAt, stock, targetAt):
+        if self.dbm.forecastTarget(forecastAt, stock, targetAt, period):
             return
         mine = miner.Miner(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
         targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList = mine.getAnalyzedCnt(targetAt, period, stockName, stock.get('id'))
@@ -131,9 +134,11 @@ class Runner:
         while True :
             idx += 1
             targetAt = targetDate - timedelta(days=idx)
-            if limitDate > targetDate :
+            if limitDate > targetAt :
                 print('done', stock.get('name'), limitDate)
                 break
+            if targetAt.weekday() in self.dbm.WEEKEND :
+                continue
             print('migration target at ', targetAt, 'period ', idx, '/')
             self.run(stock, targetAt, period)
         # for minusDay in range(dayLimit - 1):
@@ -146,7 +151,7 @@ class Runner:
     def printForecastData(self, period):
         filteredTargets = []
         for stock in self.dbm.getStockList():
-            plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
+            plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
             filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, 0)
             filteredTargets = filteredTargetList + filteredTargets
         self.printFilteredTarget(filteredTargets)
@@ -171,7 +176,12 @@ class Runner:
             avg = numpy.mean(prices)
         return {'avg': avg, 'chance': chanceIds, 'danger': dangerIds}
 
-    def scrapWebAndMigration(self, stock, period):
+    def scrapWebAndMigration(self, stockCode, period):
+        stock = self.dbm.selectStockByCode(stockCode)
+        if stock is None :
+            stocks = self.getStocks()
+            stocks.insertNewStock(stockCode)
+            stock = self.dbm.selectStockByCode(stockCode)
         # self.insertPpomppuResult(stock)
         self.insertPaxnetResult(stock)
         self.insertNaverResult(stock)
@@ -186,15 +196,15 @@ class Runner:
     def filteredTarget(self, period, afterDayCnt):
         filteredTargets = ''
         for stock in self.dbm.getStockList():
-            plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
+            plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
             filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, afterDayCnt)
             if len(filteredTargetList) > 0 :
                 filteredTargets = filteredTargets + str(filteredTargetList) + '\n'
         print(filteredTargets)
         return filteredTargets
 
-    def getAnalyzeExistData(self, stock):
-        analyzedResult = self.dbm.analyzedSql(stock.get('name'))
+    def getAnalyzeExistData(self, stockName, period):
+        analyzedResult = self.dbm.analyzedSql(stockName, period)
         plusPoint = []
         minusPoint = []
         sumPoint = []
@@ -205,7 +215,6 @@ class Runner:
             total = plus + minus
             plusPercent = self.getDivideNumPercent(plus, total)
             minusPercent = self.getDivideNumPercent(minus, total)
-            stockName = each.get('name')
             targetAt = each.get('targetAt')
             itemId = each.get('id')
             financeList = self.dbm.getFinanceListFromItemId(itemId)
@@ -223,7 +232,7 @@ class Runner:
             plusChanceIds = list(set(plusChanceIds))
 
         trustPercent = self.getDivideNumPercent(len(plusPoint), len(sumPoint))
-        pointDict = {stock.get('name'): {'name': stock.get('name'), 'percent': trustPercent, 'total': len(analyzedResult)}}
+        pointDict = {stockName: {'name': stockName, 'percent': trustPercent, 'total': len(analyzedResult)}}
         return plusChanceIds, pointDict
 
 
@@ -262,22 +271,13 @@ class Runner:
         targetAt = each.get('targetAt')
         return each.get('id'), point, stockName, targetAt
 
-    def trustedTarget(self, period, forecastAt):
-        trustedTargetPoints = []
-        for stock in self.dbm.getStockList():
-            plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
-            target = pointDict.get(stock.get('name'))
-            percent = target.get('percent')
-            if self.FILTER_LIMIT < percent :
-                forecastResult = self.dbm.getForecastResult(stock.get('name'), forecastAt, period)
-                filteredResults = []
-                for each in forecastResult :
-                    itemId, point, stockName, targetAt = self.getFilteredForecastResult(each)
-                    filteredResults.append({'point': point, 'targetAt': targetAt})
-
-                    print(pointDict, filteredResults)
-                    trustedTargetPoints.append({'pointDict': pointDict, 'forecast': filteredResults})
-        return trustedTargetPoints
+    def filterPotentialStock(self, period):
+        for stock in self.dbm.getAllStockList():
+            self.updatePotentialStock(stock)
+            poten = self.dbm.selectPotentialStock(stock.get('id'), period)
+            if poten.get('count') > self.GUARANTEE_COUNT and poten.get('potential') < self.FILTER_LIMIT:
+                self.dbm.updateStockMuch(stock.get('id'), 1)
+                print(stock, ' set much 1. ', poten.get('potential'))
 
     def dailyRun(self, period, beforeDayCnt):
         targetAt = date.today() - timedelta(days=beforeDayCnt)
@@ -298,10 +298,8 @@ class Runner:
 
     def targetAnalyze(self, stockCode, period):
         stock = self.dbm.selectStockByCode(stockCode)
-        if stock is None :
-            return None
         print('targetAnalyze', stock)
-        plusChanceIds, pointDict = self.getAnalyzeExistData(stock)
+        plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
         filteredTargetList = self.getForecastTarget(plusChanceIds, pointDict, stock, period, 0)
         print(filteredTargetList)
         return filteredTargetList
@@ -364,6 +362,26 @@ class Runner:
     def getFirstContentDate(self, stockId):
         return self.dbm.selectFirstContent(stockId)
 
+    def updateAllStockFinance(self):
+        stocks = self.getStocks()
+        for stock in self.dbm.getStockList():
+            stocks.insertNewStock(stock.get('code'))
+            items = self.dbm.selectItemByFinanceIsNull(stock.get('id'))
+            for item in items :
+                finance = self.dbm.selectFinanceByStockIdAndDate(stock.get('id'), item.get('targetAt'))
+                if finance is not None :
+                    print('update item finance id ', stock.get('name'), item.get('targetAt'))
+                    self.dbm.updateItemFinanceId(finance.get('id'), item.get('id'))
+
+
+
+    def updatePotentialStock(self, stock):
+        r1, r2 = self.getAnalyzeExistData(stock.get('name'), period)
+        pd = r2.get(stock.get('name'))
+        potential = pd.get('percent')
+        count = pd.get('total')
+        self.dbm.insertStockPotential(stock.get('id'), period, potential, count)
+        print(stock, 'is done')
 
 
 DB_IP = "192.168.11.6"
@@ -373,23 +391,24 @@ DB_SCH = "data"
 
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-# run.analyze.analyze()
-# run.trustedTarget(period, date.today() + timedelta(days=0))
-# run.migration(run.dbm.selectStockByCode('035720'), period)
-# run.targetAnalyze('', period)
-# run.filteredTarget(period, 0)
+
+# run.filterPotentialStock(period)
+# run.migration(run.dbm.selectStockByCode('A100030'), period)
+# run.scrapWebAndMigration('100030', period)
+# run.targetAnalyze('A100030', period)
+run.filteredTarget(period, 1)
 #
-targetAt = date.today() - timedelta(days=0)
-run.initStocks()
 # run.migrationWork(period)
-while True :
-    try :
-        stock = run.dbm.getUsefulStock(True)
-        print(stock.get('name'), 'is start')
-        run.run(stock, targetAt, period)
-        print(stock.get('name'), 'is done')
-#
-    except dbmanager.DBManagerError :
-        print('work is done.')
-        break
+startAt = date.today() - timedelta(days=0)
+# run.initStocks()
+# while True :
+#     try :
+#         stock = run.dbm.getUsefulStock(True)
+#         print(stock.get('name'), 'is start')
+#         run.run(stock, startAt, period)
+#         print(stock.get('name'), 'is done')
+# #
+#     except dbmanager.DBManagerError :
+#         print('work is done.')
+#         break
 
