@@ -117,4 +117,5 @@ class DSStock:
         datas = self.getChartDataList(insert.get('code'), 365 * 2)
         self.insertFinanceData(datas, str(insert.get('id')))
         self.dbm.commit()
+        return insert
 

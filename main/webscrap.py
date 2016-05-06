@@ -409,3 +409,67 @@ class DaumStock:
             return datetime.datetime.strptime(param, self.DATE_FORMAT)  # 2016.02.13 20:30
         except:
             return self.DEFAULT_DATE
+
+import json
+
+class KakaoStock:
+    def __init__(self):
+        self.SEQ = SEQ
+        self.TITLE = TITLE
+        self.CONTENT_DATA = CONTENT_DATA
+        self.DATE = DATE
+        self.WRITER = WRITER
+        self.COMMENT_LIST = COMMENT_LIST
+        self.DATE_FORMAT = '%Y-%m-%dT%H:%M:%S' #2016-05-06T00:37:53.000+00:00
+        self.LIMIT = datetime.datetime.now() - relativedelta(years=1)
+        self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
+        self.CODE_EXP = '[^0-9]'
+        self.SITE = "KAKAO_STOCK"
+        self.LIMIT_CONTENT_LEN = 10000
+
+    def getTrendByCode(self, code, lastUseDateAt):
+        if lastUseDateAt is not None:
+            self.LIMIT = datetime.datetime(lastUseDateAt.year, lastUseDateAt.month, lastUseDateAt.day)
+        data = []
+        cursor = 0
+        seq = 0
+        breakFlag = False
+        while True:
+            try :
+                print('code(' + code + ') seq : ' + str(seq) + ' cursor : ' + str(cursor) + ' data len : ' + str(len(data)))
+                url = 'https://stock.kakao.com/api/securities/KOREA-'+code+'/posts.json?scope=all&cursor=' + str(cursor)
+                soup = BeautifulSoup(urllib.request.urlopen(url).read(), 'lxml')
+                jls = json.loads(soup.text)
+
+                cursor = jls['nextCursor']
+                posts = jls['posts']
+                for jl in posts:
+                    writer = jl['writer']['name']
+                    content = jl['content']
+                    date = self.convertDate(jl['createdAt'])
+                    if self.LIMIT > date :
+                        breakFlag = True
+                    dataMap = {
+                            self.SEQ: seq,
+                            self.TITLE: content[0:20],
+                            self.CONTENT_DATA: content,
+                            self.WRITER: writer,
+                            self.DATE: date,
+                            self.COMMENT_LIST: []}
+                    data.append(dataMap)
+                if breakFlag:
+                    print('end')
+                    break
+            except urllib.error.URLError as e :
+                print('url error')
+                time.sleep(0.3)
+                print(e)
+            except :
+                print('some thing are wrong. will return', sys.exc_info())
+                return data
+        return data
+    def convertDate(self, param):
+        try:
+            return datetime.datetime.strptime(param[0:18], self.DATE_FORMAT)  # 2016.02.13 20:30
+        except:
+            return self.DEFAULT_DATE
