@@ -187,12 +187,12 @@ class Runner:
         self.run(stock, date.today(), period)
         self.migration(stock, period)
 
-    def filteredTarget(self, period, after):
+    def filteredTarget(self, period, limitAt):
         targetList = list()
         filterdList = list()
         for stock in self.dbm.getStockList():
             plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
-            filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, date.today()-timedelta(days=after))
+            filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, limitAt)
             if len(filteredTargetList) > 0 :
                 print(filteredTargetList)
                 for filter in filteredTargetList :
@@ -399,21 +399,24 @@ DB_SCH = "data"
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 
-run.filterPotentialStock(period)
+# run.filterPotentialStock(period)
 # run.updateAllStockFinance()
+# run.filteredTarget(period, date.today()+timedelta(days=0))
 # run.migration(run.dbm.selectStockByCode('A123420'), period)
 # run.scrapWebAndMigration('A123420', period)
 # run.targetAnalyze('', period)
-# run.filteredTarget(period, 0)
+
 # run.migrationWork(period)
 # run.initStocks()
-# startAt = date.today() - timedelta(days=0)
-# while True :
-#     try :
-#         stock = run.dbm.getUsefulStock(startAt + timedelta(days=period))
-#         print(stock.get('name'), 'is start')
-#         run.run(stock, startAt, period)
-#         print(stock.get('name'), 'is done')
-#     except dbmanager.DBManagerError :
-#         print('work is done.')
-#         break
+startAt = date.today() - timedelta(days=1)
+while True :
+    try :
+        stock = run.dbm.getUsefulStock(startAt + timedelta(days=period))
+        print(stock.get('name'), 'is start')
+        run.run(stock, startAt, period)
+        print(stock.get('name'), 'is done')
+    except dbmanager.DBManagerError :
+        print('work is done.')
+        break
+
+
