@@ -7,6 +7,7 @@ from selenium.webdriver.common.keys import Keys
 import datetime
 from dateutil.relativedelta import relativedelta
 import sys
+import configparser
 
 SEQ = "seq"
 TITLE = "title"
@@ -14,6 +15,8 @@ CONTENT_DATA = "contentData"
 DATE = "date"
 WRITER = "writer"
 COMMENT_LIST = "commentList"
+cf = configparser.ConfigParser()
+cf.read('config/config.cfg')
 
 class Ppomppu:
     def __init__(self):
@@ -31,8 +34,8 @@ class Ppomppu:
     def getTrend(self, id, password, value, lastUseDateAt):
         if lastUseDateAt is not None:
             self.LIMIT = datetime.datetime(lastUseDateAt.year, lastUseDateAt.month, lastUseDateAt.day)
-        login_url = "http://m.ppomppu.co.kr/new/login.php?s_url=/new/"
-        stock_url = "http://m.ppomppu.co.kr/new/bbs_list.php?id=stock"
+        login_url = cf.get(self.SITE, 'login')
+        stock_url = cf.get(self.SITE, 'list')
         driver = None
         try :
             if driver is None :
@@ -172,13 +175,13 @@ class Paxnet:
         while True:
             try :
                 print('code(' + code + ') seq : ' + str(seq) + ' page : ' + str(page) + ' data len : ' + str(len(data)))
-                url = 'http://board.moneta.co.kr/cgi-bin/mpax/bulList.cgi?boardid=' + code + '&page=' + str(page)
+                url = cf.get(self.SITE, 'list') + code + '&page=' + str(page)
                 soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
                 clds = soup.find(id='communityListData').findAll('dl')
                 links = []
                 breakFlag = False
                 for cld in clds:
-                    links.append('http://board.moneta.co.kr/cgi-bin/mpax/' + cld.find('a').get('href'))
+                    links.append(cf.get(self.SITE, 'link') + cld.find('a').get('href'))
                     date = self.convertDate(cld.find('div').text.split(' ')[1])
                     if date < self.LIMIT:
                         breakFlag = True
@@ -271,13 +274,13 @@ class NaverStock:
         while True:
             try :
                 print('code(' + code + ') seq : ' + str(seq) + ' page : ' + str(page) + ' data len : ' + str(len(data)))
-                url = 'http://finance.naver.com/item/board.nhn?code=' + code + '&page=' + str(page)
+                url = cf.get(self.SITE, 'list') + code + '&page=' + str(page)
                 soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
                 listTD = soup.findAll('td', class_='title')
                 links = []
                 breakFlag = False
                 for td in listTD:
-                    links.append('http://finance.naver.com' + td.find('a').get('href'))
+                    links.append(cf.get(self.SITE, 'link') + td.find('a').get('href'))
                 if listTD is None or len(listTD) == 0 or len(data) > self.LIMIT_CONTENT_LEN:
                     breakFlag = True
                 for link in links:
@@ -354,13 +357,13 @@ class DaumStock:
             try :
 
                 print('code(' + code + ') seq : ' + str(seq) + ' page : ' + str(page) + ' data len : ' + str(len(data)))
-                url = 'http://board2.finance.daum.net/gaia/do/stock/list?bbsId=stock&pageIndex=' + str(page) + '&objCate2=2-' + code
+                url = cf.get(self.SITE, 'list') + str(page) + '&objCate2=2-' + code
                 soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
                 listTD = soup.findAll('td', class_='subj')
                 links = []
                 breakFlag = False
                 for td in listTD:
-                    links.append('http://board2.finance.daum.net/gaia/do/stock/' + td.find('a').get('href'))
+                    links.append(cf.get(self.SITE, 'link') + td.find('a').get('href'))
                 if listTD is None or len(listTD) == 0 or len(data) > self.LIMIT_CONTENT_LEN:
                     breakFlag = True
                 for link in links:
@@ -437,7 +440,7 @@ class KakaoStock:
         while True:
             try :
                 print('code(' + code + ') seq : ' + str(seq) + ' cursor : ' + str(cursor) + ' data len : ' + str(len(data)))
-                url = 'https://stock.kakao.com/api/securities/KOREA-'+code+'/posts.json?scope=all&cursor=' + str(cursor)
+                url = cf.get(self.SITE, 'link1') +code+ cf.get(self.SITE, 'link2') + str(cursor)
                 soup = BeautifulSoup(urllib.request.urlopen(url).read(), 'lxml')
                 jls = json.loads(soup.text)
 

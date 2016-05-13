@@ -12,13 +12,9 @@ class AnalyzerError(Exception):
 
 
 class Analyzer:
-    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
-        self.DB_IP = DB_IP
-        self.DB_USER = DB_USER
-        self.DB_PWD = DB_PWD
-        self.DB_SCH = DB_SCH
-        self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
-        self.dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+    def __init__(self):
+        self.dbm = dbmanager.DBManager()
+        self.dic = dictionary.Dictionary()
 
 
     def commit(self):

@@ -15,8 +15,8 @@ class DSStockError(Exception):
 
 
 class DSStock:
-    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
-        self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
+    def __init__(self):
+        self.dbm = dbmanager.DBManager()
         self.DATE_FORMAT = '%Y%m%d'
         self.cybos = win32com.client.Dispatch("CpUtil.CpCybos")
         self.ins = win32com.client.Dispatch("CpUtil.CpStockCode")

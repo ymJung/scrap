@@ -5,18 +5,21 @@ import time
 import random
 import urllib
 import dbmanager
+import configparser
 
 
 class Dictionary:
-    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
+    def __init__(self):
         self.count = 0
-        self.url = 'http://krdic.naver.com/small_search.nhn?kind=keyword&query='
         self.MIN_WORD_LEN = 2
         self.MAX_WORD_LEN = 50
         # self.REGULAR_EXP = '[^가-힝0-9a-zA-Z]'
         self.REGULAR_EXP = '[^가-힝]'
         self.CONTENT_DATA_NAME = 'contentData'
-        self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
+        cf = configparser.ConfigParser()
+        cf.read('config/config.cfg')
+        self.url = cf.get('url', 'dic')
+        self.dbm = dbmanager.DBManager()
     def commit(self):
         self.dbm.commit()
 

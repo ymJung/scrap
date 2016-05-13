@@ -2,6 +2,7 @@ import datetime
 import pymysql.cursors
 import sys
 import re
+import configparser
 
 class DBManagerError(Exception):
     def __init__(self, msg):
@@ -11,12 +12,14 @@ class DBManagerError(Exception):
         return repr(self.msg)
 
 class DBManager:
-    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
+    def __init__(self):
+        cf = configparser.ConfigParser()
+        cf.read('config/config.cfg')
         self.LIMIT_HOUR = 16
-        self.connection = pymysql.connect(host=DB_IP,
-                                          user=DB_USER,
-                                          password=DB_PWD,
-                                          db=DB_SCH,
+        self.connection = pymysql.connect(host=cf.get('db','DB_IP'),
+                                          user=cf.get('db','DB_USER'),
+                                          password=cf.get('db','DB_PWD'),
+                                          db=cf.get('db','DB_SCH'),
                                           charset='utf8mb4',
                                           cursorclass=pymysql.cursors.DictCursor)
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
@@ -57,6 +60,7 @@ class DBManager:
                     commentDate = comment.get(self.DATE)
                     commentContent = comment.get(self.CONTENT_DATA)
                     self.insertComment(commentAuthorId, commentContent, contentId, commentDate, stockName, stockId)
+        self.updateLastScrapDate(stockId)
 
     def insertComment(self, commentAuthorId, commentContent, contentId, commentDate, stockName, stockId):
         try:
@@ -126,7 +130,7 @@ class DBManager:
             cursor.execute("select id from stock where much = 0 and id not in (select s.id from item i, stock s where s.id = i.stockId and i.targetAt = %s)", targetAt)
             done = cursor.fetchall()
             workIsDone = (len(done) == 0) #
-            if workIsDone or targetAt.weekday() in self.WEEKEND:
+            if workIsDone or self.checkHoliday(targetAt):
                 raise DBManagerError('stock is none')
             else :
                 print('init stock')
@@ -173,10 +177,10 @@ class DBManager:
         cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s', (stock.get('id'), targetAt, period))
         return cursor.fetchone().get('id')
 
-    def updateLastScrapDate(self, stock):
+    def updateLastScrapDate(self, stockId):
         cursor = self.connection.cursor()
         updateLastUseDateSql = "UPDATE `data`.`stock` SET `lastScrapAt`= now() WHERE `id`= %s"
-        result = cursor.execute(updateLastUseDateSql, (stock.get('id')))
+        result = cursor.execute(updateLastUseDateSql, (stockId))
         print('update scrap date. ', result)
         self.commit()
 
@@ -271,7 +275,7 @@ class DBManager:
     def getForecastResult(self, stockName, limitAt, period):
         cursor = self.connection.cursor()
         selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s ' \
-                             'WHERE i.stockId = s.id AND s.name = %s AND i.targetAt >= %s AND i.period = %s ORDER BY i.id DESC' # AND i.financeId IS NULL
+                             'WHERE i.stockId = s.id AND s.name = %s AND i.targetAt >= %s AND i.period = %s AND i.financeId IS NULL ORDER BY i.id DESC' # AND i.financeId IS NULL
         cursor.execute(selectForecastSql, (stockName, limitAt, period))
         return cursor.fetchall()
 
@@ -455,3 +459,10 @@ class DBManager:
         cursor = self.connection.cursor()
         cursor.execute("SELECT id, targetAt FROM item WHERE stockId = %s AND financeId is NULL", (stockId))
         return cursor.fetchall()
+
+    def checkHoliday(self, targetAt):
+        if targetAt.weekday() in self.WEEKEND :
+            return True
+
+
+        return False

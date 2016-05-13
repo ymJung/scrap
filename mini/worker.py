@@ -5,6 +5,13 @@ import threading
 import queue
 import numpy
 import sys
+import configparser
+cf = configparser.ConfigParser()
+cf.read('config/config.cfg')
+DB_IP = cf.get('db', 'DB_IP')
+DB_USER = cf.get('db', 'DB_USER')
+DB_PWD = cf.get('db', 'DB_PWD')
+DB_SCH = cf.get('db', 'DB_SCH')
 
 class MinerError(Exception):
     def __init__(self, msg):
@@ -489,32 +496,34 @@ class Runner:
         cursor.execute("SELECT f.id, f.start, f.final FROM finance f, stock s WHERE f.stockId = s.id and s.name = %s and f.date = %s", (stockName, sliceDate))
         return cursor.fetchone()
 
-    def getUsefulStock(self, checkDate):
-        cursor = self.connection.cursor()
-        selectSql = "SELECT `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` FROM stock WHERE `use` = 1 AND `much` = 0 ORDER BY id asc LIMIT 1"
-        cursor.execute(selectSql)
-        stock = cursor.fetchone()
-        if stock is None :
-            today = datetime.date.today()
-            cursor.execute("select id from stock where much = 0 and id not in (select s.id from item i, stock s where s.id = i.stockId and i.targetAt = %s)", today)
-            done = cursor.fetchall()
-            workIsDone = (len(done) == 0) #
-            if checkDate:
-                if workIsDone or today.weekday() in [5,6]:
-                    raise Exception('stock is none')
-                else :
-                    print('init stock')
-                    self.initStock()
-                    cursor.execute(selectSql)
-                    stock = cursor.fetchone()
-        self.updateStockUse(stock.get('id'), 0)
-        return stock
-    def initStock(self):
-        self.connection.cursor().execute("UPDATE stock SET `use` = 1 WHERE `much` = 0")
-        self.commit()
-    def updateStockUse(self, stockId, useFlag):
+    def getUsefulStock(self, checkDate):
         cursor = self.connection.cursor()
-        cursor.execute(("UPDATE stock SET `use` = %s, `lastUseDateAt` = now() WHERE `id` = %s"), (useFlag, stockId))
+        selectSql = "SELECT `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` FROM stock WHERE `use` = 1 AND `much` = 0 ORDER BY id asc LIMIT 1"
+        cursor.execute(selectSql)
+        stock = cursor.fetchone()
+        if stock is None :
+            today = datetime.date.today()
+            cursor.execute("select id from stock where much = 0 and id not in (select s.id from item i, stock s where s.id = i.stockId and i.targetAt = %s)", today)
+            done = cursor.fetchall()
+            workIsDone = (len(done) == 0) #
+            if checkDate:
+                if workIsDone or today.weekday() in [5,6]:
+                    raise Exception('stock is none')
+                else :
+                    print('init stock')
+                    self.initStock()
+                    cursor.execute(selectSql)
+                    stock = cursor.fetchone()
+        self.updateStockUse(stock.get('id'), 0)
+        return stock
+    def initStock(self):
+        self.connection.cursor().execute("UPDATE stock SET `use` = 1 WHERE `much` = 0")
+        self.commit()
+    def updateStockUse(self, stockId, useFlag):
+
+        cursor = self.connection.cursor()
+        cursor.execute(("UPDATE stock SET `use` = %s, `lastUseDateAt` = now() WHERE `id` = %s"), (useFlag, stockId))
+
         self.commit()
     def getStock(self, stockCode):
         cursor = self.connection.cursor()
@@ -526,24 +535,19 @@ class Runner:
         cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` FROM stock where `much` = 0 ORDER BY id asc")
         return cursor.fetchall()
 
-
-DB_IP = "192.168.11.6"
-DB_USER = "root"
-DB_PWD = "1234"
-DB_SCH = "data"
-
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-#run.migration(period,'A034220')
+#run.migration(period,'')
 #run.migrationWork(period)
 #run.initStock()
 targetAt = date.today() - timedelta(days=1)
-while True :
-    try :
-        stock = run.getUsefulStock(True)
-        print(stock.get('name'), 'is start')
-        run.run(stock, targetAt, period)
-        print(stock.get('name'), 'is done')
-    except Exception :
-        print('work is done.')
-        break
+while True :
+    try :
+        stock = run.getUsefulStock(True)
+        print(stock.get('name'), 'is start')
+        run.run(stock, targetAt, period)
+        print(stock.get('name'), 'is done')
+    except Exception :
+        print('work is done.')
+        break
+

@@ -7,6 +7,7 @@ from datetime import date
 import threading
 import queue
 import dbmanager
+import configparser
 
 class MinerError(Exception):
     def __init__(self, msg):
@@ -17,7 +18,7 @@ class MinerError(Exception):
 
 
 class Miner:
-    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
+    def __init__(self):
         self.LIMIT_COUNT = 5
         self.WORD_NAME = 'word'
         self.PLUS_NAME = 'plus'
@@ -30,12 +31,8 @@ class Miner:
         self.LIMIT_YEAR_SEPERATOR = 5
         self.INTERVAL_YEAR_SEPERATOR = 73
         self.FINANCE_NAME = 'finance'
-        self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
-        self.DB_IP = DB_IP
-        self.DB_USER = DB_USER
-        self.DB_PWD = DB_PWD
-        self.DB_SCH = DB_SCH
-        self.dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        self.dbm = dbmanager.DBManager()
+        self.dic = dictionary.Dictionary()
         self.THREAD_LIMIT_COUNT = 30
 
     def __del__(self):
@@ -217,7 +214,7 @@ class Miner:
         queueList = []
         threadList = []
         lock = threading.Lock()
-        dic = dictionary.Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        dic = dictionary.Dictionary()
 
         for idx in range(int(len(contents) / self.SPLIT_COUNT) + 1) :
             start = idx * self.SPLIT_COUNT

@@ -6,14 +6,8 @@ import dbmanager
 
 
 class Simulator :
-    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
-        self.connection = pymysql.connect(host=DB_IP,
-                                          user=DB_USER,
-                                          password=DB_PWD,
-                                          db=DB_SCH,
-                                          charset='utf8mb4',
-                                          cursorclass=pymysql.cursors.DictCursor)
-        self.dbm = dbmanager.DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
+    def __init__(self):
+        self.dbm = dbmanager.DBManager()
         self.TRUST_LIMIT = 0.90
         self.LEAVE_LIMIT = 0.60
 

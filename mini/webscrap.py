@@ -1,6 +1,20 @@
 ﻿import datetime
 import sys
-
+import configparser
+cf = configparser.ConfigParser()
+cf.read('config/config.cfg')
+DB_IP = cf.get('db', 'DB_IP')
+DB_USER = cf.get('db', 'DB_USER')
+DB_PWD = cf.get('db', 'DB_PWD')
+DB_SCH = cf.get('db', 'DB_SCH')
+PAX_URL = cf.get('PAXNET', 'list')
+PAX_LINK = cf.get('PAXNET', 'link')
+NAVER_URL = cf.get('NAVER_STOCK', 'list')
+NAVER_LINK = cf.get('NAVER_STOCK', 'link')
+DAUM_URL = cf.get('DAUM_STOCK', 'list')
+DAUM_LINK = cf.get('DAUM_STOCK', 'link')
+KAKAO_LINK1 = cf.get('KAKAO_STOCK', 'link1')
+KAKAO_LINK2 = cf.get('KAKAO_STOCK', 'link2')
 
 SEQ = "seq"
 TITLE = "title"
@@ -8,7 +22,6 @@ CONTENT_DATA = "contentData"
 DATE = "date"
 WRITER = "writer"
 COMMENT_LIST = "commentList"
-
 
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
@@ -40,13 +53,13 @@ class Paxnet:
         seq = 0
         while True:
             try :
-                url = 'http://board.moneta.co.kr/cgi-bin/mpax/bulList.cgi?boardid=' + code + '&page=' + str(page)
+                url = PAX_URL + code + '&page=' + str(page)
                 soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
                 clds = soup.find(id='communityListData').findAll('dl')
                 links = []
                 breakFlag = False
                 for cld in clds:
-                    links.append('http://board.moneta.co.kr/cgi-bin/mpax/' + cld.find('a').get('href'))
+                    links.append(PAX_LINK + cld.find('a').get('href'))
                     date = self.convertDate(cld.find('div').text.split(' ')[1])
                     if date < self.LIMIT:
                         breakFlag = True
@@ -138,13 +151,13 @@ class NaverStock:
         seq = 0
         while True:
             try :
-                url = 'http://finance.naver.com/item/board.nhn?code=' + code + '&page=' + str(page)
+                url = NAVER_URL + code + '&page=' + str(page)
                 soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
                 listTD = soup.findAll('td', class_='title')
                 links = []
                 breakFlag = False
                 for td in listTD:
-                    links.append('http://finance.naver.com' + td.find('a').get('href'))
+                    links.append(NAVER_LINK + td.find('a').get('href'))
                 if listTD is None or len(listTD) == 0 or len(data) > self.LIMIT_CONTENT_LEN:
                     breakFlag = True
                 for link in links:
@@ -220,13 +233,13 @@ class DaumStock:
         while True:
             try :
 
-                url = 'http://board2.finance.daum.net/gaia/do/stock/list?bbsId=stock&pageIndex=' + str(page) + '&objCate2=2-' + code
+                url = DAUM_URL + str(page) + '&objCate2=2-' + code
                 soup = BeautifulSoup(urllib.request.urlopen(url), 'lxml')
                 listTD = soup.findAll('td', class_='subj')
                 links = []
                 breakFlag = False
                 for td in listTD:
-                    links.append('http://board2.finance.daum.net/gaia/do/stock/' + td.find('a').get('href'))
+                    links.append(DAUM_LINK + td.find('a').get('href'))
                 if listTD is None or len(listTD) == 0 or len(data) > self.LIMIT_CONTENT_LEN:
                     breakFlag = True
                 for link in links:
@@ -305,7 +318,7 @@ class KakaoStock:
         while True:
             try :
                 print('code(' + code + ') seq : ' + str(seq) + ' cursor : ' + str(cursor) + ' data len : ' + str(len(data)))
-                url = 'https://stock.kakao.com/api/securities/KOREA-'+code+'/posts.json?scope=all&cursor=' + str(cursor)
+                url = KAKAO_LINK1 +code+KAKAO_LINK2 + str(cursor)
                 soup = BeautifulSoup(urllib.request.urlopen(url).read(), 'lxml')
                 jls = json.loads(soup.text)
                 cursor = jls['nextCursor']
@@ -516,10 +529,6 @@ class Runner:
         self.insertKakaoResult(stock)
         self.dbm.updateLastUseDate(stock)
         self.dbm.commit()
-DB_IP = "192.168.11.6"
-DB_USER = "root"
-DB_PWD = "1234"
-DB_SCH = "data"
 
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 print('start')
@@ -532,5 +541,3 @@ while True :
     except :
         print("unexpect error.", sys.exc_info())
         break
-
-

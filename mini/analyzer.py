@@ -1,4 +1,12 @@
 import pymysql
+import configparser
+cf = configparser.ConfigParser()
+cf.read('config/config.cfg')
+DB_IP = cf.get('db', 'DB_IP')
+DB_USER = cf.get('db', 'DB_USER')
+DB_PWD = cf.get('db', 'DB_PWD')
+DB_SCH = cf.get('db', 'DB_SCH')
+URL = cf.get('url', 'dic')
 
 class DBManager:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
@@ -116,7 +124,7 @@ import urllib
 class Dictionary:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
         self.count = 0
-        self.url = 'http://krdic.naver.com/small_search.nhn?kind=keyword&query='
+        self.url = URL
         self.MIN_WORD_LEN = 2
         self.MAX_WORD_LEN = 50
         self.REGULAR_EXP = '[^가-힝]'
@@ -204,10 +212,6 @@ class Dictionary:
                 else:
                     continue
         return False
-DB_IP = "192.168.11.6"
-DB_USER = "root"
-DB_PWD = "1234"
-DB_SCH = "data"
 
 analyzer = Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH)
 analyzer.analyze()
