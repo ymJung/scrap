@@ -8,6 +8,9 @@ import datetime
 from dateutil.relativedelta import relativedelta
 import sys
 import configparser
+from urllib.request import Request, urlopen
+import json
+
 
 SEQ = "seq"
 TITLE = "title"
@@ -17,6 +20,9 @@ WRITER = "writer"
 COMMENT_LIST = "commentList"
 cf = configparser.ConfigParser()
 cf.read('config/config.cfg')
+EVENT_URL = cf.get('url', 'event')
+API_HEADER = cf.get('url', 'apiheader')
+API_KEY = cf.get('url', 'apikey')
 
 class Ppomppu:
     def __init__(self):
@@ -413,7 +419,6 @@ class DaumStock:
         except:
             return self.DEFAULT_DATE
 
-import json
 
 class KakaoStock:
     def __init__(self):
@@ -476,3 +481,30 @@ class KakaoStock:
             return datetime.datetime.strptime(param[0:18], self.DATE_FORMAT)  # 2016.02.13 20:30
         except:
             return self.DEFAULT_DATE
+
+class Holyday:
+    def filterEventDay(self, limit):
+        holydays = []
+        for idx in range(limit):
+            targetAt = datetime.datetime.today() + datetime.timedelta(days=idx)
+            target = False
+            reason = ''
+            try :
+                if targetAt.weekday() in [5, 6] :
+                    target = True
+                req = Request(EVENT_URL + str(targetAt.year) + '&month=' + str(targetAt.month) + '&day=' + str(targetAt.day))
+                req.add_header(API_HEADER, API_KEY)
+                res = urlopen(req).read().decode(encoding='utf-8')
+                jls = json.loads(res)
+                if jls['totalResult'] > 0 :
+                    for jl in jls['results'] :
+                        if jl['type'] in ['h'] :
+                            target = True
+                            reason = reason + jl['name']
+            except Exception:
+                continue
+            if target is True:
+                holyday = {'targetAt': targetAt, 'reason': reason}
+                print(holyday)
+                holydays.append(holyday)
+        return holydays

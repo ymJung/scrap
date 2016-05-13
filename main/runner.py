@@ -10,6 +10,7 @@ import sys
 import dictionary
 import simulator
 
+
 class Runner:
     def __init__(self):
         self.GUARANTEE_COUNT = 150
@@ -24,6 +25,7 @@ class Runner:
         self.analyze = analyzer.Analyzer()
         self.simul = simulator.Simulator()
         self.dic = None
+
     def insertFinance(self, stock):
         stockCode = stock.get('code')
         stockId = stock.get('id')
@@ -380,15 +382,6 @@ class Runner:
         kakaoResult = ks.getTrendByCode(stockCode, lastScrapAt)
         self.dbm.saveData(ks.SITE, kakaoResult, stockName, stock.get('id'))
         self.dbm.commit()
-
-
-
-
-
-DB_IP = "192.168.11.6"
-DB_USER = "root"
-DB_PWD = "1234"
-DB_SCH = "data"
 
 period = 2
 run = Runner()

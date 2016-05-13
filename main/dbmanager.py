@@ -4,6 +4,7 @@ import sys
 import re
 import configparser
 
+
 class DBManagerError(Exception):
     def __init__(self, msg):
         self.msg = msg
@@ -130,7 +131,7 @@ class DBManager:
             cursor.execute("select id from stock where much = 0 and id not in (select s.id from item i, stock s where s.id = i.stockId and i.targetAt = %s)", targetAt)
             done = cursor.fetchall()
             workIsDone = (len(done) == 0) #
-            if workIsDone or self.checkHoliday(targetAt):
+            if workIsDone or self.checkHolyDay(targetAt):
                 raise DBManagerError('stock is none')
             else :
                 print('init stock')
@@ -460,9 +461,18 @@ class DBManager:
         cursor.execute("SELECT id, targetAt FROM item WHERE stockId = %s AND financeId is NULL", (stockId))
         return cursor.fetchall()
 
-    def checkHoliday(self, targetAt):
-        if targetAt.weekday() in self.WEEKEND :
-            return True
+    def checkHolyDay(self, targetAt):
+        cursor = self.connection.cursor()
+        cursor.execute("select id from holyday where date = %s", (targetAt))
+        results = cursor.fetchall()
+        return len(results) > 0
 
 
-        return False
+    def getItemTargetAtList(self):
+        cursor = self.connection.cursor()
+        cursor.execute("select id, targetAt from item group by targetAt asc")
+        return cursor.fetchall()
+
+    def insertHolyday(self, targetAt, reason):
+        cursor = self.connection.cursor()
+        cursor.execute("INSERT INTO `holyday` (`date`, `weekday`, `name`) VALUES (%s, %s, %s)", (targetAt, targetAt.weekday(), reason))
