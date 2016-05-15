@@ -3,7 +3,7 @@ import pymysql.cursors
 import sys
 import re
 import configparser
-
+import os
 
 class DBManagerError(Exception):
     def __init__(self, msg):
@@ -32,7 +32,7 @@ class DBManager:
         self.COMMENT_LIST = "commentList"
         self.LIMIT_COUNT = 5
         self.REGULAR_EXP = '[^가-힝0-9a-zA-Z]'
-        self.WEEKEND = [5, 6]
+
     def commit(self):
         self.connection.commit()
         print('dbm commit')
@@ -228,18 +228,18 @@ class DBManager:
         stockId = stock.get('id')
         stockName = stock.get('name')
         lastScrapAt = stock.get('lastScrapAt')
-        if forecastAt.weekday() in [5,6]:
-            print('weekend forecast day', stockName, forecastAt)
+        if self.checkHolyDay(forecastAt):
+            print('exist holy day', stockName, forecastAt)
             return True
-        if lastScrapAt is None or lastScrapAt.date() < targetAt :
+        if lastScrapAt is None or lastScrapAt.date() < targetAt - datetime.timedelta(days=period):
             print('not yet to scrap.', stockName, targetAt)
             return True
         cursor = self.connection.cursor()
-        result = cursor.execute('SELECT id FROM item WHERE targetAt = %s and stockId = %s and period = %s', (forecastAt,stockId,period))
+        result = cursor.execute('SELECT id FROM item WHERE targetAt = %s and stockId = %s and period = %s', (forecastAt, stockId, period))
         if result != 0:
             print('exist item date ', forecastAt, stockId)
             return True
-        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` BETWEEN %s AND %s AND `stockId` = %s', (targetAt, forecastAt + datetime.timedelta(days=1), stockId))
+        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` BETWEEN %s AND %s AND `stockId` = %s', (targetAt - datetime.timedelta(days=period), targetAt + datetime.timedelta(days=1), stockId))
         if result == 0:
             print('empty content data.', targetAt, forecastAt, stockName)
             return True
@@ -324,9 +324,9 @@ class DBManager:
         cursor.execute("SELECT `c`.`title`,`c`.`contentData`, `a`.`name`, `c`.`date` FROM `content` as `c`, `author` as `a` WHERE `c`.`stockId` = %s limit %s , %s", (stockId, startPos, endPos))
         return cursor.fetchall()
 
-    def countContents(self, stockId, limitAt, startAt):
+    def countContents(self, stockId, startAt, limitAt):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date between %s and %s", (stockId, limitAt, startAt))
+        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date between %s and %s", (stockId, startAt, limitAt))
         return cursor.fetchone()
 
     def getContentBetween(self, stockId, startAt, limitAt, startPos, endPos):
@@ -425,7 +425,7 @@ class DBManager:
             return result.get('targetAt').date()
         return None
 
-    def selectFirstContent(self, stockId):
+    def selectFirstContentDate(self, stockId):
         cursor = self.connection.cursor()
         cursor.execute("select date from content where stockId = %s and date !='1970-12-31 23:59:59' order by date asc limit 1;", (stockId))
         result = cursor.fetchone()

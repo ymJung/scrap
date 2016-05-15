@@ -135,7 +135,7 @@ class Runner:
             if limitDate > targetAt :
                 print('done', stock.get('name'), limitDate)
                 break
-            if targetAt.weekday() in self.dbm.WEEKEND :
+            if self.dbm.checkHolyDay(targetAt) :
                 continue
             print('migration target at ', targetAt, 'period ', idx, '/')
             self.run(stock, targetAt, period)
@@ -165,7 +165,7 @@ class Runner:
             avg = numpy.mean(prices)
         return {'avg': avg, 'chance': chanceIds, 'danger': dangerIds}
 
-    def scrapWebAndMigration(self, stockCode, period):
+    def insertNewStockScrap(self, stockCode):
         stock = self.dbm.selectStockByCode(stockCode)
         if stock is None :
             stocks = self.getStocks()
@@ -179,8 +179,8 @@ class Runner:
         self.insertKakaoResult(stock)
         # self.analyze.analyze()
         self.dbm.commit()
-        self.run(stock, date.today(), period)
-        self.migration(stock, period)
+        # self.run(stock, date.today(), period)
+        # self.migration(stock, period)
 
     def filteredTarget(self, period, limitAt):
         targetList = list()
@@ -279,9 +279,9 @@ class Runner:
         while True :
             try :
                 stock = self.dbm.getUsefulStock(targetAt)
-                print(stock.get('name'), 'is start')
+                print(stock.get('name'), 'is start', targetAt)
                 self.run(stock, targetAt, period)
-                print(stock.get('name'), 'is done')
+                print(stock.get('name'), 'is done', targetAt)
             except dbmanager.DBManagerError :
                 print('work is done.')
                 break
@@ -354,7 +354,7 @@ class Runner:
         return targetAt
 
     def getFirstContentDate(self, stockId):
-        return self.dbm.selectFirstContent(stockId)
+        return self.dbm.selectFirstContentDate(stockId)
 
     def updateAllStockFinance(self):
         stocks = self.getStocks()
@@ -386,16 +386,17 @@ class Runner:
 period = 2
 run = Runner()
 
-# run.filterPotentialStock(period)
-# run.updateAllStockFinance()
-# run.filteredTarget(period, date.today()+timedelta(days=2))
-# run.migration(run.dbm.selectStockByCode(''), period)
-# run.scrapWebAndMigration('', period)
-# run.targetAnalyze('', period)
+run.initStocks() #조건부
+# run.filterPotentialStock(period) #하루에 한번씩.
+# run.updateAllStockFinance() #하루에 한번씩 15시 이후
+run.dailyRun(period, 1) #하루에 한번씩
+# run.filteredTarget(period, date.today()+timedelta(days=1)) #하루에 한번씩
 
-# run.migrationWork(period)
-# run.initStocks()
-# run.dailyRun(period, 0)
+# run.insertNewStockScrap('007070') #필요할때 한번씩
+# run.migration(run.dbm.selectStockByCode('007070'), period) #필요할때 한번씩
+# run.targetAnalyze('', period) #필요할때 한번씩
+
+# run.migrationWork(period) #항상 수행
 
 
 

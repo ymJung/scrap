@@ -8,9 +8,7 @@ import datetime
 from dateutil.relativedelta import relativedelta
 import sys
 import configparser
-from urllib.request import Request, urlopen
 import json
-
 
 SEQ = "seq"
 TITLE = "title"

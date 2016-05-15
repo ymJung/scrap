@@ -49,8 +49,7 @@ class Miner:
     def getStockNameContent(self, stockName, startAt, limitAt, stockId):
         contentsList = []
         count = 0
-        cnt = self.dbm.countContents(stockId, limitAt, startAt)
-
+        cnt = self.dbm.countContents(stockId, startAt, limitAt)
         if cnt is not None:
             count = cnt.get('cnt')
             if count == None :
@@ -60,7 +59,7 @@ class Miner:
             try:
                 startPos = (i * 10) + 1
                 endPos = (i + 1) * self.LIMIT_COUNT
-                contents = self.dbm.getContentBetween(stockId, limitAt, startAt, startPos, endPos)
+                contents = self.dbm.getContentBetween(stockId, startAt, limitAt, startPos, endPos)
                 if contents is not None:
                     contentsList = contentsList + contents
                 else:
@@ -74,9 +73,9 @@ class Miner:
                 # continue
                 return contentsList
         return contentsList
-    def getTargetContentWordIds(self, stockName, targetDate, periodDate, stockId):
+    def getTargetContentWordIds(self, stockName, periodDate, targetDate, stockId):
         wordIds = []
-        contents = self.getStockNameContent(stockName, targetDate, periodDate, stockId)
+        contents = self.getStockNameContent(stockName, periodDate, targetDate, stockId)
         print('target content word find. content length . ', len(contents))
         for result in contents:
             contentData = result.get(self.CONTENT_DATA_NAME)
@@ -119,9 +118,6 @@ class Miner:
         except MemoryError :
             print('divideList memory error', len(list))
             return self.divideList(newList)
-
-
-
 
     def getAnalyzedChartList(self, wordFinanceMap):
         chartList = []
@@ -272,16 +268,28 @@ class Miner:
             totalWordPriceMap[wordId] = list(set(totalWordPriceMap[wordId]))
 
     def getAnalyzedCnt(self, targetDate, period, stockName, stockId):
-        today = date.today()
         totalWordIdFinanceMap = {}
+        # today = date.today()
+        # breakFlag = False
+        # for idx in range(self.LIMIT_YEAR_SEPERATOR) : # 73 * 5
+        #     interval = idx * self.INTERVAL_YEAR_SEPERATOR
+        #     startAt = today - timedelta(days=interval + self.INTERVAL_YEAR_SEPERATOR)
+        #     endAt = today - timedelta(days=interval)
+        #     if targetDate > endAt :
+        #         endAt = targetDate
+        #         breakFlag = True
+        #     contents = self.getStockNameContent(stockName, startAt, endAt, stockId)
+        #     wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
+        #     self.appendWordPriceMap(wordIdFinanceMap, totalWordIdFinanceMap)
+            # if breakFlag is True :
+            #     break
+        firstAt = self.dbm.selectFirstContentDate(stockId)
+        contents = self.getStockNameContent(stockName, firstAt, targetDate, stockId)
+        wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
+        self.appendWordPriceMap(wordIdFinanceMap, totalWordIdFinanceMap)
 
-        for idx in range(self.LIMIT_YEAR_SEPERATOR) : # 73 * 5
-            interval = idx * self.INTERVAL_YEAR_SEPERATOR
-            contents = self.getStockNameContent(stockName, today - timedelta(days=interval), today - timedelta(days=interval + self.INTERVAL_YEAR_SEPERATOR), stockId)
-            wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
-            self.appendWordPriceMap(wordIdFinanceMap, totalWordIdFinanceMap)
-
-        targetWordIds = self.getTargetContentWordIds(stockName, targetDate, targetDate - timedelta(days=period), stockId)
+        targetStartAt = targetDate - timedelta(days=period)
+        targetWordIds = self.getTargetContentWordIds(stockName, targetStartAt, targetDate, stockId)
 
         resultWordFinanceMap = self.getWordFinanceMap(targetWordIds, totalWordIdFinanceMap)
         targetChartList = self.getAnalyzedChartList(resultWordFinanceMap)

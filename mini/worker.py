@@ -7,7 +7,7 @@ import numpy
 import sys
 import configparser
 cf = configparser.ConfigParser()
-cf.read('config/config.cfg')
+cf.read('config.cfg')
 DB_IP = cf.get('db', 'DB_IP')
 DB_USER = cf.get('db', 'DB_USER')
 DB_PWD = cf.get('db', 'DB_PWD')
@@ -48,8 +48,6 @@ class Runner:
         self.DATE_NAME = 'date'
 
 
-
-
     def migrationWork(self, period):
         for stock in self.getStockList() :
             targetDate = self.getLastItemDate(stock.get('id'), period)
@@ -65,7 +63,7 @@ class Runner:
                 if limitDate > targetAt :
                     print('done', stock.get('name'), limitDate)
                     break
-                if targetAt.weekday() in [5,6]:
+                if self.checkHolyDay(targetAt):
                     continue
                 print('migration target at ', targetAt, 'period ', idx, '/')
                 self.run(stock, targetAt, period)
@@ -85,7 +83,7 @@ class Runner:
                 if limitDate > targetAt :
                     print('done', stock.get('name'), limitDate)
                     break
-                if targetAt.weekday() in [5,6]:
+                if self.checkHolyDay(targetAt):
                     continue
                 print('migration target at ', targetAt, 'period ', idx, '/')
                 self.run(stock, targetAt, period)
@@ -182,8 +180,8 @@ class Runner:
         stockId = stock.get('id')
         stockName = stock.get('name')
         lastScrapAt = stock.get('lastScrapAt')
-        if forecastAt.weekday() in [5,6]:
-            print('weekend forecast day', stockName, forecastAt)
+        if self.checkHolyDay(forecastAt):
+            print('holy day', stockName, forecastAt)
             return True
         if lastScrapAt is None or ((lastScrapAt.date() < targetAt) and (date.today() > targetAt)):
             print('not yet to scrap.', stockName, targetAt)
@@ -193,7 +191,7 @@ class Runner:
         if result != 0:
             print('exist item date ', forecastAt, stockId)
             return True
-        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` BETWEEN %s AND %s AND `stockId` = %s', (targetAt, forecastAt + timedelta(days=1), stockId))
+        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` BETWEEN %s AND %s AND `stockId` = %s', (targetAt - datetime.timedelta(days=period), targetAt + datetime.timedelta(days=1), stockId))
         if result == 0:
             print('empty content data.', targetAt, forecastAt, stockName)
             return True
@@ -201,16 +199,14 @@ class Runner:
         return False
 
     def getAnalyzedCnt(self, targetDate, period, stockName, stockId):
-        today = date.today()
         totalWordIdFinanceMap = {}
+        firstAt = self.selectFirstContentDate(stockId)
+        contents = self.getStockNameContent(stockName, firstAt, targetDate, stockId)
+        wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
+        self.appendWordPriceMap(wordIdFinanceMap, totalWordIdFinanceMap)
 
-        for idx in range(self.LIMIT_YEAR_SEPERATOR) : # 73 * 5
-            interval = idx * self.INTERVAL_YEAR_SEPERATOR
-            contents = self.getStockNameContent(stockName, today - timedelta(days=interval), today - timedelta(days=interval + self.INTERVAL_YEAR_SEPERATOR), stockId)
-            wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
-            self.appendWordPriceMap(wordIdFinanceMap, totalWordIdFinanceMap)
-
-        targetWordIds = self.getTargetContentWordIds(stockName, targetDate, targetDate - timedelta(days=period), stockId)
+        targetStartAt = targetDate - timedelta(days=period)
+        targetWordIds = self.getTargetContentWordIds(stockName, targetStartAt, targetDate, stockId)
 
         resultWordFinanceMap = self.getWordFinanceMap(targetWordIds, totalWordIdFinanceMap)
         targetChartList = self.getAnalyzedChartList(resultWordFinanceMap)
@@ -230,12 +226,17 @@ class Runner:
                 totalWordPriceMap[wordId] = []
                 totalWordPriceMap[wordId] = totalWordPriceMap[wordId] + wordIdFinanceMap[wordId]
             totalWordPriceMap[wordId] = list(set(totalWordPriceMap[wordId]))
-
+    def selectFirstContentDate(self, stockId):
+        cursor = self.connection.cursor()
+        cursor.execute("select date from content where stockId = %s and date !='1970-12-31 23:59:59' order by date asc limit 1;", (stockId))
+        result = cursor.fetchone()
+        if result is not None :
+            return result.get('date').date()
+        return None
     def getStockNameContent(self, stockName, startAt, limitAt, stockId):
         contentsList = []
         count = 0
-        cnt = self.countContents(stockId, limitAt, startAt)
-
+        cnt = self.countContents(stockId, startAt, limitAt)
         if cnt is not None:
             count = cnt.get('cnt')
             if count == None :
@@ -245,7 +246,7 @@ class Runner:
             try:
                 startPos = (i * 10) + 1
                 endPos = (i + 1) * self.LIMIT_COUNT
-                contents = self.getContentBetween(stockId, limitAt, startAt, startPos, endPos)
+                contents = self.getContentBetween(stockId, startAt, limitAt, startPos, endPos)
                 if contents is not None:
                     contentsList = contentsList + contents
                 else:
@@ -279,9 +280,9 @@ class Runner:
         totalWordPriceMap = self.getTotalPriceMap(queueList, threadList)
 
         return totalWordPriceMap
-    def getTargetContentWordIds(self, stockName, targetDate, periodDate, stockId):
+    def getTargetContentWordIds(self, stockName, targetStartAt, targetDate, stockId):
         wordIds = []
-        contents = self.getStockNameContent(stockName, targetDate, periodDate, stockId)
+        contents = self.getStockNameContent(stockName, targetStartAt, targetDate, stockId)
         print('target content word find. content length . ', len(contents))
         for result in contents:
             contentData = result.get(self.CONTENT_DATA_NAME)
@@ -346,9 +347,9 @@ class Runner:
             financeIds = chart.get(self.FINANCE_NAME)
             financeIdList = financeIdList + financeIds
         return financeIdList
-    def countContents(self, stockId, limitAt, startAt):
+    def countContents(self, stockId, startAt, limitAt):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date between %s and %s", (stockId, limitAt, startAt))
+        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date between %s and %s", (stockId, startAt, limitAt))
         return cursor.fetchone()
     def getContentBetween(self, stockId, startAt, limitAt, startPos, endPos):
         cursor = self.connection.cursor()
@@ -394,13 +395,6 @@ class Runner:
         print('put word data map to queue ', len(wordIdFinanceMap))
         queue.put(wordIdFinanceMap)
     def getTotalPriceMap(self, queueList, threadList):
-        # try:
-        #     thread.start()
-        # except RuntimeError:
-        #     if threadList:
-        #         # threadList[0].start()
-        #         threadList[0].join()
-        #         del threadList[0]
         for idx in range(int(len(threadList) / self.THREAD_LIMIT_COUNT) + 1) :
             start = idx * self.THREAD_LIMIT_COUNT
             end = idx * self.THREAD_LIMIT_COUNT + self.THREAD_LIMIT_COUNT
@@ -496,7 +490,7 @@ class Runner:
         cursor.execute("SELECT f.id, f.start, f.final FROM finance f, stock s WHERE f.stockId = s.id and s.name = %s and f.date = %s", (stockName, sliceDate))
         return cursor.fetchone()
 
-    def getUsefulStock(self, checkDate):
+    def getUsefulStock(self, targetAt):
         cursor = self.connection.cursor()
         selectSql = "SELECT `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` FROM stock WHERE `use` = 1 AND `much` = 0 ORDER BY id asc LIMIT 1"
         cursor.execute(selectSql)
@@ -506,14 +500,13 @@ class Runner:
             cursor.execute("select id from stock where much = 0 and id not in (select s.id from item i, stock s where s.id = i.stockId and i.targetAt = %s)", today)
             done = cursor.fetchall()
             workIsDone = (len(done) == 0) #
-            if checkDate:
-                if workIsDone or today.weekday() in [5,6]:
-                    raise Exception('stock is none')
-                else :
-                    print('init stock')
-                    self.initStock()
-                    cursor.execute(selectSql)
-                    stock = cursor.fetchone()
+            if workIsDone or self.checkHolyDay(targetAt):
+                raise Exception('stock is none')
+            else :
+                print('init stock')
+                self.initStock()
+                cursor.execute(selectSql)
+                stock = cursor.fetchone()
         self.updateStockUse(stock.get('id'), 0)
         return stock
     def initStock(self):
@@ -534,20 +527,28 @@ class Runner:
         cursor = self.connection.cursor()
         cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` FROM stock where `much` = 0 ORDER BY id asc")
         return cursor.fetchall()
-
+    def checkHolyDay(self, targetAt):
+        cursor = self.connection.cursor()
+        cursor.execute("select id from holyday where date = %s", (targetAt))
+        results = cursor.fetchall()
+        return len(results) > 0
+    def dailyRun(self, period, after):
+        targetAt = date.today() + timedelta(days=after)
+        while True :
+            try :
+                stock = self.getUsefulStock(targetAt)
+                print(stock.get('name'), 'is start', targetAt)
+                self.run(stock, targetAt, period)
+                print(stock.get('name'), 'is done', targetAt)
+            except Exception :
+                print('work is done.')
+                break
+            except :
+                print("unexpect error.", sys.exc_info())
+                break
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
+run.dailyRun(period, 1)
 #run.migration(period,'')
 #run.migrationWork(period)
 #run.initStock()
-targetAt = date.today() - timedelta(days=1)
-while True :
-    try :
-        stock = run.getUsefulStock(True)
-        print(stock.get('name'), 'is start')
-        run.run(stock, targetAt, period)
-        print(stock.get('name'), 'is done')
-    except Exception :
-        print('work is done.')
-        break
-

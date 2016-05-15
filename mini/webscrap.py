@@ -2,7 +2,7 @@
 import sys
 import configparser
 cf = configparser.ConfigParser()
-cf.read('config/config.cfg')
+cf.read('config.cfg')
 DB_IP = cf.get('db', 'DB_IP')
 DB_USER = cf.get('db', 'DB_USER')
 DB_PWD = cf.get('db', 'DB_PWD')
