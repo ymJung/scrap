@@ -269,20 +269,6 @@ class Miner:
 
     def getAnalyzedCnt(self, targetDate, period, stockName, stockId):
         totalWordIdFinanceMap = {}
-        # today = date.today()
-        # breakFlag = False
-        # for idx in range(self.LIMIT_YEAR_SEPERATOR) : # 73 * 5
-        #     interval = idx * self.INTERVAL_YEAR_SEPERATOR
-        #     startAt = today - timedelta(days=interval + self.INTERVAL_YEAR_SEPERATOR)
-        #     endAt = today - timedelta(days=interval)
-        #     if targetDate > endAt :
-        #         endAt = targetDate
-        #         breakFlag = True
-        #     contents = self.getStockNameContent(stockName, startAt, endAt, stockId)
-        #     wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
-        #     self.appendWordPriceMap(wordIdFinanceMap, totalWordIdFinanceMap)
-            # if breakFlag is True :
-            #     break
         firstAt = self.dbm.selectFirstContentDate(stockId)
         contents = self.getStockNameContent(stockName, firstAt, targetDate, stockId)
         wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)

@@ -87,14 +87,16 @@ class Runner:
         self.dbm.saveData(ds.SITE, daumResult, stockName, stock.get('id'))
         self.dbm.commit()
 
-    def insertAnalyzedResult(self, stock, targetAt, period):
+    def insertAnalyzedResult(self, stockId, targetAt, period):
+        stock = self.dbm.selectStockById(stockId)
         stockName = stock.get('name')
+        print(stockName, 'is analyze')
         forecastAt = targetAt + timedelta(days=period)
         if self.dbm.forecastTarget(forecastAt, stock, targetAt, period):
             return
         mine = miner.Miner()
         targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList = mine.getAnalyzedCnt(targetAt, period, stockName, stock.get('id'))
-        savedItemId = self.dbm.saveAnalyzedData(stockName, targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt,forecastAt, period)
+        savedItemId = self.dbm.saveAnalyzedData(stockName, targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetAt, period)
         self.dbm.saveAnalyzedItemFinanceList(savedItemId, targetFinanceIdList)
         self.dbm.updateAnalyzedResultItem(stock)
         self.dbm.commit()
@@ -104,7 +106,7 @@ class Runner:
             print("target unexist.")
             return
         self.insertFinance(stock)
-        self.insertAnalyzedResult(stock, targetAt, period)
+        self.insertAnalyzedResult(stock.get('id'), targetAt, period)
 
     def migrationWork(self, period):
         for stock in self.dbm.getStockList() :
@@ -191,11 +193,14 @@ class Runner:
             if len(filteredTargetList) > 0 :
                 print(filteredTargetList)
                 for filter in filteredTargetList :
-                    if filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT:
+                    if filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT :
                         filterdList.append(filter)
                 targetList.append(filteredTargetList)
         print(targetList)
         print('print', filterdList)
+        for filter in filterdList :
+            if (filter.get('targetAt') == date.today().day):
+                print('today', filter)
         return targetList
 
     def getAnalyzeExistData(self, stockName, period):
@@ -273,28 +278,32 @@ class Runner:
             if poten.get('count') > self.GUARANTEE_COUNT and poten.get('potential') < self.FILTER_LIMIT and stock.get('much') == 0 :
                 self.dbm.updateStockMuch(stock.get('id'), 1)
                 print(stock, ' set much 1. ', poten.get('potential'))
-
-    def dailyRun(self, period, after):
-        targetAt = date.today() + timedelta(days=after)
+    def insertDefaultItemList(self, forecastAt, period):
+        for stock in self.dbm.getStockList() :
+            self.dbm.insertItemDefault(stock.get('id'), forecastAt, period)
+        self.dbm.commit()
+    def dailyRun(self, forecastAt, period):
+        self.insertDefaultItemList(forecastAt, period)
         while True :
             try :
-                stock = self.dbm.getUsefulStock(targetAt)
-                print(stock.get('name'), 'is start', targetAt)
-                self.run(stock, targetAt, period)
-                print(stock.get('name'), 'is done', targetAt)
+                item = self.getWorkYetItemAndCheck(forecastAt, period)
+                self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
             except dbmanager.DBManagerError :
                 print('work is done.')
                 break
             except :
                 print("unexpect error.", sys.exc_info())
                 break
-
+        self.updateDefaultItemList()
 
     def targetAnalyze(self, stockCode, period):
         stock = self.dbm.selectStockByCode(stockCode)
         print('targetAnalyze', stock)
+        lastDate = self.dbm.selectLastestItem(stock.get('id'), period)
+        if lastDate < date.today() :
+            self.run(stock, date.today(), period)
         plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
-        filteredTargetList = self.getForecastTarget(plusChanceIds, pointDict, stock, period, 0)
+        filteredTargetList = self.getForecastTarget(plusChanceIds, pointDict, stock, period)
         print(filteredTargetList)
         return filteredTargetList
 
@@ -383,18 +392,31 @@ class Runner:
         self.dbm.saveData(ks.SITE, kakaoResult, stockName, stock.get('id'))
         self.dbm.commit()
 
+    def getWorkYetItemAndCheck(self, forecastAt, period):
+        item = self.dbm.selectItemByTargetAtAndPeriodAndYet(forecastAt, period, self.dbm.WORK_YET)
+        self.dbm.updateItemYet(item.get('id'), self.dbm.WORK_DONE)
+        return item
+
+    def updateDefaultItemList(self):
+        items = self.dbm.selectItemListByCnt(0, 0, 0, 0)
+        for item in items :
+            self.dbm.updateItemYet(item.get('id'), self.dbm.WORK_YET)
+
+
+
 period = 2
 run = Runner()
 
-run.initStocks() #조건부
+# run.initStocks() #조건부
 # run.filterPotentialStock(period) #하루에 한번씩.
 # run.updateAllStockFinance() #하루에 한번씩 15시 이후
-run.dailyRun(period, 1) #하루에 한번씩
-# run.filteredTarget(period, date.today()+timedelta(days=1)) #하루에 한번씩
+run.dailyRun(date.today() + timedelta(days=0), period) #하루에 한번씩
+# run.filteredTarget(period, date.today()+timedelta(days=0)) #하루에 한번씩
 
-# run.insertNewStockScrap('007070') #필요할때 한번씩
+# run.insertNewStockScrap('A077360') #필요할때 한번씩
 # run.migration(run.dbm.selectStockByCode('007070'), period) #필요할때 한번씩
-# run.targetAnalyze('', period) #필요할때 한번씩
+# run.targetAnalyze('A077360', period) #필요할때 한번씩
+
 
 # run.migrationWork(period) #항상 수행
 
