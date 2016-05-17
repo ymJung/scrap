@@ -150,10 +150,6 @@ class Runner:
                 print('update finance date.', stock.get('name'), itemTargetAt)
                 self.updateItemFinanceId(targetFinance.get('id'), itemId)
 
-                # existFinance = cursor.execute(selectTargetStockSql + ' AND f.date > %s LIMIT 1', (stockName, itemTargetAt))
-                # if existFinance != 0 :
-                #     targetFinance = cursor.fetchone()
-                #     self.updateItemPrice(targetFinance.get('id'), itemId)
     def updateItemFinanceId(self, financeId, itemId):
         cursor = self.connection.cursor()
         updateItemPriceSql = "UPDATE item SET financeId = %s WHERE id= %s"
@@ -200,7 +196,6 @@ class Runner:
         if result == 0:
             print('empty content data.', targetStartAt, targetEndAt, stockName)
             return True
-
         return False
 
     def getAnalyzedCnt(self, targetDate, period, stockName, stockId):
@@ -495,37 +490,13 @@ class Runner:
         cursor.execute("SELECT f.id, f.start, f.final FROM finance f, stock s WHERE f.stockId = s.id and s.name = %s and f.date = %s", (stockName, sliceDate))
         return cursor.fetchone()
 
-    def getUsefulStock(self, forecastAt, period):
-        cursor = self.connection.cursor()
-        selectSql = "select `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` from stock where much = 0 and id not in " \
-                    "(select s.id from item i, stock s where s.id = i.stockId and i.targetAt = %s and i.period = %s) order by id asc limit 1"
-        cursor.execute(selectSql, (forecastAt, period))
-        stock = cursor.fetchone()
-        if stock is None :
-            cursor.execute('select s.id, s.code, s.name, s.lastUseDateAt, s.lastScrapAt from item i, stock s where s.id=i.stockId and '
-                                   'i.yet = %s and i.period = %s and i.targetAt = %s order by i.createdAt asc limit 1', (self.WORK_YET, period, forecastAt))
-            stock = cursor.fetchone()
-        if stock is None or self.checkHolyDay(forecastAt) or self.forecastTarget(forecastAt, stock, datetime.datetime.today().date(), period) :
-            raise Exception('stock is none')
-        self.insertItemDefault(stock.get('id'), forecastAt, period)
-        return stock
-
     def insertItemDefault(self, stockId, forecastAt, period):
         cursor = self.connection.cursor()
         cursor.execute("select id from item where stockId = %s and targetAt = %s and period = %s", (stockId, forecastAt, period))
         result = cursor.fetchall()
         if len(result) == 0 :
             cursor.execute("INSERT INTO item (`stockId`, `targetAt`, `period`, `yet`) VALUES (%s, %s, %s, %s)", (stockId, forecastAt, period, self.WORK_YET))
-        self.commit()
-    def initStock(self):
-        self.connection.cursor().execute("UPDATE stock SET `use` = 1 WHERE `much` = 0")
-        self.commit()
-    def updateStockUse(self, stockId, useFlag):
 
-        cursor = self.connection.cursor()
-        cursor.execute(("UPDATE stock SET `use` = %s, `lastUseDateAt` = now() WHERE `id` = %s"), (useFlag, stockId))
-
-        self.commit()
     def getStock(self, stockCode):
         cursor = self.connection.cursor()
         cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` FROM stock WHERE `much` = 0 AND code =%s ORDER BY id asc", (stockCode))
@@ -559,8 +530,9 @@ class Runner:
 
 
     def insertDefaultItemList(self, forecastAt, period):
-        for stock in self.getStockList() :
+        for stock in self.getUsefulStockList(forecastAt, period) :
             self.insertItemDefault(stock.get('id'), forecastAt, period)
+        self.commit()
 
     def getWorkYetItemAndCheck(self, forecastAt, period):
         item = self.selectItemByTargetAtAndPeriodAndYet(forecastAt, period, self.WORK_YET)
@@ -586,11 +558,16 @@ class Runner:
             self.updateItemYet(item.get('id'), self.WORK_YET)
     def selectItemListByCnt(self, plus, minus, plusTot, minusTot):
         cursor = self.connection.cursor()
-        cursor.execute("select id from item where plus=% and minus = %s and totalPlus = %s and totalMinus = %s", (plus, minus, plusTot, minusTot))
+        cursor.execute("select `id` from `item` where `plus`= %s and `minus` = %s and `totalPlus` = %s and `totalMinus` = %s", (plus, minus, plusTot, minusTot))
+        return cursor.fetchall()
+    def getUsefulStockList(self, targetAt, period):
+        cursor = self.connection.cursor()
+        cursor.execute('select `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` from stock where much = 0 and id not in  '
+                       '(select s.id from item i, stock s where s.id = i.stockId and i.targetAt = %s and i.period = %s) order by id asc', (targetAt, period))
         return cursor.fetchall()
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-run.dailyRun(period, period)
+run.dailyRun(period, date.today() + timedelta(days=period))
 #run.migration(period,'')
 #run.migrationWork(period)
-#run.initStock()
+

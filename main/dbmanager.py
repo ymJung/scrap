@@ -122,6 +122,11 @@ class DBManager:
         self.connection.cursor().execute("UPDATE stock SET `use` = 1 WHERE `much` = 0")
         self.commit()
 
+    def getUsefulStockList(self, targetAt, period):
+        cursor = self.connection.cursor()
+        cursor.execute('select `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` from stock where much = 0 and id not in  '
+                       '(select s.id from item i, stock s where s.id = i.stockId and i.targetAt = %s and i.period = %s) order by id asc', (targetAt, period))
+        return cursor.fetchall()
     def getUsefulStock(self, forecastAt, period):
         cursor = self.connection.cursor()
         selectSql = "select `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` from stock where much = 0 and id not in " \

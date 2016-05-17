@@ -279,7 +279,7 @@ class Runner:
                 self.dbm.updateStockMuch(stock.get('id'), 1)
                 print(stock, ' set much 1. ', poten.get('potential'))
     def insertDefaultItemList(self, forecastAt, period):
-        for stock in self.dbm.getStockList() :
+        for stock in self.dbm.getUsefulStockList() :
             self.dbm.insertItemDefault(stock.get('id'), forecastAt, period)
         self.dbm.commit()
     def dailyRun(self, forecastAt, period):
@@ -289,7 +289,7 @@ class Runner:
                 item = self.getWorkYetItemAndCheck(forecastAt, period)
                 self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
             except dbmanager.DBManagerError :
-                print('work is done.')
+                print('work is done.', forecastAt)
                 break
             except :
                 print("unexpect error.", sys.exc_info())
