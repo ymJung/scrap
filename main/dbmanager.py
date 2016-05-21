@@ -135,7 +135,7 @@ class DBManager:
         stock = cursor.fetchone()
         if stock is None :
             stock = cursor.execute('select s.* from item i, stock s where i.yet = %s and i.period = %s and i.targetAt = %s order by i.createdAt asc limit 1', (self.WORK_YET, period, forecastAt))
-        if stock is None or self.checkHolyDay(forecastAt) or self.forecastTarget(forecastAt, stock, datetime.datetime.today().date(), period) :
+        if stock is None or self.checkHolyDay(forecastAt) or self.isNotForecastTarget(stock, datetime.datetime.today().date(), period) :
             raise DBManagerError('stock is none')
         # self.insertItemDefault(stock.get('id'), forecastAt, period)
         return stock
@@ -203,28 +203,27 @@ class DBManager:
 
         return analyzedResult
 
-    def forecastTarget(self, forecastAt, stock, targetAt, period):
+    def isNotForecastTarget(self, stock, targetAt, period):
         stockId = stock.get('id')
         stockName = stock.get('name')
         lastScrapAt = stock.get('lastScrapAt')
-        if self.checkHolyDay(forecastAt):
-            print('exist holy day', stockName, forecastAt)
+        if self.checkHolyDay(targetAt):
+            print('exist holy day', stockName, targetAt)
             return True
         if lastScrapAt is None or lastScrapAt < targetAt - datetime.timedelta(days=period):
             print('not yet to scrap.', stockName, targetAt)
             return True
         cursor = self.connection.cursor()
-        result = cursor.execute('SELECT id FROM item WHERE targetAt = %s and stockId = %s and period = %s and %s', (forecastAt, stockId, period, self.WORK_DONE))
+        result = cursor.execute('SELECT id FROM item WHERE targetAt = %s and stockId = %s and period = %s and %s', (targetAt, stockId, period, self.WORK_DONE))
         if result != 0:
-            print('exist item date ', forecastAt, stockId)
+            print('exist item date ', targetAt, stockId)
             return True
         targetStartAt = targetAt - datetime.timedelta(days=period)
         targetEndAt = targetAt + datetime.timedelta(days=1)
-        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` BETWEEN %s AND %s AND `stockId` = %s', (targetStartAt, targetEndAt, stockId))
+        result = cursor.execute('SELECT `id` FROM `content` WHERE  `date` > %s and `date` <= %s AND `stockId` = %s', (targetStartAt, targetEndAt, stockId))
         if result == 0:
             print('empty content data.', targetStartAt, targetEndAt, stockName)
             return True
-
         return False
 
 
@@ -307,7 +306,7 @@ class DBManager:
 
     def countContents(self, stockId, startAt, limitAt):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date between %s and %s", (stockId, startAt, limitAt))
+        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s", (stockId, startAt, limitAt))
         return cursor.fetchone()
 
     def getContentBetween(self, stockId, startAt, limitAt, startPos, endPos):
@@ -482,9 +481,14 @@ class DBManager:
 
     def selectItemListByCnt(self, plus, minus, plusTot, minusTot):
         cursor = self.connection.cursor()
-        cursor.execute("select id from item where plus=% and minus = %s and totalPlus = %s and totalMinus = %s", (plus, minus, plusTot, minusTot))
+        cursor.execute("select `id` from `item` where `plus`= %s and `minus` = %s and `totalPlus` = %s and `totalMinus` = %s", (plus, minus, plusTot, minusTot))
         return cursor.fetchall()
     def updateDefaultItemList(self):
         items = self.selectItemListByCnt(0, 0, 0, 0)
         for item in items :
             self.updateItemYet(item.get('id'), self.WORK_YET)
+
+    def selectItemByPeriodAndYet(self, period, yet):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE period = %s AND yet = %s LIMIT  1", (period, yet))
+        return cursor.fetchone()

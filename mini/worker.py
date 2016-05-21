@@ -52,24 +52,21 @@ class Runner:
 
 
     def migrationWork(self, period):
-        for stock in self.getStockList() :
-            targetDate = self.getLastItemDate(stock.get('id'), period)
-            limitDate = self.getFirstContentDate(stock.get('id'))
-            print('migration', stock.get('name'), targetDate, limitDate)
-            if limitDate is None :
-                print('content is none.')
-                continue
-            idx = 0
-            while True :
-                idx += 1
-                targetAt = targetDate - timedelta(days=idx)
-                if limitDate > targetAt :
-                    print('done', stock.get('name'), limitDate)
+        while True :
+            item = self.selectItemByPeriodAndYet(period, self.WORK_YET)
+            if item is not None :
+                try :
+                    self.updateItemYet(item.get('id'), self.WORK_DONE)
+                    self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
+                except Exception :
+                    print('work is done.',  sys.exc_info())
                     break
-                if self.checkHolyDay(targetAt):
-                    continue
-                print('migration target at ', targetAt, 'period ', idx, '/')
-                self.run(stock, targetAt, period)
+                except :
+                    print("unexpect error.", sys.exc_info())
+                    break
+            else :
+                print('all clean')
+                break
     def migration(self, period, stockCode):
         stock = self.getStock(stockCode) 
         if stock is not None :
@@ -118,19 +115,20 @@ class Runner:
         # self.insertFinance(stock)
         self.insertAnalyzedResult(stock, targetAt, period)
 
-    def insertAnalyzedResult(self, stock, targetAt, period):
+    def commit(self):
+        self.connection.commit()
+        print('dbm commit')
+    def insertAnalyzedResult(self, stockId, targetAt, period):
+        stock = self.selectStockById(stockId)
         stockName = stock.get('name')
-        forecastAt = targetAt + timedelta(days=period)
-        if self.forecastTarget(forecastAt, stock, targetAt, period):
+        print(stockName, 'is analyze')
+        if self.isNotForecastTarget(stock, targetAt.date(), period):
             return
         targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList = self.getAnalyzedCnt(targetAt, period, stockName, stock.get('id'))
         savedItemId = self.saveAnalyzedData(stockName, targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetAt, period)
         self.saveAnalyzedItemFinanceList(savedItemId, targetFinanceIdList)
         self.updateAnalyzedResultItem(stock)
         self.commit()
-    def commit(self):
-        self.connection.commit()
-        print('dbm commit')
     def updateAnalyzedResultItem(self, stock):
         cursor = self.connection.cursor()
         stockName = stock.get('name')
@@ -175,24 +173,24 @@ class Runner:
         cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s', (stock.get('id'), forecastAt, period))
         return cursor.fetchone().get('id')
 
-    def forecastTarget(self, forecastAt, stock, targetAt, period):
+    def isNotForecastTarget(self, stock, targetAt, period):
         stockId = stock.get('id')
         stockName = stock.get('name')
         lastScrapAt = stock.get('lastScrapAt')
-        if self.checkHolyDay(forecastAt):
-            print('exist holy day', stockName, forecastAt)
+        if self.checkHolyDay(targetAt):
+            print('exist holy day', stockName, targetAt)
             return True
-        if lastScrapAt is None or lastScrapAt < targetAt - datetime.timedelta(days=period):
+        if lastScrapAt is None or lastScrapAt.date() < targetAt - datetime.timedelta(days=period):
             print('not yet to scrap.', stockName, targetAt)
             return True
         cursor = self.connection.cursor()
-        result = cursor.execute('SELECT id FROM item WHERE targetAt = %s and stockId = %s and period = %s and %s', (forecastAt, stockId, period, self.WORK_DONE))
+        result = cursor.execute('SELECT id FROM item WHERE targetAt = %s and stockId = %s and period = %s and %s', (targetAt, stockId, period, self.WORK_DONE))
         if result != 0:
-            print('exist item date ', forecastAt, stockId)
+            print('exist item date ', targetAt, stockId)
             return True
         targetStartAt = targetAt - datetime.timedelta(days=period)
         targetEndAt = targetAt + datetime.timedelta(days=1)
-        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` BETWEEN %s AND %s AND `stockId` = %s', (targetStartAt, targetEndAt, stockId))
+        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` > %s and `date` <= %s AND `stockId` = %s', (targetStartAt, targetEndAt, stockId))
         if result == 0:
             print('empty content data.', targetStartAt, targetEndAt, stockName)
             return True
@@ -349,7 +347,7 @@ class Runner:
         return financeIdList
     def countContents(self, stockId, startAt, limitAt):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date between %s and %s", (stockId, startAt, limitAt))
+        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s", (stockId, startAt, limitAt))
         return cursor.fetchone()
     def getContentBetween(self, stockId, startAt, limitAt, startPos, endPos):
         cursor = self.connection.cursor()
@@ -516,12 +514,9 @@ class Runner:
         while True :
             try :
                 item = self.getWorkYetItemAndCheck(forecastAt, period)
-                if item is None :
-                    break
-                print(item.get('stockId'), 'is start')
                 self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
             except Exception :
-                print('work is done.')
+                print('work is done.',  sys.exc_info())
                 break
             except :
                 print("unexpect error.", sys.exc_info())
@@ -531,7 +526,10 @@ class Runner:
 
     def insertDefaultItemList(self, forecastAt, period):
         for stock in self.getUsefulStockList(forecastAt, period) :
-            self.insertItemDefault(stock.get('id'), forecastAt, period)
+            if self.isNotForecastTarget(stock, forecastAt, period) :
+                continue
+            else :
+                self.insertItemDefault(stock.get('id'), forecastAt, period)
         self.commit()
 
     def getWorkYetItemAndCheck(self, forecastAt, period):
@@ -565,9 +563,16 @@ class Runner:
         cursor.execute('select `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt` from stock where much = 0 and id not in  '
                        '(select s.id from item i, stock s where s.id = i.stockId and i.targetAt = %s and i.period = %s) order by id asc', (targetAt, period))
         return cursor.fetchall()
+
+    def selectItemByPeriodAndYet(self, period, yet):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE period = %s AND yet = %s LIMIT  1", (period, yet))
+        return cursor.fetchone()
+
+
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-run.dailyRun(period, date.today() + timedelta(days=period))
-#run.migration(period,'')
-#run.migrationWork(period)
+run.dailyRun(period, date.today() + timedelta(days=2))
+# run.migration(period,'')
+run.migrationWork(period)
 

@@ -90,9 +90,8 @@ class Runner:
     def insertAnalyzedResult(self, stockId, targetAt, period):
         stock = self.dbm.selectStockById(stockId)
         stockName = stock.get('name')
-        print(stockName, 'is analyze')
-        forecastAt = targetAt + timedelta(days=period)
-        if self.dbm.forecastTarget(forecastAt, stock, targetAt, period):
+        print(stockName, 'is analyze', targetAt)
+        if self.dbm.isNotForecastTarget(stock, targetAt.date(), period):
             return
         mine = miner.Miner()
         targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList = mine.getAnalyzedCnt(targetAt, period, stockName, stock.get('id'))
@@ -109,22 +108,21 @@ class Runner:
         self.insertAnalyzedResult(stock.get('id'), targetAt, period)
 
     def migrationWork(self, period):
-        for stock in self.dbm.getStockList() :
-            targetDate = self.getTargetDate(stock.get('id'), period)
-            limitDate = self.getFirstContentDate(stock.get('id'))
-            print('migration', stock.get('name'), targetDate, limitDate)
-            if limitDate is None :
-                print('content is none.')
-                continue
-            idx = 0
-            while True :
-                idx += 1
-                targetAt = targetDate - timedelta(days=idx)
-                if limitDate > targetDate :
-                    print('done', stock.get('name'), limitDate)
+        while True :
+            item = self.dbm.selectItemByPeriodAndYet(period, self.dbm.WORK_YET)
+            if item is not None :
+                try :
+                    self.dbm.updateItemYet(item.get('id'), self.dbm.WORK_DONE)
+                    self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
+                except Exception :
+                    print('work is done.',  sys.exc_info())
                     break
-                print('migration target at ', targetAt, 'period ', idx, '/')
-                self.run(stock, targetAt, period)
+                except :
+                    print("unexpect error.", sys.exc_info())
+                    break
+            else :
+                print('all clean')
+                break
 
     def migration(self, stock, period):
         print('migration', stock.get('name'))
@@ -199,7 +197,7 @@ class Runner:
         print(targetList)
         print('print', filterdList)
         for filter in filterdList :
-            if (filter.get('targetAt') == date.today().day):
+            if (filter.get('targetAt') == limitAt.day):
                 print('today', filter)
         return targetList
 
@@ -279,8 +277,11 @@ class Runner:
                 self.dbm.updateStockMuch(stock.get('id'), 1)
                 print(stock, ' set much 1. ', poten.get('potential'))
     def insertDefaultItemList(self, forecastAt, period):
-        for stock in self.dbm.getUsefulStockList() :
-            self.dbm.insertItemDefault(stock.get('id'), forecastAt, period)
+        for stock in self.dbm.getUsefulStockList(forecastAt, period) :
+            if self.dbm.isNotForecastTarget(stock, forecastAt, period) :
+                continue
+            else :
+                self.dbm.insertItemDefault(stock.get('id'), forecastAt, period)
         self.dbm.commit()
     def dailyRun(self, forecastAt, period):
         self.insertDefaultItemList(forecastAt, period)
@@ -407,23 +408,13 @@ class Runner:
 period = 2
 run = Runner()
 
-# run.initStocks() #조건부
-# run.filterPotentialStock(period) #하루에 한번씩.
 # run.updateAllStockFinance() #하루에 한번씩 15시 이후
-run.dailyRun(date.today() + timedelta(days=0), period) #하루에 한번씩
+# run.filterPotentialStock(period) #하루에 한번씩.
+run.dailyRun(date.today() + timedelta(days=2), period) #하루에 한번씩
 # run.filteredTarget(period, date.today()+timedelta(days=0)) #하루에 한번씩
 
 # run.insertNewStockScrap('A077360') #필요할때 한번씩
 # run.migration(run.dbm.selectStockByCode('007070'), period) #필요할때 한번씩
 # run.targetAnalyze('A077360', period) #필요할때 한번씩
-
-
 # run.migrationWork(period) #항상 수행
-
-
-
-
-
-
-
 
