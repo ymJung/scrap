@@ -121,7 +121,7 @@ class Runner:
     def insertAnalyzedResult(self, stockId, targetAt, period):
         stock = self.selectStockById(stockId)
         stockName = stock.get('name')
-        print(stockName, 'is analyze')
+        print(stockName, 'is analyze', targetAt)
         if self.isNotForecastTarget(stock, targetAt.date(), period):
             return
         targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList = self.getAnalyzedCnt(targetAt, period, stockName, stock.get('id'))
@@ -188,9 +188,9 @@ class Runner:
         if result != 0:
             print('exist item date ', targetAt, stockId)
             return True
-        targetStartAt = targetAt - datetime.timedelta(days=period)
-        targetEndAt = targetAt + datetime.timedelta(days=1)
-        result = cursor.execute('SELECT `id` FROM `content` WHERE `date` > %s and `date` <= %s AND `stockId` = %s', (targetStartAt, targetEndAt, stockId))
+        targetStartAt = self.getTargetStartAt(targetAt, period)
+        targetEndAt = targetAt - datetime.timedelta(days=period)
+        result = cursor.execute('SELECT `id` FROM `content` WHERE  `date` > %s and `date` <= %s AND `stockId` = %s', (targetStartAt, targetEndAt, stockId))
         if result == 0:
             print('empty content data.', targetStartAt, targetEndAt, stockName)
             return True
@@ -203,7 +203,7 @@ class Runner:
         wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
         self.appendWordPriceMap(wordIdFinanceMap, totalWordIdFinanceMap)
 
-        targetStartAt = targetDate - timedelta(days=period)
+        targetStartAt = self.getTargetStartAt(targetDate, period)
         targetWordIds = self.getTargetContentWordIds(stockName, targetStartAt, targetDate, stockId)
 
         resultWordFinanceMap = self.getWordFinanceMap(targetWordIds, totalWordIdFinanceMap)
@@ -347,11 +347,12 @@ class Runner:
         return financeIdList
     def countContents(self, stockId, startAt, limitAt):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s", (stockId, startAt, limitAt))
+        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s", (stockId, startAt, self.getPlusOneDay(limitAt)))
         return cursor.fetchone()
+
     def getContentBetween(self, stockId, startAt, limitAt, startPos, endPos):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT c.title,c.contentData, c.date FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s ORDER BY c.id DESC LIMIT %s , %s", (stockId, startAt, limitAt + timedelta(days=1), startPos, endPos))
+        cursor.execute("SELECT c.title,c.contentData, c.date FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s ORDER BY c.id DESC LIMIT %s , %s", (stockId, startAt, self.getPlusOneDay(limitAt), startPos, endPos))
         result = cursor.fetchall()
         if result is not None :
             return list(result)
@@ -511,12 +512,13 @@ class Runner:
         return len(results) > 0
     def dailyRun(self, period, forecastAt):
         self.insertDefaultItemList(forecastAt, period)
-        while True :
+        items = self.getWorkYetItems(forecastAt, period)
+        for item in items :
             try :
-                item = self.getWorkYetItemAndCheck(forecastAt, period)
-                self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
+                self.updateItemYet(item.get('id'), self.WORK_DONE)
+                self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), item.get('period'))
             except Exception :
-                print('work is done.',  sys.exc_info())
+                print('work is done.',  sys.exc_info(), forecastAt)
                 break
             except :
                 print("unexpect error.", sys.exc_info())
@@ -568,11 +570,21 @@ class Runner:
         cursor = self.connection.cursor()
         cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE period = %s AND yet = %s LIMIT  1", (period, yet))
         return cursor.fetchone()
+    def getPlusOneDay(self, limitAt):
+         return limitAt + datetime.timedelta(days=1)
+    def getTargetStartAt(self, targetAt, period):
+        return targetAt - datetime.timedelta(days=period) - datetime.timedelta(days=period)
+
+    def getWorkYetItems(self, forecastAt, period):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE period = %s AND yet = %s AND targetAt = %s", (period, self.WORK_YET, forecastAt))
+        return cursor.fetchone()
 
 
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-run.dailyRun(period, date.today() + timedelta(days=2))
+run.dailyRun(period, date.today() + timedelta(days=1))
 # run.migration(period,'')
-run.migrationWork(period)
+# run.migrationWork(period)
+
 

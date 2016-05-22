@@ -283,14 +283,15 @@ class Runner:
             else :
                 self.dbm.insertItemDefault(stock.get('id'), forecastAt, period)
         self.dbm.commit()
-    def dailyRun(self, forecastAt, period):
+    def dailyRun(self, period, forecastAt):
         self.insertDefaultItemList(forecastAt, period)
-        while True :
+        items = self.dbm.getWorkYetItems(forecastAt, period)
+        for item in items :
             try :
-                item = self.getWorkYetItemAndCheck(forecastAt, period)
-                self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
-            except dbmanager.DBManagerError :
-                print('work is done.', forecastAt)
+                self.dbm.updateItemYet(item.get('id'), self.dbm.WORK_DONE)
+                self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), item.get('period'))
+            except Exception :
+                print('work is done.',  sys.exc_info(), forecastAt)
                 break
             except :
                 print("unexpect error.", sys.exc_info())
@@ -413,8 +414,7 @@ run = Runner()
 run.dailyRun(date.today() + timedelta(days=2), period) #하루에 한번씩
 # run.filteredTarget(period, date.today()+timedelta(days=0)) #하루에 한번씩
 
-# run.insertNewStockScrap('A077360') #필요할때 한번씩
-# run.migration(run.dbm.selectStockByCode('007070'), period) #필요할때 한번씩
+# run.insertNewStockScrap('') #필요할때 한번씩
+# run.migration(run.dbm.selectStockByCode(''), period) #필요할때 한번씩
 # run.targetAnalyze('A077360', period) #필요할때 한번씩
 # run.migrationWork(period) #항상 수행
-

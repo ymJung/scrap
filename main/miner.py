@@ -274,7 +274,7 @@ class Miner:
         wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
         self.appendWordPriceMap(wordIdFinanceMap, totalWordIdFinanceMap)
 
-        targetStartAt = targetDate - timedelta(days=period)
+        targetStartAt = self.dbm.getTargetStartAt(targetDate, period)
         targetWordIds = self.getTargetContentWordIds(stockName, targetStartAt, targetDate, stockId)
 
         resultWordFinanceMap = self.getWordFinanceMap(targetWordIds, totalWordIdFinanceMap)

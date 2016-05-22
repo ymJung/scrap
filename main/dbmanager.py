@@ -135,7 +135,7 @@ class DBManager:
         stock = cursor.fetchone()
         if stock is None :
             stock = cursor.execute('select s.* from item i, stock s where i.yet = %s and i.period = %s and i.targetAt = %s order by i.createdAt asc limit 1', (self.WORK_YET, period, forecastAt))
-        if stock is None or self.checkHolyDay(forecastAt) or self.isNotForecastTarget(stock, datetime.datetime.today().date(), period) :
+        if stock is None or self.checkHolyDay(forecastAt) or self.isNotForecastTarget(stock, datetime.date.today(), period) :
             raise DBManagerError('stock is none')
         # self.insertItemDefault(stock.get('id'), forecastAt, period)
         return stock
@@ -210,7 +210,7 @@ class DBManager:
         if self.checkHolyDay(targetAt):
             print('exist holy day', stockName, targetAt)
             return True
-        if lastScrapAt is None or lastScrapAt < targetAt - datetime.timedelta(days=period):
+        if lastScrapAt is None or lastScrapAt.date() < targetAt - datetime.timedelta(days=period):
             print('not yet to scrap.', stockName, targetAt)
             return True
         cursor = self.connection.cursor()
@@ -218,15 +218,13 @@ class DBManager:
         if result != 0:
             print('exist item date ', targetAt, stockId)
             return True
-        targetStartAt = targetAt - datetime.timedelta(days=period)
-        targetEndAt = targetAt + datetime.timedelta(days=1)
+        targetStartAt = self.getTargetStartAt(targetAt, period)
+        targetEndAt = targetAt - datetime.timedelta(days=period)
         result = cursor.execute('SELECT `id` FROM `content` WHERE  `date` > %s and `date` <= %s AND `stockId` = %s', (targetStartAt, targetEndAt, stockId))
         if result == 0:
             print('empty content data.', targetStartAt, targetEndAt, stockName)
             return True
         return False
-
-
 
     def saveAnalyzedItemFinanceList(self, itemId, financeIdList):
         cursor = self.connection.cursor()
@@ -306,12 +304,12 @@ class DBManager:
 
     def countContents(self, stockId, startAt, limitAt):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s", (stockId, startAt, limitAt))
+        cursor.execute("SELECT COUNT(c.id) as cnt FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s", (stockId, startAt, self.getPlusOneDay(limitAt)))
         return cursor.fetchone()
 
     def getContentBetween(self, stockId, startAt, limitAt, startPos, endPos):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT c.title,c.contentData, c.date FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s ORDER BY c.id DESC LIMIT %s , %s", (stockId, startAt, limitAt + datetime.timedelta(days=1), startPos, endPos))
+        cursor.execute("SELECT c.title,c.contentData, c.date FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s ORDER BY c.id DESC LIMIT %s , %s", (stockId, startAt, self.getPlusOneDay(limitAt), startPos, endPos))
         result = cursor.fetchall()
         if result is not None :
             return list(result)
@@ -450,7 +448,7 @@ class DBManager:
 
     def getItemTargetAtList(self):
         cursor = self.connection.cursor()
-        cursor.execute("select id, targetAt from item group by targetAt asc")
+        cursor.execute("select id, targetAt from item where targetAt >= '2016-05-16' order by createdAt desc;")
         return cursor.fetchall()
 
     def insertHolyday(self, targetAt, reason):
@@ -491,4 +489,15 @@ class DBManager:
     def selectItemByPeriodAndYet(self, period, yet):
         cursor = self.connection.cursor()
         cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE period = %s AND yet = %s LIMIT  1", (period, yet))
+        return cursor.fetchone()
+
+    def getPlusOneDay(self, limitAt):
+         return limitAt + datetime.timedelta(days=1)
+
+    def getTargetStartAt(self, targetAt, period):
+        return targetAt - datetime.timedelta(days=period) - datetime.timedelta(days=period)
+
+    def getWorkYetItems(self, forecastAt, period):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE period = %s AND yet = %s AND targetAt = %s", (period, self.WORK_YET, forecastAt))
         return cursor.fetchone()
