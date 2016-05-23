@@ -140,19 +140,19 @@ class DBManager:
         # self.insertItemDefault(stock.get('id'), forecastAt, period)
         return stock
 
-    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period):
+    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period, duration):
         cursor = self.connection.cursor()
         cursor.execute('SELECT id FROM stock WHERE name = %s', stockName)
         stock = cursor.fetchone()
         cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s ', (stock.get('id'), targetAt, period))
         items = cursor.fetchall()
         if len(items) == 0:
-            cursor.execute("INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `period`) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                           (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period))
+            cursor.execute("INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `period`, `duration`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                           (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period, duration))
         else :
-            print('update analyze item')
             for item in items :
-                cursor.execute("UPDATE item SET `plus`=%s, `minus`=%s, `totalPlus`=%s, `totalMinus`=%s, `yet`=%s WHERE `id`= %s", (plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, self.WORK_DONE, item.get('id')))
+                cursor.execute("UPDATE item SET `plus`=%s, `minus`=%s, `totalPlus`=%s, `totalMinus`=%s, `yet`=%s, `duration`=%s WHERE `id`= %s",
+                               (plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, self.WORK_DONE, duration, item.get('id')))
         self.commit()
         cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s', (stock.get('id'), targetAt, period))
         return cursor.fetchone().get('id')
@@ -500,4 +500,9 @@ class DBManager:
     def getWorkYetItems(self, forecastAt, period):
         cursor = self.connection.cursor()
         cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE period = %s AND yet = %s AND targetAt = %s", (period, self.WORK_YET, forecastAt))
+        return cursor.fetchall()
+
+    def selectItem(self, id):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE id=%s", (id))
         return cursor.fetchone()

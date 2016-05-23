@@ -94,8 +94,8 @@ class Runner:
         if self.dbm.isNotForecastTarget(stock, targetAt.date(), period):
             return
         mine = miner.Miner()
-        targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList = mine.getAnalyzedCnt(targetAt, period, stockName, stock.get('id'))
-        savedItemId = self.dbm.saveAnalyzedData(stockName, targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetAt, period)
+        targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList, duration = mine.getAnalyzedCnt(targetAt, period, stockName, stock.get('id'))
+        savedItemId = self.dbm.saveAnalyzedData(stockName, targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetAt, period, duration)
         self.dbm.saveAnalyzedItemFinanceList(savedItemId, targetFinanceIdList)
         self.dbm.updateAnalyzedResultItem(stock)
         self.dbm.commit()
@@ -191,7 +191,7 @@ class Runner:
             if len(filteredTargetList) > 0 :
                 print(filteredTargetList)
                 for filter in filteredTargetList :
-                    if filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT :
+                    if (filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('change')) > 1):
                         filterdList.append(filter)
                 targetList.append(filteredTargetList)
         print(targetList)
@@ -286,8 +286,11 @@ class Runner:
     def dailyRun(self, period, forecastAt):
         self.insertDefaultItemList(forecastAt, period)
         items = self.dbm.getWorkYetItems(forecastAt, period)
-        for item in items :
+        for item in items:
             try :
+                item = self.dbm.selectItem(item.get('id'))
+                if item.get('yet') == self.dbm.WORK_DONE:
+                    continue
                 self.dbm.updateItemYet(item.get('id'), self.dbm.WORK_DONE)
                 self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), item.get('period'))
             except Exception :
@@ -409,10 +412,10 @@ class Runner:
 period = 2
 run = Runner()
 
-# run.updateAllStockFinance() #하루에 한번씩 15시 이후
+run.updateAllStockFinance() #하루에 한번씩 15시 이후
 # run.filterPotentialStock(period) #하루에 한번씩.
-run.dailyRun(date.today() + timedelta(days=2), period) #하루에 한번씩
-# run.filteredTarget(period, date.today()+timedelta(days=0)) #하루에 한번씩
+# run.dailyRun(date.today() + timedelta(days=2), period) #하루에 한번씩
+run.filteredTarget(period, date.today()+timedelta(days=1)) #하루에 한번씩
 
 # run.insertNewStockScrap('') #필요할때 한번씩
 # run.migration(run.dbm.selectStockByCode(''), period) #필요할때 한번씩

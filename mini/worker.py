@@ -124,8 +124,8 @@ class Runner:
         print(stockName, 'is analyze', targetAt)
         if self.isNotForecastTarget(stock, targetAt.date(), period):
             return
-        targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList = self.getAnalyzedCnt(targetAt, period, stockName, stock.get('id'))
-        savedItemId = self.saveAnalyzedData(stockName, targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetAt, period)
+        targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList, duration = self.getAnalyzedCnt(targetAt, period, stockName, stock.get('id'))
+        savedItemId = self.saveAnalyzedData(stockName, targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetAt, period, duration)
         self.saveAnalyzedItemFinanceList(savedItemId, targetFinanceIdList)
         self.updateAnalyzedResultItem(stock)
         self.commit()
@@ -156,22 +156,23 @@ class Runner:
         cursor = self.connection.cursor()
         for financeId in financeIdList :
             cursor.execute("INSERT INTO chart_map (itemId, financeId) VALUES (%s, %s)", (itemId, financeId))
-    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, forecastAt, period):
+    def saveAnalyzedData(self, stockName, plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period, duration):
         cursor = self.connection.cursor()
         cursor.execute('SELECT id FROM stock WHERE name = %s', stockName)
         stock = cursor.fetchone()
-        cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s ', (stock.get('id'), forecastAt, period))
+        cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s ', (stock.get('id'), targetAt, period))
         items = cursor.fetchall()
         if len(items) == 0:
-            cursor.execute("INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `period`) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                           (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, forecastAt, period))
+            cursor.execute("INSERT INTO `data`.`item` (`stockId`, `plus`, `minus`, `totalPlus`, `totalMinus`, `targetAt`, `period`, `duration`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                           (stock.get('id'), plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, targetAt, period, duration))
         else :
-            print('update analyze item')
             for item in items :
-                cursor.execute("UPDATE item SET `plus`=%s, `minus`=%s, `totalPlus`=%s, `totalMinus`=%s, `yet`=%s WHERE `id`= %s", (plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, self.WORK_DONE, item.get('id')))
+                cursor.execute("UPDATE item SET `plus`=%s, `minus`=%s, `totalPlus`=%s, `totalMinus`=%s, `yet`=%s, `duration`=%s WHERE `id`= %s",
+                               (plusCnt, minusCnt, totalPlusCnt, totalMinusCnt, self.WORK_DONE, duration, item.get('id')))
         self.commit()
-        cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s', (stock.get('id'), forecastAt, period))
+        cursor.execute('SELECT id FROM item WHERE `stockId` = %s AND `targetAt` = %s AND `period` = %s', (stock.get('id'), targetAt, period))
         return cursor.fetchone().get('id')
+
 
     def isNotForecastTarget(self, stock, targetAt, period):
         stockId = stock.get('id')
@@ -198,6 +199,7 @@ class Runner:
 
     def getAnalyzedCnt(self, targetDate, period, stockName, stockId):
         totalWordIdFinanceMap = {}
+        start = datetime.datetime.now()
         firstAt = self.selectFirstContentDate(stockId)
         contents = self.getStockNameContent(stockName, firstAt, targetDate, stockId)
         wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
@@ -212,8 +214,8 @@ class Runner:
         targetPlusCnt, targetMinusCnt = self.getAnalyzedCountList(targetChartList)
         totalPlusCnt, totalMinusCnt = self.getAnalyzedCountList(totalChartList)
         targetFinanceIdList = self.getFinanceIdList(targetChartList)
-
-        return targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList
+        end = datetime.datetime.now()
+        return targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList, end - start
     def appendWordPriceMap(self, wordIdFinanceMap, totalWordPriceMap):
          for wordId in wordIdFinanceMap.keys() :
             if wordIdFinanceMap[wordId] == None :
@@ -515,6 +517,9 @@ class Runner:
         items = self.getWorkYetItems(forecastAt, period)
         for item in items :
             try :
+                item = self.selectItem(item.get('id'))
+                if item.get('yet') == self.WORK_DONE:
+                    continue
                 self.updateItemYet(item.get('id'), self.WORK_DONE)
                 self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), item.get('period'))
             except Exception :
@@ -578,12 +583,15 @@ class Runner:
     def getWorkYetItems(self, forecastAt, period):
         cursor = self.connection.cursor()
         cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE period = %s AND yet = %s AND targetAt = %s", (period, self.WORK_YET, forecastAt))
+        return cursor.fetchall()
+    def selectItem(self, id):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE id=%s", (id))
         return cursor.fetchone()
-
 
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-run.dailyRun(period, date.today() + timedelta(days=1))
+run.dailyRun(period, date.today() + timedelta(days=2))
 # run.migration(period,'')
 # run.migrationWork(period)
 

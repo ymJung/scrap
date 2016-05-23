@@ -1,13 +1,12 @@
 import numpy
 from datetime import timedelta
-
+import datetime
 import dictionary
 import sys
-from datetime import date
 import threading
 import queue
 import dbmanager
-import configparser
+
 
 class MinerError(Exception):
     def __init__(self, msg):
@@ -269,6 +268,7 @@ class Miner:
 
     def getAnalyzedCnt(self, targetDate, period, stockName, stockId):
         totalWordIdFinanceMap = {}
+        start = datetime.datetime.now()
         firstAt = self.dbm.selectFirstContentDate(stockId)
         contents = self.getStockNameContent(stockName, firstAt, targetDate, stockId)
         wordIdFinanceMap = self.multiThreadWordChangePriceMap(contents, stockName, period)
@@ -283,8 +283,8 @@ class Miner:
         targetPlusCnt, targetMinusCnt = self.getAnalyzedCountList(targetChartList)
         totalPlusCnt, totalMinusCnt = self.getAnalyzedCountList(totalChartList)
         targetFinanceIdList = self.getFinanceIdList(targetChartList)
-
-        return targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList
+        end = datetime.datetime.now()
+        return targetPlusCnt, targetMinusCnt, totalPlusCnt, totalMinusCnt, targetChartList, totalChartList, targetFinanceIdList, end - start
 
 
     def getFinanceIdList(self, chartList):
