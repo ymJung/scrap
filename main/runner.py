@@ -191,13 +191,14 @@ class Runner:
             if len(filteredTargetList) > 0 :
                 print(filteredTargetList)
                 for filter in filteredTargetList :
-                    if (filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('change')) > 1):
+                    if (filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('chance')) > 1):
                         filterdList.append(filter)
                 targetList.append(filteredTargetList)
         print(targetList)
         print('print', filterdList)
         for filter in filterdList :
             if (filter.get('targetAt') == limitAt.day):
+                targetList.append(filter)
                 print('today', filter)
         return targetList
 
@@ -413,7 +414,7 @@ period = 2
 run = Runner()
 
 run.updateAllStockFinance() #하루에 한번씩 15시 이후
-# run.filterPotentialStock(period) #하루에 한번씩.
+run.filterPotentialStock(period) #하루에 한번씩.
 # run.dailyRun(date.today() + timedelta(days=2), period) #하루에 한번씩
 run.filteredTarget(period, date.today()+timedelta(days=1)) #하루에 한번씩
 

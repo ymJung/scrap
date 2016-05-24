@@ -504,5 +504,5 @@ class DBManager:
 
     def selectItem(self, id):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE id=%s", (id))
+        cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE id=%s ORDER BY createdAt ASC", (id))
         return cursor.fetchone()

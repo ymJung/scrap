@@ -586,12 +586,12 @@ class Runner:
         return cursor.fetchall()
     def selectItem(self, id):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE id=%s", (id))
+        cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE id=%s ORDER BY createdAt ASC", (id))
         return cursor.fetchone()
 
 period = 2
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-run.dailyRun(period, date.today() + timedelta(days=2))
+run.dailyRun(period, date.today() + timedelta(days=0))
 # run.migration(period,'')
 # run.migrationWork(period)
 
