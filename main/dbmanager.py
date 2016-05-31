@@ -309,7 +309,7 @@ class DBManager:
 
     def getContentBetween(self, stockId, startAt, limitAt, startPos, endPos):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT c.title,c.contentData, c.date FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s ORDER BY c.id DESC LIMIT %s , %s", (stockId, startAt, self.getPlusOneDay(limitAt), startPos, endPos))
+        cursor.execute("SELECT c.id, c.yet, c.date FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s ORDER BY c.id DESC LIMIT %s , %s", (stockId, startAt, self.getPlusOneDay(limitAt), startPos, endPos))
         result = cursor.fetchall()
         if result is not None :
             return list(result)
@@ -506,3 +506,25 @@ class DBManager:
         cursor = self.connection.cursor()
         cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE id=%s ORDER BY createdAt ASC", (id))
         return cursor.fetchone()
+
+    def insertContentMap(self, contentId, wordId):
+        cursor = self.connection.cursor()
+        cursor.execute("INSERT INTO `data`.`content_map` (`contentId`, `wordId`) VALUES (%s, %s)", (contentId, wordId))
+
+    def getContentWordIds(self, contentId):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, contentId, wordId FROM content_map WHERE contentId=%s", (contentId))
+        return cursor.fetchall()
+
+    def updateContentYet(self, contentId, yet):
+        cursor = self.connection.cursor()
+        cursor.execute("UPDATE `data`.`content` SET `yet`=%s WHERE `id`=%s", (yet, contentId))
+        self.commit()
+
+    def getContentById(self, contentId):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, contentData, yet FROM content WHERE id=%s", (contentId))
+        return cursor.fetchone()
+
+
+

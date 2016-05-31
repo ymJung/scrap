@@ -55,15 +55,15 @@ class Runner:
         while True :
             item = self.selectItemByPeriodAndYet(period, self.WORK_YET)
             if item is not None :
-                try :
-                    self.updateItemYet(item.get('id'), self.WORK_DONE)
-                    self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
-                except Exception :
-                    print('work is done.',  sys.exc_info())
-                    break
-                except :
-                    print("unexpect error.", sys.exc_info())
-                    break
+                # try :
+                self.updateItemYet(item.get('id'), self.WORK_DONE)
+                self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
+                # except Exception :
+                #     print('work is done.',  sys.exc_info())
+                #     break
+                # except :
+                #     print("unexpect error.", sys.exc_info())
+                #     break
             else :
                 print('all clean')
                 break
@@ -256,8 +256,6 @@ class Runner:
                 continue
             except MemoryError :
                 print('memory error', stockName, len(contentsList))
-                # contentsList = self.divideList(contentsList)
-                # continue
                 return contentsList
         return contentsList
 
@@ -280,17 +278,13 @@ class Runner:
         totalWordPriceMap = self.getTotalPriceMap(queueList, threadList)
 
         return totalWordPriceMap
-    def getTargetContentWordIds(self, stockName, targetStartAt, targetDate, stockId):
+    def getTargetContentWordIds(self, stockName, periodDate, targetDate, stockId):
         wordIds = []
-        contents = self.getStockNameContent(stockName, targetStartAt, targetDate, stockId)
+        contents = self.getStockNameContent(stockName, periodDate, targetDate, stockId)
         print('target content word find. content length . ', len(contents))
-        for result in contents:
-            contentData = result.get(self.CONTENT_DATA_NAME)
-            splitWords = self.splitStr(contentData)
-            for target in splitWords:
-                if self.existSplitWord(target):
-                    wordId = self.getWordByStr(target)
-                    wordIds.append(wordId)
+        for content in contents:
+            contentWordIds = self.getContentWordIdAndWork(content.get('id'), content.get('yet'))
+            wordIds = wordIds + contentWordIds
         return wordIds
 
     def getWordFinanceMap(self, wordIds, totalWordFinances):
@@ -354,20 +348,19 @@ class Runner:
 
     def getContentBetween(self, stockId, startAt, limitAt, startPos, endPos):
         cursor = self.connection.cursor()
-        cursor.execute("SELECT c.title,c.contentData, c.date FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s ORDER BY c.id DESC LIMIT %s , %s", (stockId, startAt, self.getPlusOneDay(limitAt), startPos, endPos))
+        cursor.execute("SELECT c.id, c.yet, c.date FROM content c WHERE c.stockId = %s and c.date > %s and c.date <= %s ORDER BY c.id DESC LIMIT %s , %s", (stockId, startAt, self.getPlusOneDay(limitAt), startPos, endPos))
         result = cursor.fetchall()
         if result is not None :
             return list(result)
         return result
 
+
     def getWordChangePriceMap(self, contentDataList, stockName, period,  queue, lock):
         wordIdFinanceMap = {}
         cacheFinanceChangePrices = {}
 
-        for idx in range(len(contentDataList)):
-            result = contentDataList[idx]
-            contentData = result.get(self.CONTENT_DATA_NAME)
-            date = result.get(self.DATE_NAME)
+        for content in contentDataList:
+            date = content.get(self.DATE_NAME)
             sliceDate = (date + timedelta(days=period)).strftime('%Y-%m-%d')
             lock.acquire()
             try :
@@ -376,23 +369,14 @@ class Runner:
                 lock.release()
             if financeId is None:
                 continue
-            splitWords = self.splitStr(contentData)
-            for target in splitWords:
-                lock.acquire()
-                try :
-                    existTargetWord = self.existSplitWord(target)
-                finally :
-                    lock.release()
-                if existTargetWord :
-                    lock.acquire()
-                    try :
-                        wordId = self.getWordByStr(target)
-                    finally:
-                        lock.release()
-                    try:
-                        wordIdFinanceMap[wordId].append(financeId)
-                    except KeyError:
-                        wordIdFinanceMap[wordId] = [financeId]
+            lock.acquire()
+            wordIds = self.getContentWordIdAndWork(content.get('id'), content.get('yet'))
+            lock.release()
+            for wordId in wordIds :
+                 try:
+                     wordIdFinanceMap[wordId].append(financeId)
+                 except KeyError:
+                     wordIdFinanceMap[wordId] = [financeId]
         print('put word data map to queue ', len(wordIdFinanceMap))
         queue.put(wordIdFinanceMap)
     def getTotalPriceMap(self, queueList, threadList):
@@ -403,12 +387,11 @@ class Runner:
                 end = len(threadList)
             splitedThreads = threadList[start : end]
             for thread in splitedThreads:
-                print('thread start', thread.getName())
+                print('thread start', thread.getName(), start, end, len(threadList))
                 thread.start()
             for thread in splitedThreads:
-                print('thread join', thread.getName())
+                print('thread join', thread.getName(), start, end, len(threadList))
                 thread.join()
-
         totalWordPriceMap = {}
 
         for que in queueList:
@@ -588,11 +571,53 @@ class Runner:
         cursor = self.connection.cursor()
         cursor.execute("SELECT id, stockId, period, targetAt, yet FROM item WHERE id=%s ORDER BY createdAt ASC", (id))
         return cursor.fetchone()
+    def insertContentMap(self, contentId, wordId):
+        cursor = self.connection.cursor()
+        cursor.execute("INSERT INTO `data`.`content_map` (`contentId`, `wordId`) VALUES (%s, %s)", (contentId, wordId))
 
-period = 2
+    def getContentWordIds(self, contentId):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, contentId, wordId FROM content_map WHERE contentId=%s", (contentId))
+        return cursor.fetchall()
+
+    def updateContentYet(self, contentId, yet):
+        cursor = self.connection.cursor()
+        cursor.execute("UPDATE `data`.`content` SET `yet`=%s WHERE `id`=%s", (yet, contentId))
+        self.commit()
+
+    def putContentWordId(self, contentId, contentData):
+        self.updateContentYet(contentId, self.WORK_DONE)
+        splitWords = self.splitStr(contentData)
+        for targetWord in splitWords:
+            existTargetWord = self.existSplitWord(targetWord)
+            if existTargetWord :
+                wordId = self.getWordByStr(targetWord)
+                self.insertContentMap(contentId, wordId)
+    def getContentWordIdAndWork(self, contentId, yet):
+        if yet == self.WORK_YET:
+            content = self.getContentById(contentId)
+            if content.get('yet') == self.WORK_YET :
+                self.updateContentYet(contentId, self.WORK_DONE)
+                splitWords = self.splitStr(content.get('contentData'))
+                for targetWord in splitWords:
+                    existTargetWord = self.existSplitWord(targetWord)
+                    if existTargetWord :
+                        wordId = self.getWordByStr(targetWord)
+                        self.insertContentMap(contentId, wordId)
+        wordIds = []
+        for contentWordId in self.getContentWordIds(contentId):
+            wordIds.append(contentWordId.get('wordId'))
+        return wordIds
+
+    def getContentById(self, contentId):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, contentData, yet FROM content WHERE id=%s", (contentId))
+        return cursor.fetchone()
+
+
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-run.dailyRun(period, date.today() + timedelta(days=0))
+# run.dailyRun(period, date.today() + timedelta(days=0))
 # run.migration(period,'')
-# run.migrationWork(period)
+run.migrationWork(2)
 
 

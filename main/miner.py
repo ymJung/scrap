@@ -22,7 +22,6 @@ class Miner:
         self.WORD_NAME = 'word'
         self.PLUS_NAME = 'plus'
         self.MINUS_NAME = 'minus'
-        self.CONTENT_DATA_NAME = 'contentData'
         self.SPLIT_COUNT = 1000
         self.START_NAME = 'start'
         self.FINAL_NAME = 'final'
@@ -68,21 +67,15 @@ class Miner:
                 continue
             except MemoryError :
                 print('memory error', stockName, len(contentsList))
-                # contentsList = self.divideList(contentsList)
-                # continue
                 return contentsList
         return contentsList
     def getTargetContentWordIds(self, stockName, periodDate, targetDate, stockId):
         wordIds = []
         contents = self.getStockNameContent(stockName, periodDate, targetDate, stockId)
         print('target content word find. content length . ', len(contents))
-        for result in contents:
-            contentData = result.get(self.CONTENT_DATA_NAME)
-            splitWords = self.dic.splitStr(contentData)
-            for target in splitWords:
-                if self.dic.existSplitWord(target):
-                    wordId = self.dic.getWordByStr(target)
-                    wordIds.append(wordId)
+        for content in contents:
+            contentWordIds = self.getContentWordIdAndWork(content.get('id'), content.get('yet'))
+            wordIds = wordIds + contentWordIds
         return wordIds
 
     def getWordFinanceMap(self, wordIds, totalWordFinances):
@@ -158,7 +151,6 @@ class Miner:
             finance = self.dbm.getFinanceDataByStockNameAndData(stockName, sliceDate)
             if finance is not None :
                 financeId = finance.get('id')  # one ? many?
-                # stockPrice = int(finance.get(self.START_NAME)) - int(finance.get(self.FINAL_NAME))
                 cacheFinanceChangePrices[str(sliceDate) + stockName] = financeId
                 return financeId
             else:
@@ -169,14 +161,12 @@ class Miner:
             print("miner unexpected error:", sys.exc_info())
             return None
 
-    def getWordChangePriceMap(self, contentDataList, stockName, period,  queue, lock, dic):
+    def getWordChangePriceMap(self, contentDataList, stockName, period,  queue, lock):
         wordIdFinanceMap = {}
         cacheFinanceChangePrices = {}
 
-        for idx in range(len(contentDataList)):
-            result = contentDataList[idx]
-            contentData = result.get(self.CONTENT_DATA_NAME)
-            date = result.get(self.DATE_NAME)
+        for content in contentDataList:
+            date = content.get(self.DATE_NAME)
             sliceDate = (date + timedelta(days=period)).strftime('%Y-%m-%d')
             lock.acquire()
             try :
@@ -185,32 +175,22 @@ class Miner:
                 lock.release()
             if financeId is None:
                 continue
-            splitWords = dic.splitStr(contentData)
-            for target in splitWords:
-                lock.acquire()
-                try :
-                    existTargetWord = dic.existSplitWord(target)
-                finally :
-                    lock.release()
-                if existTargetWord :
-                    lock.acquire()
-                    try :
-                        wordId = dic.getWordByStr(target)
-                    finally:
-                        lock.release()
-                    try:
-                        wordIdFinanceMap[wordId].append(financeId)
-                    except KeyError:
-                        wordIdFinanceMap[wordId] = [financeId]
+            lock.acquire()
+            wordIds = self.getContentWordIdAndWork(content.get('id'), content.get('yet'))
+            lock.release()
+            for wordId in wordIds :
+                 try:
+                     wordIdFinanceMap[wordId].append(financeId)
+                 except KeyError:
+                     wordIdFinanceMap[wordId] = [financeId]
         print('put word data map to queue ', len(wordIdFinanceMap))
         queue.put(wordIdFinanceMap)
+
 
     def multiThreadWordChangePriceMap(self, contents, stockName, period):
         queueList = []
         threadList = []
         lock = threading.Lock()
-        dic = dictionary.Dictionary()
-
         for idx in range(int(len(contents) / self.SPLIT_COUNT) + 1) :
             start = idx * self.SPLIT_COUNT
             end = idx * self.SPLIT_COUNT + self.SPLIT_COUNT
@@ -219,7 +199,7 @@ class Miner:
             splitedContentTarget = contents[start : end]
 
             resultQueue = queue.Queue()
-            thread = threading.Thread(target=self.getWordChangePriceMap, args=(splitedContentTarget, stockName, period, resultQueue, lock, dic), name=stockName+str(len(splitedContentTarget)))
+            thread = threading.Thread(target=self.getWordChangePriceMap, args=(splitedContentTarget, stockName, period, resultQueue, lock), name=stockName+str(len(splitedContentTarget)))
             threadList.append(thread)
             queueList.append(resultQueue)
 
@@ -228,13 +208,6 @@ class Miner:
         return totalWordPriceMap
 
     def getTotalPriceMap(self, queueList, threadList):
-        # try:
-        #     thread.start()
-        # except RuntimeError:
-        #     if threadList:
-        #         # threadList[0].start()
-        #         threadList[0].join()
-        #         del threadList[0]
         for idx in range(int(len(threadList) / self.THREAD_LIMIT_COUNT) + 1) :
             start = idx * self.THREAD_LIMIT_COUNT
             end = idx * self.THREAD_LIMIT_COUNT + self.THREAD_LIMIT_COUNT
@@ -242,10 +215,10 @@ class Miner:
                 end = len(threadList)
             splitedThreads = threadList[start : end]
             for thread in splitedThreads:
-                print('thread start', thread.getName())
+                print('thread start', thread.getName(), start, end, len(threadList))
                 thread.start()
             for thread in splitedThreads:
-                print('thread join', thread.getName())
+                print('thread join', thread.getName(), start, end, len(threadList))
                 thread.join()
 
         totalWordPriceMap = {}
@@ -293,5 +266,23 @@ class Miner:
             financeIds = chart.get(self.FINANCE_NAME)
             financeIdList = financeIdList + financeIds
         return financeIdList
+
+    def getContentWordIdAndWork(self, contentId, yet):
+        print(contentId, yet)
+        if yet == self.dbm.WORK_YET:
+            content = self.dbm.getContentById(contentId)
+            if content.get('yet') == self.dbm.WORK_YET :
+                print('yet')
+                self.dbm.updateContentYet(contentId, self.dbm.WORK_DONE)
+                splitWords = self.dic.splitStr(content.get('contentData'))
+                for targetWord in splitWords:
+                    existTargetWord = self.dic.existSplitWord(targetWord)
+                    if existTargetWord :
+                        wordId = self.dic.getWordByStr(targetWord)
+                        self.dbm.insertContentMap(contentId, wordId)
+        wordIds = []
+        for contentWordId in self.dbm.getContentWordIds(contentId):
+            wordIds.append(contentWordId.get('wordId'))
+        return wordIds
 
 
