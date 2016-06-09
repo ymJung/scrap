@@ -233,7 +233,7 @@ class DBManager:
 
     def getFinanceListFromItemId(self, itemId):
         cursor = self.connection.cursor()
-        financeIds = cursor.execute('SELECT cm.financeId FROM chart_map cm WHERE cm.itemId=%s', (itemId))
+        financeIds = cursor.execute('SELECT distinct(financeId) FROM chart_map WHERE itemId=%s', (itemId))
         results = []
         if financeIds != 0 :
             for each in cursor.fetchall() :
@@ -526,5 +526,17 @@ class DBManager:
         cursor.execute("SELECT id, contentData, yet FROM content WHERE id=%s", (contentId))
         return cursor.fetchone()
 
+    def getPeriodAll(self):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT distinct(period) FROM item")
+        return cursor.fetchall()
+
+    def deleteItemDefault(self, stockId, forecastAt, period):
+        cursor = self.connection.cursor()
+        cursor.execute("select id from item where stockId = %s and targetAt = %s and period = %s and yet = 1", (stockId, forecastAt, period))
+        results = cursor.fetchall()
+        if len(results) > 0:
+            for each in results:
+                cursor.execute('DELETE FROM `data`.`item` WHERE `id`=%s', (each.get('id')))
 
 

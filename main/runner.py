@@ -182,25 +182,28 @@ class Runner:
         # self.run(stock, date.today(), period)
         # self.migration(stock, period)
 
-    def filteredTarget(self, period, limitAt):
+    def filteredTarget(self, limitAt):
         targetList = list()
         filterdList = list()
-        for stock in self.dbm.getStockList():
-            plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
-            filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, limitAt)
-            if len(filteredTargetList) > 0 :
-                print(filteredTargetList)
-                for filter in filteredTargetList :
-                    if (filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('chance')) > 1):
-                        filterdList.append(filter)
-                targetList.append(filteredTargetList)
+        for item in self.dbm.getPeriodAll():
+            period = item.get('period')
+            for stock in self.dbm.getStockList():
+                plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
+                filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, limitAt)
+                if len(filteredTargetList) > 0 :
+                    print(filteredTargetList)
+                    for filter in filteredTargetList :
+                        if (filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('chance')) > 1):
+                            filterdList.append(filter)
+                    targetList.append(filteredTargetList)
+
+            for filter in filterdList :
+                if (filter.get('targetAt') == limitAt.day):
+                    targetList.append(filter)
+                    print('today', filter)
         print(targetList)
         print('print', filterdList)
-        for filter in filterdList :
-            if (filter.get('targetAt') == limitAt.day):
-                targetList.append(filter)
-                print('today', filter)
-        return targetList
+        return filterdList
 
     def getAnalyzeExistData(self, stockName, period):
         analyzedResult = self.dbm.analyzedSql(stockName, period)
@@ -231,7 +234,7 @@ class Runner:
             plusChanceIds = list(set(plusChanceIds))
 
         trustPercent = self.getDivideNumPercent(len(plusPoint), len(sumPoint))
-        pointDict = {stockName: {'name': stockName, 'potential': trustPercent, 'total': len(analyzedResult)}}
+        pointDict = {stockName: {'name': stockName, 'period': period, 'potential': trustPercent, 'total': len(analyzedResult)}}
         return plusChanceIds, pointDict
 
 
@@ -260,7 +263,7 @@ class Runner:
         for chanceId in plusChanceIds:
             if chanceId in financeList:
                 chanceIds.append(chanceId)
-        return {stockName: point, 'potential': pointDict.get(stockName).get('potential'),'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds}
+        return {stockName: point, 'period' : pointDict.get(stockName).get('period'), 'potential': pointDict.get(stockName).get('potential'),'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds}
 
     def getFilteredForecastResult(self, each):
         plus = each.get('plus')
@@ -270,13 +273,14 @@ class Runner:
         targetAt = each.get('targetAt')
         return each.get('id'), point, stockName, targetAt
 
-    def filterPotentialStock(self, period):
-        for stock in self.dbm.getAllStockList():
-            self.updatePotentialStock(stock, period)
-            poten = self.dbm.selectPotentialStock(stock.get('id'), period)
-            if poten.get('count') > self.GUARANTEE_COUNT and poten.get('potential') < self.FILTER_LIMIT and stock.get('much') == 0 :
-                self.dbm.updateStockMuch(stock.get('id'), 1)
-                print(stock, ' set much 1. ', poten.get('potential'))
+    def filterPotentialStock(self, periods):
+        for period in periods :
+            for stock in self.dbm.getAllStockList():
+                self.updatePotentialStock(stock, period)
+                poten = self.dbm.selectPotentialStock(stock.get('id'), period)
+                if poten.get('count') > self.GUARANTEE_COUNT and poten.get('potential') < self.FILTER_LIMIT and stock.get('much') == 0 :
+                    self.dbm.updateStockMuch(stock.get('id'), 1)
+                    print(stock, ' set much 1. ', poten.get('potential'))
     def insertDefaultItemList(self, forecastAt, period):
         for stock in self.dbm.getUsefulStockList(forecastAt, period) :
             if self.dbm.isNotForecastTarget(stock, forecastAt, period) :
@@ -409,27 +413,36 @@ class Runner:
         for item in items :
             self.dbm.updateItemYet(item.get('id'), self.dbm.WORK_YET)
 
-
-
-
-
-period = 2
+    def dailyAll(self, forecastAt):
+        for item in self.dbm.getPeriodAll() :
+            self.dailyRun(forecastAt, item.get('period')) #하루에 한번씩
+    def deleteDefaultItem(self):
+        for period in [2,3] :
+            for stock in self.dbm.getStockList() :
+                for idx in range(365) :
+                    targetAt = date.today() - timedelta(days=idx)
+                    if self.dbm.isNotForecastTarget(stock, targetAt, period) is True:
+                        self.dbm.deleteItemDefault(stock.get('id'), targetAt, period)
+        self.dbm.commit()
+    def insertDefaultItem(self):
+        for period in [2,3] :
+            for stock in self.dbm.getStockList() :
+                for idx in range(365) :
+                    targetAt = date.today() - timedelta(days=idx)
+                    if self.dbm.isNotForecastTarget(stock, targetAt, period) is False:
+                        self.dbm.insertItemDefault(stock.get('id'), targetAt, period)
+        self.dbm.commit()
 run = Runner()
 
+
 # run.updateAllStockFinance() #하루에 한번씩 15시 이후
-# run.filterPotentialStock(period) #하루에 한번씩.
-# run.dailyRun(date.today() - timedelta(days=1), 2) #하루에 한번씩
-run.filteredTarget(period, date.today()+timedelta(days=0)) #하루에 한번씩
+# run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
+# run.filteredTarget(date.today()+timedelta(days=1)) #하루에 한번씩
+run.dailyAll(forecastAt=date.today() + timedelta(days=3))
 
 # run.insertNewStockScrap('') #필요할때 한번씩
-# run.migration(run.dbm.selectStockByCode(''), period) #필요할때 한번씩
 # run.targetAnalyze('A077360', period) #필요할때 한번씩
 
-# for stock in run.dbm.getStockList() :
-#     for idx in range(365) :
-#         targetAt = date.today() - timedelta(days=idx)
-#         if run.dbm.checkHolyDay(targetAt) is False:
-#             run.dbm.insertItemDefault(stock.get('id'), targetAt, 3)
-# run.dbm.commit()
 
-# run.migrationWork(2) #항상 수행
+
+# run.migrationWork(period=2) #항상 수행

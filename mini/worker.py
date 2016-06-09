@@ -495,7 +495,7 @@ class Runner:
         cursor.execute("select id from holyday where date = %s", (targetAt))
         results = cursor.fetchall()
         return len(results) > 0
-    def dailyRun(self, period, forecastAt):
+    def dailyRun(self, forecastAt, period):
         self.insertDefaultItemList(forecastAt, period)
         items = self.getWorkYetItems(forecastAt, period)
         for item in items :
@@ -613,11 +613,19 @@ class Runner:
         cursor = self.connection.cursor()
         cursor.execute("SELECT id, contentData, yet FROM content WHERE id=%s", (contentId))
         return cursor.fetchone()
+    def dailyAll(self, forecastAt):
+        for item in self.getPeriodAll() :
+            self.dailyRun(forecastAt, item.get('period'))
+    def getPeriodAll(self):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT distinct(period) FROM item")
+        return cursor.fetchall()
 
 
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-# run.dailyRun(period, date.today() + timedelta(days=0))
+# run.dailyAll(forecastAt=date.today() + timedelta(days=2))
+# run.dailyRun(period = 3, forecastAt=date.today() + timedelta(days=3))
 # run.migration(period,'')
-run.migrationWork(2)
+run.migrationWork(period=2)
 
 
