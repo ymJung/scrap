@@ -316,11 +316,13 @@ class DBManager:
         return result
 
     def getFinancePrice(self, financeId):
+        if financeId is None :
+            print('financeId is none')
+            return 0
         cursor = self.connection.cursor()
-        cursor.execute("select start, final from finance where id = %s", financeId)
+        cursor.execute("select final - start as result from finance where id = %s", financeId)
         result = cursor.fetchone()
-        price = result.get('start') - result.get('final')
-        return price
+        return result.get('result')
     def insertGarbage(self, word, contentId) :
         cursor = self.connection.cursor()
         insertGarbageSql = "INSERT INTO `garbage` (`word`,`contentId`) VALUES (%s, %s)"
@@ -479,7 +481,7 @@ class DBManager:
 
     def selectItemListByCnt(self, plus, minus, plusTot, minusTot):
         cursor = self.connection.cursor()
-        cursor.execute("select `id` from `item` where `plus`= %s and `minus` = %s and `totalPlus` = %s and `totalMinus` = %s", (plus, minus, plusTot, minusTot))
+        cursor.execute("select `id` from `item` where `plus`= %s and `minus` = %s and `totalPlus` = %s and `totalMinus` = %s and duration is null", (plus, minus, plusTot, minusTot))
         return cursor.fetchall()
     def updateDefaultItemList(self):
         items = self.selectItemListByCnt(0, 0, 0, 0)
@@ -537,6 +539,28 @@ class DBManager:
         results = cursor.fetchall()
         if len(results) > 0:
             for each in results:
+                print('delete', each.get('id'))
                 cursor.execute('DELETE FROM `data`.`item` WHERE `id`=%s', (each.get('id')))
 
+    def insertFinanceNullDates(self):
+        cursor = self.connection.cursor()
+        cursor.execute("select distinct(i.targetAt) from item i, stock s where i.financeId is null and s.id = i.stockId and s.much = 0 and i.targetAt < (select targetAt from item where financeId is not null order by targetAt desc limit 1)")
+        results = cursor.fetchall()
+        for each in results :
+            self.insertHolyday(each.get('targetAt'), 'finance is null')
+        self.commit()
 
+    def getBeforeFinanceId(self, itemId):
+        cursor = self.connection.cursor()
+        item = self.getItem(itemId)
+        cursor.execute("select * from finance where stockId = %s and date < %s order by date desc limit 1", (item.get('stockId'), item.get('targetAt')))
+        result = cursor.fetchone()
+        if result is not None :
+            return result.get('id')
+        else:
+            return None
+
+    def getItem(self, itemId):
+        cursor = self.connection.cursor()
+        cursor.execute("select i.id, i.stockId, i.financeId, i.targetAt from item i where i.id = %s", (itemId))
+        return cursor.fetchone()

@@ -193,7 +193,7 @@ class Runner:
                 if len(filteredTargetList) > 0 :
                     print(filteredTargetList)
                     for filter in filteredTargetList :
-                        if (filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('chance')) > 1):
+                        if ((filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('chance')) > 1)):# and filter.get('yesterday') < 0:
                             filterdList.append(filter)
                     targetList.append(filteredTargetList)
 
@@ -240,10 +240,9 @@ class Runner:
 
     def getFilteredTarget(self, plusChanceIds, pointDict, stock, period, startAt):
         filteredTargets = []
-        forecastResult = self.dbm.getForecastResult(stock.get('name'), startAt, period)
-        for each in forecastResult:
+        forecastResults = self.dbm.getForecastResult(stock.get('name'), startAt, period)
+        for each in forecastResults:
             itemId, point, stockName, targetAt = self.getFilteredForecastResult(each)
-            # if point > self.FILTER_TARGET_LIMIT:
             analyzedTargetData = self.getAnalyzedTarget(itemId, plusChanceIds, point, pointDict, stockName, targetAt)
             filteredTargets.append(analyzedTargetData)
         return filteredTargets
@@ -263,7 +262,9 @@ class Runner:
         for chanceId in plusChanceIds:
             if chanceId in financeList:
                 chanceIds.append(chanceId)
-        return {stockName: point, 'period' : pointDict.get(stockName).get('period'), 'potential': pointDict.get(stockName).get('potential'),'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds}
+        financeResult = self.getBeforeFinanceResult(itemId)
+        return {stockName: point, 'period' : pointDict.get(stockName).get('period'), 'potential': pointDict.get(stockName).get('potential'),
+                'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds, 'yesterday': financeResult}
 
     def getFilteredForecastResult(self, each):
         plus = each.get('plus')
@@ -311,7 +312,7 @@ class Runner:
         print('targetAnalyze', stock)
         lastDate = self.dbm.selectLastestItem(stock.get('id'), period)
         today = date.today()
-        if lastDate <  today:
+        if lastDate < today:
             self.run(stock, today, period)
         plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
         filteredTargetList = self.getForecastTarget(plusChanceIds, pointDict, stock, period)
@@ -416,28 +417,32 @@ class Runner:
     def dailyAll(self, forecastAt):
         for item in self.dbm.getPeriodAll() :
             self.dailyRun(forecastAt, item.get('period')) #하루에 한번씩
-    def deleteDefaultItem(self):
-        for period in [2,3] :
+    def deleteDefaultItem(self, periods):
+        for period in periods :
             for stock in self.dbm.getStockList() :
                 for idx in range(365) :
                     targetAt = date.today() - timedelta(days=idx)
                     if self.dbm.isNotForecastTarget(stock, targetAt, period) is True:
                         self.dbm.deleteItemDefault(stock.get('id'), targetAt, period)
         self.dbm.commit()
-    def insertDefaultItem(self):
-        for period in [2,3] :
+    def insertDefaultItem(self, periods):
+        for period in periods :
             for stock in self.dbm.getStockList() :
                 for idx in range(365) :
                     targetAt = date.today() - timedelta(days=idx)
                     if self.dbm.isNotForecastTarget(stock, targetAt, period) is False:
                         self.dbm.insertItemDefault(stock.get('id'), targetAt, period)
         self.dbm.commit()
+
+    def getBeforeFinanceResult(self, itemId):
+        financeId = self.dbm.getBeforeFinanceId(itemId)
+        return self.dbm.getFinancePrice(financeId)
+
+
 run = Runner()
-
-
 # run.updateAllStockFinance() #하루에 한번씩 15시 이후
 # run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
-# run.filteredTarget(date.today()+timedelta(days=1)) #하루에 한번씩
+# run.filteredTarget(date.today()+timedelta(days=2)) #하루에 한번씩
 run.dailyAll(forecastAt=date.today() + timedelta(days=3))
 
 # run.insertNewStockScrap('') #필요할때 한번씩

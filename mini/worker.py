@@ -626,6 +626,6 @@ run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 # run.dailyAll(forecastAt=date.today() + timedelta(days=2))
 # run.dailyRun(period = 3, forecastAt=date.today() + timedelta(days=3))
 # run.migration(period,'')
-run.migrationWork(period=2)
+run.migrationWork(period=3)
 
 

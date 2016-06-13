@@ -395,7 +395,7 @@ class DBManager:
             self.initStock()
             cursor.execute(selectSql)
             stock = cursor.fetchone()
-            time.sleep(60 * 60) # 1 hour sleep
+            time.sleep(10 * 60) # 1 hour sleep
         cursor.execute(("UPDATE stock SET `scrap` = 0 WHERE `id` = %s"), stock.get('id'))
         self.commit()
         return stock
@@ -530,14 +530,15 @@ class Runner:
         self.dbm.updateLastUseDate(stock)
         self.dbm.commit()
 
-run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 print('start')
 while True :
     try :
+        run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
         stock = run.dbm.getUsefulStock()
         print(stock.get('name'), 'is start')
         run.run(stock)
         print(stock.get('name'), 'is done')
+        run.dbm.connection.close()
     except :
         print("unexpect error.", sys.exc_info())
         break
