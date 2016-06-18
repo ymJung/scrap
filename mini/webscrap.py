@@ -102,7 +102,7 @@ class Paxnet:
                             self.COMMENT_LIST: commentData}
                         data.append(dataMap)
                     except:
-                        print('some thing are wrong. but continue.')
+                        print('something are wrong. but continue.')
                         continue
                 if breakFlag:
                     print('end')
@@ -404,7 +404,7 @@ class DBManager:
         updateLastUseDateSql = "UPDATE `data`.`stock` SET `lastScrapAt`= now() WHERE `id`= %s"
         result = cursor.execute(updateLastUseDateSql, (stock.get('id')))
         print('update' + str(result))
-        self.connection.commit()
+        self.commit()
     def saveData(self, site, results, stockName, stockId):
         print('save data. ', stockName, len(results))
         for each in results:
@@ -427,6 +427,7 @@ class DBManager:
                     commentDate = comment.get(self.DATE)
                     commentContent = comment.get(self.CONTENT_DATA)
                     self.insertComment(commentAuthorId, commentContent, contentId, commentDate, stockName, stockId)
+        self.commit()
 
     def insertComment(self, commentAuthorId, commentContent, contentId, commentDate, stockName, stockId):
         try:
@@ -485,7 +486,6 @@ class Runner:
         paxnet = Paxnet()
         paxnetResult = paxnet.getTrendByCode(stockCode, lastScrapAt)
         self.dbm.saveData(paxnet.SITE, paxnetResult, stockName, stock.get('id'))
-        self.dbm.commit()
 
     def insertNaverResult(self, stock):
         lastScrapAt = stock.get('lastScrapAt')
@@ -494,7 +494,6 @@ class Runner:
         ns = NaverStock()
         naverResult = ns.getTrendByCode(stockCode, lastScrapAt)
         self.dbm.saveData(ns.SITE, naverResult, stockName, stock.get('id'))
-        self.dbm.commit()
 
     def insertDaumResult(self, stock):
         lastScrapAt = stock.get('lastScrapAt')
@@ -503,22 +502,13 @@ class Runner:
         ds = DaumStock()
         daumResult = ds.getTrendByCode(stockCode, lastScrapAt)
         self.dbm.saveData(ds.SITE, daumResult, stockName, stock.get('id'))
-        self.dbm.commit()
     def insertKakaoResult(self, stock):
-
         lastScrapAt = stock.get('lastScrapAt')
-
         stockCode = stock.get('code')
-
         stockName = stock.get('name')
-
         ks = KakaoStock()
-
         kakaoResult = ks.getTrendByCode(stockCode, lastScrapAt)
-
         self.dbm.saveData(ks.SITE, kakaoResult, stockName, stock.get('id'))
-
-        self.dbm.commit()
 
     def run(self, stock):
         if stock is None:
@@ -538,7 +528,7 @@ while True :
         print(stock.get('name'), 'is start')
         run.run(stock)
         print(stock.get('name'), 'is done')
-        run.dbm.connection.close()
+        run.dbm.close()
     except :
         print("unexpect error.", sys.exc_info())
         break

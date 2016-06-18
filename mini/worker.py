@@ -6,12 +6,129 @@ import queue
 import numpy
 import sys
 import configparser
+import win32com.client
+
 cf = configparser.ConfigParser()
 cf.read('config.cfg')
 DB_IP = cf.get('db', 'DB_IP')
 DB_USER = cf.get('db', 'DB_USER')
 DB_PWD = cf.get('db', 'DB_PWD')
 DB_SCH = cf.get('db', 'DB_SCH')
+
+
+class DSStockError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return repr(self.msg)
+
+
+class DSStock:
+    def __init__(self):
+        self.dbm = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
+        self.DATE_FORMAT = '%Y%m%d'
+        self.cybos = win32com.client.Dispatch("CpUtil.CpCybos")
+        self.ins = win32com.client.Dispatch("CpUtil.CpStockCode")
+        self.stock = win32com.client.Dispatch("dscbo1.StockMst")
+        self.graph = win32com.client.Dispatch("dscbo1.CbGraph1")
+        self.chart = win32com.client.Dispatch("CpSysDib.StockChart")
+        if self.cybos.IsConnect is not 1:
+            raise DSStockError("disconnect")
+        self.DATE = 'date'
+        self.START = 'start'
+        self.HIGH = 'high'
+        self.LOW = 'low'
+        self.FINAL = 'final'
+        self.MARKET_OFF_HOUR = 15
+
+
+    def __del__(self):
+        self.dbm.commit()
+
+    def updateStockInfo(self):
+        totalCount = self.ins.GetCount()
+        for i in range(0, totalCount):
+            dsCode = self.ins.GetData(0, i)
+            dsName = self.ins.getData(1, i)
+            stock = self.dbm.selectStockByCode(dsCode)
+            if stock is not None :
+                if stock.get('name') != dsName :
+                    print('update stock name', stock.get('name'), dsName)
+                    self.dbm.updateStockName(stock.get('id'), dsName, dsCode)
+                    contentIdList = self.dbm.selectContentIdList(stock.get('id'))
+                    for contentId in contentIdList :
+                        self.dbm.updateContentQuery(contentId.get('id'), stock.get('id'))
+                    self.dbm.commit()
+    def getStock(self, stockCode):
+        stock = self.dbm.selectStockByCode(stockCode)
+        if stock is None:
+            totalCount = self.ins.GetCount()
+            for i in range(0, totalCount):
+                dsCode = self.ins.GetData(0, i)
+                dsName = self.ins.getData(1, i)
+
+                if dsCode == str(stockCode) or dsCode.replace('A','') == str(stockCode):
+                    self.dbm.insertStock(dsCode, dsName)
+                    print("insert [", dsCode , "][", dsName , "]")
+                    return self.dbm.selectStockByCode(stockCode)
+            print("Not found name : " + str(stockCode))
+
+            raise DSStockError('not found stock')
+        else:
+            hit = int(stock.get('hit')) + 1
+            self.dbm.updateStockHit(hit, stock.get('id'))
+            return self.dbm.selectStockByCode(stockCode)
+    def getChartDataList(self, code, count):
+        self.chart.SetInputValue(0, code)
+        self.chart.SetInputValue(1, ord('2'))
+        self.chart.SetInputValue(4, count)
+        self.chart.SetInputValue(5, [0, 2, 3, 4, 5])
+        self.chart.SetInputValue(6, ord('D'))
+
+        self.chart.BlockRequest()
+        num = self.chart.GetHeaderValue(3)
+        data = []
+        for i in range(num):
+            temp = {}
+            temp[self.DATE] = (self.chart.GetDataValue(0, i))
+            temp[self.START] = float(format(self.chart.GetDataValue(1, i), '.2f'))
+            temp[self.HIGH] = float(format(self.chart.GetDataValue(2, i), '.2f'))
+            temp[self.LOW] = float(format(self.chart.GetDataValue(3, i), '.2f'))
+            temp[self.FINAL] = float(format(self.chart.GetDataValue(4, i), '.2f'))
+            data.append(temp)
+        return data
+    def insertFinanceData(self, datas, stockId):
+        for data in datas:
+            date = datetime.datetime.strptime(str(data.get(self.DATE)), self.DATE_FORMAT)
+            start = data.get(self.START)
+            high = data.get(self.HIGH)
+            low = data.get(self.LOW)
+            final = data.get(self.FINAL)
+            if (int(date.today().strftime(self.DATE_FORMAT)) == data.get(self.DATE)) and date.now().hour < self.MARKET_OFF_HOUR :
+                continue
+
+            finance = self.dbm.selectFinanceByStockIdAndDate(stockId, date)
+            if finance is None :
+                self.dbm.insertFinance(stockId, date, high, low, start, final)
+                print('insert finance' + str(date))
+            dayOfFinanceData = self.dbm.getFinanceDataByDay(stockId, date, datetime.datetime.strptime(str(data.get(self.DATE)) + str(self.MARKET_OFF_HOUR), self.DATE_FORMAT + '%H'))
+
+            if dayOfFinanceData is not None :
+                self.dbm.updateFinance(high, low, start, final, dayOfFinanceData.get('id'))
+                print('update finance' + str(date))
+        self.dbm.commit()
+
+
+    def insertNewStock(self, stockCode):
+        insert = self.getStock(stockCode)
+        datas = self.getChartDataList(insert.get('code'), 365 * 2)
+        self.insertFinanceData(datas, str(insert.get('id')))
+        self.dbm.commit()
+        return insert
+
+
+
 
 class MinerError(Exception):
     def __init__(self, msg):
@@ -48,25 +165,52 @@ class Runner:
         self.DATE_NAME = 'date'
         self.WORK_DONE = 0
         self.WORK_YET = 1
+        self.GUARANTEE_COUNT = 150
+        self.FILTER_LIMIT = 50
+        self.FILTER_TARGET_LIMIT = 70
+        self.CHANCE_PERCENT = 0.10
+        self.stocks = None
 
+    def updateFinance(self, high, low, start, final, financeId):
+        cursor = self.connection.cursor()
+        cursor.execute("UPDATE `data`.`finance` SET `high`=%s,`low`=%s,`start`=%s,`final`=%s WHERE `id`=%s;", (high, low, start, final, financeId))
 
+    def getFinanceDataByDay(self, stockId, date, dateStr):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT `id`,`stockId`,`date` FROM `finance` WHERE `stockId`=%s AND date = %s AND createdAt < %s", (stockId, date, dateStr))
+        return cursor.fetchone()
 
-    def migrationWork(self, period):
-        while True :
-            item = self.selectItemByPeriodAndYet(period, self.WORK_YET)
-            if item is not None :
-                # try :
-                self.updateItemYet(item.get('id'), self.WORK_DONE)
-                self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
-                # except Exception :
-                #     print('work is done.',  sys.exc_info())
-                #     break
-                # except :
-                #     print("unexpect error.", sys.exc_info())
-                #     break
-            else :
-                print('all clean')
-                break
+    def insertFinance(self, stockId, date, high, low, start, final):
+        cursor = self.connection.cursor()
+        cursor.execute("INSERT INTO `data`.`finance` (`stockId`,`date`,`high`,`low`,`start`,`final`) VALUES (%s, %s, %s, %s, %s, %s);", (stockId, date, high, low, start, final))
+
+    def selectFinanceByStockIdAndDate(self, stockId, date):
+        cursor = self.connection.cursor()
+        selectSql = "SELECT `id`,`stockId`,`date` FROM `finance` WHERE `stockId`=%s AND date = %s"
+        cursor.execute(selectSql, (stockId, date))
+        return cursor.fetchone()
+    def updateStockHit(self, hit, stockId):
+        cursor = self.connection.cursor()
+        cursor.execute("UPDATE `stock` SET `hit`=%s WHERE `id`=%s", (hit, stockId))
+
+    def insertStock(self, code, name):
+        cursor = self.connection.cursor()
+        cursor.execute("INSERT INTO `data`.`stock` (`code`,`name`,`use`, `scrap`) VALUES (%s, %s, 1, 1);", (code, name))
+
+    def updateContentQuery(self, contentId, stockId):
+        cursor = self.connection.cursor()
+        cursor.execute("UPDATE `content` SET `stockId`=%s WHERE `id`=%s", (stockId, contentId))
+
+    def migrationWork(self, periods):
+        for period in periods :
+            while True :
+                item = self.selectItemByPeriodAndYet(period, self.WORK_YET)
+                if item is not None :
+                    self.updateItemYet(item.get('id'), self.WORK_DONE)
+                    self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
+                else :
+                    print('all clean')
+                    break
     def migration(self, period, stockCode):
         stock = self.getStock(stockCode) 
         if stock is not None :
@@ -621,11 +765,225 @@ class Runner:
         cursor.execute("SELECT distinct(period) FROM item")
         return cursor.fetchall()
 
+    def updateAllStockFinance(self):
+        stocks = self.getStocks()
+        for stock in self.getStockList():
+            stocks.insertNewStock(stock.get('code'))
+            items = self.selectItemByFinanceIsNull(stock.get('id'))
+            for item in items :
+                finance = self.selectFinanceByStockIdAndDate(stock.get('id'), item.get('targetAt'))
+                if finance is not None :
+                    print('update item finance id ', stock.get('name'), item.get('targetAt'))
+                    self.updateItemFinanceId(finance.get('id'), item.get('id'))
+    def getStocks(self):
+        if self.stocks is None :
+            self.stocks = DSStock()
+            self.stocks.updateStockInfo()
+            self.updateAllStockFinance()
+        return self.stocks
+
+    def selectStockByCode(self, stockCode):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT `id`,`code`,`name`,`lastUseDateAt`, `hit`, `lastScrapAt` FROM `stock` WHERE `code` like %s", ('%'+stockCode))
+        return cursor.fetchone()
+    def updateStockName(self, stockId, dsName, dsCode):
+        cursor = self.connection.cursor()
+        cursor.execute("UPDATE `stock` SET `name`=%s, `code`=%s WHERE `id`=%s", (dsName, dsCode, stockId))
+    def selectContentIdList(self, stockId):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id FROM content WHERE stockId=%s", stockId)
+        return cursor.fetchall()
+    def getAllStockList(self):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT `id`, `code`, `name`, `lastUseDateAt`, `lastScrapAt`, `much` FROM stock ORDER BY id ASC")
+        return cursor.fetchall()
+    def getDivideNumPercent(self, num1, num2):
+        if num2 == 0:
+            return 0
+        return int((num1 / num2) * 100)
+    def getFinanceListFromItemId(self, itemId):
+        cursor = self.connection.cursor()
+        financeIds = cursor.execute('SELECT distinct(financeId) FROM chart_map WHERE itemId=%s', (itemId))
+        results = []
+        if financeIds != 0 :
+            for each in cursor.fetchall() :
+                results.append(each.get('financeId'))
+                results = list(set(results))
+        return results
+    def analyzedSql(self, stockName, period):
+        cursor = self.connection.cursor()
+        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s AND i.period = %s group by i.targetAt order by i.targetAt desc'
+        cursor.execute(selectAnalyzedSql, (stockName, period))
+        analyzedResult = cursor.fetchall()
+        return analyzedResult
+    def getFinanceDataIn(self, financeIdList):
+        if len(financeIdList) == 0 :
+            return []
+        cursor = self.connection.cursor()
+        selectFinanceQuery = 'SELECT f.id, f.start, f.final, f.date, f.createdAt FROM finance f WHERE f.id IN (%s)'
+        inquery = ', '.join(list(map(lambda x: '%s', financeIdList)))
+        selectFinanceQuery = selectFinanceQuery % inquery
+        cursor.execute(selectFinanceQuery, financeIdList)
+        return cursor.fetchall()
+    def getFinanceDataMap(self, financeIdList):
+        chanceIds = []
+        dangerIds = []
+        prices = []
+        financeDataList = self.getFinanceDataIn(financeIdList)
+        for finance in financeDataList:
+            price = finance.get('start') - finance.get('final')
+            compare = finance.get('final') - price
+            percent = (price / compare)
+            if percent > self.CHANCE_PERCENT:
+                chanceIds.append(finance.get('id'))
+            if percent < -self.CHANCE_PERCENT:
+                dangerIds.append(finance.get('id'))
+            prices.append(price)
+        avg = 0
+        if len(prices) > 0 :
+            avg = numpy.mean(prices)
+        return {'avg': avg, 'chance': chanceIds, 'danger': dangerIds}
+    def getAnalyzeExistData(self, stockName, period):
+        analyzedResult = self.analyzedSql(stockName, period)
+        plusPoint = []
+        minusPoint = []
+        sumPoint = []
+        for each in analyzedResult:
+            resultPrice = each.get('final') - each.get('start')
+            plus = each.get('plus')
+            minus = each.get('minus')
+            total = plus + minus
+            plusPercent = self.getDivideNumPercent(plus, total)
+            minusPercent = self.getDivideNumPercent(minus, total)
+            targetAt = each.get('targetAt')
+            itemId = each.get('id')
+            financeList = self.getFinanceListFromItemId(itemId)
+            financeMap = self.getFinanceDataMap(financeList)
+            if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
+                sumPoint.append({'name': stockName, 'result': resultPrice, 'plus_point': plusPercent, 'minus_point': minusPercent,'plus': plus, 'minus': minus, 'targetAt': str(targetAt)})
+                if resultPrice >= 0:  # plus or 0
+                    plusPoint.append({'name': stockName, 'result': resultPrice, 'point': plusPercent, 'targetAt': str(targetAt),'financeMap': financeMap})
+                else:
+                    minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minusPercent, 'targetAt': str(targetAt)})
+        plusChanceIds = []
+        for point in plusPoint:
+            chanceIds = point.get('financeMap').get('chance')
+            plusChanceIds += chanceIds
+            plusChanceIds = list(set(plusChanceIds))
+
+        trustPercent = self.getDivideNumPercent(len(plusPoint), len(sumPoint))
+        pointDict = {stockName: {'name': stockName, 'period': period, 'potential': trustPercent, 'total': len(analyzedResult)}}
+        return plusChanceIds, pointDict
+    def insertStockPotential(self, stockId, period, potential, count):
+        cursor = self.connection.cursor()
+        cursor.execute("select id from potential where stockId = %s and period = %s", (stockId, period))
+        result = cursor.fetchone()
+        if result is not None :
+            cursor.execute("update potential set potential = %s, count = %s where id = %s ", (potential, count, result.get('id')))
+        else :
+            cursor.execute("INSERT INTO potential (`stockId`,`period`,`potential`, `count`) VALUES (%s, %s, %s, %s)", (stockId, period, potential, count))
+    def updatePotentialStock(self, stock, period):
+        r1, r2 = self.getAnalyzeExistData(stock.get('name'), period)
+        pd = r2.get(stock.get('name'))
+        potential = pd.get('potential')
+        count = pd.get('total')
+        self.insertStockPotential(stock.get('id'), period, potential, count)
+        print(stock, potential, 'is done')
+    def selectPotentialStock(self, stockId, period):
+        cursor = self.connection.cursor()
+        cursor.execute("select stockId, potential, count from potential where stockId = %s and period = %s", (stockId, period))
+        return cursor.fetchone()
+    def updateStockMuch(self, stockId, much):
+        cursor = self.connection.cursor()
+        cursor.execute("update stock set much = %s where id = %s ", (much, stockId))
+    def filterPotentialStock(self, periods):
+        for period in periods :
+            for stock in self.getAllStockList():
+                self.updatePotentialStock(stock, period)
+                poten = self.selectPotentialStock(stock.get('id'), period)
+                if poten.get('count') > self.GUARANTEE_COUNT and poten.get('potential') < self.FILTER_LIMIT and stock.get('much') == 0 :
+                    self.updateStockMuch(stock.get('id'), 1)
+                    print(stock, ' set much 1. ', poten.get('potential'))
+    def getFilteredForecastResult(self, each):
+        plus = each.get('plus')
+        minus = each.get('minus')
+        point = self.getDivideNumPercent(plus, plus + minus)
+        stockName = each.get('name')
+        targetAt = each.get('targetAt')
+        return each.get('id'), point, stockName, targetAt
+    def getItem(self, itemId):
+        cursor = self.connection.cursor()
+        cursor.execute("select i.id, i.stockId, i.financeId, i.targetAt from item i where i.id = %s", (itemId))
+        return cursor.fetchone()
+    def getBeforeFinanceId(self, itemId):
+        cursor = self.connection.cursor()
+        item = self.getItem(itemId)
+        cursor.execute("select * from finance where stockId = %s and date < %s order by date desc limit 1", (item.get('stockId'), item.get('targetAt')))
+        result = cursor.fetchone()
+        if result is not None :
+            return result.get('id')
+        else:
+            return None
+    def getBeforeFinanceResult(self, itemId):
+        financeId = self.getBeforeFinanceId(itemId)
+        return self.getFinancePrice(financeId)
+    def getAnalyzedTarget(self, itemId, plusChanceIds, point, pointDict, stockName, targetAt):
+        financeList = self.getFinanceListFromItemId(itemId)
+        chanceIds = []
+        for chanceId in plusChanceIds:
+            if chanceId in financeList:
+                chanceIds.append(chanceId)
+        financeResult = self.getBeforeFinanceResult(itemId)
+        return {stockName: point, 'period' : pointDict.get(stockName).get('period'), 'potential': pointDict.get(stockName).get('potential'),
+                'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds, 'yesterday': financeResult}
+
+    def getForecastResult(self, stockName, limitAt, period):
+        cursor = self.connection.cursor()
+        selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s ' \
+                             'WHERE i.stockId = s.id AND s.name = %s AND i.targetAt >= %s AND i.period = %s AND i.financeId IS NULL ORDER BY i.id DESC' # AND i.financeId IS NULL
+        cursor.execute(selectForecastSql, (stockName, limitAt, period))
+        return cursor.fetchall()
+    def getFilteredTarget(self, plusChanceIds, pointDict, stock, period, startAt):
+        filteredTargets = []
+        forecastResults = self.getForecastResult(stock.get('name'), startAt, period)
+        for each in forecastResults:
+            itemId, point, stockName, targetAt = self.getFilteredForecastResult(each)
+            analyzedTargetData = self.getAnalyzedTarget(itemId, plusChanceIds, point, pointDict, stockName, targetAt)
+            filteredTargets.append(analyzedTargetData)
+        return filteredTargets
+    def selectItemByFinanceIsNull(self, stockId):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT id, targetAt FROM item WHERE stockId = %s AND financeId is NULL", (stockId))
+        return cursor.fetchall()
+    def filteredTarget(self, limitAt):
+        targetList = list()
+        filterdList = list()
+        for item in self.getPeriodAll():
+            period = item.get('period')
+            for stock in self.getStockList():
+                plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
+                filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, limitAt)
+                if len(filteredTargetList) > 0 :
+                    print(filteredTargetList)
+                    for filter in filteredTargetList :
+                        if ((filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('chance')) > 1)):# and filter.get('yesterday') < 0:
+                            filterdList.append(filter)
+                    targetList.append(filteredTargetList)
+
+            for filter in filterdList :
+                if (filter.get('targetAt') == limitAt.day):
+                    targetList.append(filter)
+                    print('today', filter)
+        print(targetList)
+        print('print', filterdList)
+        return filterdList
 
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 # run.dailyAll(forecastAt=date.today() + timedelta(days=2))
-# run.dailyRun(period = 3, forecastAt=date.today() + timedelta(days=3))
+run.updateAllStockFinance() #하루에 한번씩 15시 이후
+run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
+run.filteredTarget(date.today()+timedelta(days=2)) #하루에 한번씩
 # run.migration(period,'')
-run.migrationWork(period=3)
+# run.migrationWork(periods=[2, 3])
 
 

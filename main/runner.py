@@ -42,7 +42,6 @@ class Runner:
             self.stocks = stockscrap.DSStock()
             self.stocks.updateStockInfo()
             self.updateAllStockFinance()
-
         return self.stocks
 
     def __del__(self):
@@ -107,21 +106,22 @@ class Runner:
         self.insertFinance(stock)
         self.insertAnalyzedResult(stock.get('id'), targetAt, period)
 
-    def migrationWork(self, period):
-        while True :
-            item = self.dbm.selectItemByPeriodAndYet(period, self.dbm.WORK_YET)
-            if item is not None :
-                try :
-                    self.dbm.updateItemYet(item.get('id'), self.dbm.WORK_DONE)
-                    self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
-                except Exception :
-                    print('work is done.',  sys.exc_info())
-                    break
-                except :
-                    print("unexpect error.", sys.exc_info())
-                    break
-            else :
-                print('all clean')
+    def migrationWork(self, periods):
+        for period in periods:
+            while True:
+                item = self.dbm.selectItemByPeriodAndYet(period, self.dbm.WORK_YET)
+                if item is not None :
+                    try :
+                        self.dbm.updateItemYet(item.get('id'), self.dbm.WORK_DONE)
+                        self.insertAnalyzedResult(item.get('stockId'), item.get('targetAt'), period)
+                    except Exception :
+                        print('work is done.',  sys.exc_info())
+                        break
+                    except :
+                        print("unexpect error.", sys.exc_info())
+                        break
+                else :
+                    print('all clean')
                 break
 
     def migration(self, stock, period):
@@ -442,12 +442,11 @@ class Runner:
 run = Runner()
 # run.updateAllStockFinance() #하루에 한번씩 15시 이후
 # run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
-# run.filteredTarget(date.today()+timedelta(days=2)) #하루에 한번씩
-run.dailyAll(forecastAt=date.today() + timedelta(days=3))
+# run.filteredTarget(date.today()+timedelta(days=3)) #하루에 한번씩
+# run.dailyAll(forecastAt=date.today() + timedelta(days=2)) #하루에 한번씩.
 
-# run.insertNewStockScrap('') #필요할때 한번씩
-# run.targetAnalyze('A077360', period) #필요할때 한번씩
+# run.insertNewStockScrap(stockCode='') #필요할때 한번씩
+run.insertDefaultItem([2,3])  #필요할때 한번씩 newstockscrap 과 짝.
+# run.targetAnalyze('', period) #필요할때 한번씩
 
-
-
-# run.migrationWork(period=2) #항상 수행
+# run.migrationWork(periods=[2,3]) #항상 수행
