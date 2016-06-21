@@ -7,6 +7,7 @@ import numpy
 import sys
 import configparser
 import win32com.client
+from telegram.ext import Updater
 
 cf = configparser.ConfigParser()
 cf.read('config.cfg')
@@ -14,6 +15,8 @@ DB_IP = cf.get('db', 'DB_IP')
 DB_USER = cf.get('db', 'DB_USER')
 DB_PWD = cf.get('db', 'DB_PWD')
 DB_SCH = cf.get('db', 'DB_SCH')
+VALID_USER = cf.get('TELEGRAM', 'VALID_USER')
+TOKEN = cf.get('TELEGRAM', 'TOKEN')
 
 
 class DSStockError(Exception):
@@ -958,6 +961,7 @@ class Runner:
     def filteredTarget(self, limitAt):
         targetList = list()
         filterdList = list()
+        results = list()
         for item in self.getPeriodAll():
             period = item.get('period')
             for stock in self.getStockList():
@@ -971,19 +975,38 @@ class Runner:
                     targetList.append(filteredTargetList)
 
             for filter in filterdList :
+                results.append({filter.get('name') + filter.get('period'):
+                                    {
+                                        filter.get(filter.get('name')),
+                                        (filter.get('chance')),
+                                        filter.get('potential')
+                                    }
+                                })
                 if (filter.get('targetAt') == limitAt.day):
                     targetList.append(filter)
                     print('today', filter)
         print(targetList)
         print('print', filterdList)
-        return filterdList
+        print('result', results)
+        return results
 
+
+if len(sys.argv) == 1:
+    exit(1)
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-# run.dailyAll(forecastAt=date.today() + timedelta(days=2))
-run.updateAllStockFinance() #하루에 한번씩 15시 이후
-run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
-run.filteredTarget(date.today()+timedelta(days=2)) #하루에 한번씩
-# run.migration(period,'')
-# run.migrationWork(periods=[2, 3])
-
-
+updater = Updater(TOKEN)
+command = sys.argv[1]
+if command == 'daily':
+    run.updateAllStockFinance()
+    run.filterPotentialStock(periods=[2, 3])
+    run.dailyAll(forecastAt=date.today() + timedelta(days=2))
+    results = run.filteredTarget(date.today()+timedelta(days=2))
+    updater.bot.sendMessage(chat_id=VALID_USER, text=str(results))
+elif command == 'stock':
+    run.getStocks()
+elif command == 'migrate':
+    run.migrationWork(periods=[2, 3])
+elif command == 'forecast':
+    updater.bot.sendMessage(chat_id=VALID_USER, text=str(run.filteredTarget(date.today()+timedelta(days=2))))
+else :
+    print('invalid command')

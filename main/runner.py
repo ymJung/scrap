@@ -9,7 +9,7 @@ import pythoncom
 import sys
 import dictionary
 import simulator
-
+import reporter
 
 class Runner:
     def __init__(self):
@@ -169,22 +169,15 @@ class Runner:
         stock = self.dbm.selectStockByCode(stockCode)
         if stock is None :
             stocks = self.getStocks()
-            stock = stocks.insertNewStock(stockCode)
+            stocks.insertNewStock(stockCode)
         else :
             self.dbm.updateStockMuch(stock.get('id'), 0)
-        # self.insertPpomppuResult(stock)
-        self.insertPaxnetResult(stock)
-        self.insertNaverResult(stock)
-        self.insertDaumResult(stock)
-        self.insertKakaoResult(stock)
-        # self.analyze.analyze()
         self.dbm.commit()
-        # self.run(stock, date.today(), period)
-        # self.migration(stock, period)
 
     def filteredTarget(self, limitAt):
         targetList = list()
         filterdList = list()
+        results = list()
         for item in self.dbm.getPeriodAll():
             period = item.get('period')
             for stock in self.dbm.getStockList():
@@ -198,12 +191,20 @@ class Runner:
                     targetList.append(filteredTargetList)
 
             for filter in filterdList :
+                results.append({filter.get('name') + filter.get('period'):
+                                    {
+                                        filter.get(filter.get('name')),
+                                        (filter.get('chance')),
+                                        filter.get('potential')
+                                    }
+                                })
                 if (filter.get('targetAt') == limitAt.day):
                     targetList.append(filter)
                     print('today', filter)
         print(targetList)
         print('print', filterdList)
-        return filterdList
+        print('result', results)
+        return results
 
     def getAnalyzeExistData(self, stockName, period):
         analyzedResult = self.dbm.analyzedSql(stockName, period)
@@ -263,7 +264,7 @@ class Runner:
             if chanceId in financeList:
                 chanceIds.append(chanceId)
         financeResult = self.getBeforeFinanceResult(itemId)
-        return {stockName: point, 'period' : pointDict.get(stockName).get('period'), 'potential': pointDict.get(stockName).get('potential'),
+        return {'name':stockName, stockName: point, 'period' : pointDict.get(stockName).get('period'), 'potential': pointDict.get(stockName).get('potential'),
                 'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds, 'yesterday': financeResult}
 
     def getFilteredForecastResult(self, each):
@@ -393,7 +394,8 @@ class Runner:
         potential = pd.get('potential')
         count = pd.get('total')
         self.dbm.insertStockPotential(stock.get('id'), period, potential, count)
-        print(stock, potential, 'is done')
+        if stock.get('much') == 0 :
+            print(stock, potential, 'is done')
 
     def insertKakaoResult(self, stock):
         lastScrapAt = stock.get('lastScrapAt')
@@ -442,11 +444,11 @@ class Runner:
 run = Runner()
 # run.updateAllStockFinance() #하루에 한번씩 15시 이후
 # run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
-# run.filteredTarget(date.today()+timedelta(days=3)) #하루에 한번씩
 # run.dailyAll(forecastAt=date.today() + timedelta(days=2)) #하루에 한번씩.
+results = run.filteredTarget(date.today()+timedelta(days=1)) #하루에 한번씩
+print(results)
 
 # run.insertNewStockScrap(stockCode='') #필요할때 한번씩
-run.insertDefaultItem([2,3])  #필요할때 한번씩 newstockscrap 과 짝.
+# run.insertDefaultItem([2,3])  #필요할때 한번씩 newstockscrap 과 짝.
 # run.targetAnalyze('', period) #필요할때 한번씩
-
 # run.migrationWork(periods=[2,3]) #항상 수행
