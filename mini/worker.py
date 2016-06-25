@@ -111,8 +111,8 @@ class DSStock:
             if (int(date.today().strftime(self.DATE_FORMAT)) == data.get(self.DATE)) and date.now().hour < self.MARKET_OFF_HOUR :
                 continue
 
-            finance = self.dbm.selectFinanceByStockIdAndDate(stockId, date)
-            if finance is None :
+            finances = self.dbm.selectFinanceByStockIdAndDate(stockId, date)
+            if len(finances) == 0:
                 self.dbm.insertFinance(stockId, date, high, low, start, final)
                 print('insert finance' + str(date))
             dayOfFinanceData = self.dbm.getFinanceDataByDay(stockId, date, datetime.datetime.strptime(str(data.get(self.DATE)) + str(self.MARKET_OFF_HOUR), self.DATE_FORMAT + '%H'))
@@ -157,7 +157,7 @@ class Runner:
         self.LIMIT_YEAR_SEPERATOR = 5
         self.INTERVAL_YEAR_SEPERATOR = 73
         self.SPLIT_COUNT = 1000
-        self.THREAD_LIMIT_COUNT = 30
+        self.THREAD_LIMIT_COUNT = 4
         self.CONTENT_DATA_NAME = 'contentData'
         self.MIN_WORD_LEN = 2
         self.MAX_WORD_LEN = 50
@@ -191,7 +191,7 @@ class Runner:
         cursor = self.connection.cursor()
         selectSql = "SELECT `id`,`stockId`,`date` FROM `finance` WHERE `stockId`=%s AND date = %s"
         cursor.execute(selectSql, (stockId, date))
-        return cursor.fetchone()
+        return cursor.fetchall()
     def updateStockHit(self, hit, stockId):
         cursor = self.connection.cursor()
         cursor.execute("UPDATE `stock` SET `hit`=%s WHERE `id`=%s", (hit, stockId))
@@ -774,10 +774,11 @@ class Runner:
             stocks.insertNewStock(stock.get('code'))
             items = self.selectItemByFinanceIsNull(stock.get('id'))
             for item in items :
-                finance = self.selectFinanceByStockIdAndDate(stock.get('id'), item.get('targetAt'))
-                if finance is not None :
+                finances = self.selectFinanceByStockIdAndDate(stock.get('id'), item.get('targetAt'))
+                for finance in finances :
                     print('update item finance id ', stock.get('name'), item.get('targetAt'))
                     self.updateItemFinanceId(finance.get('id'), item.get('id'))
+        self.commit()
     def getStocks(self):
         if self.stocks is None :
             self.stocks = DSStock()
@@ -937,13 +938,13 @@ class Runner:
             if chanceId in financeList:
                 chanceIds.append(chanceId)
         financeResult = self.getBeforeFinanceResult(itemId)
-        return {stockName: point, 'period' : pointDict.get(stockName).get('period'), 'potential': pointDict.get(stockName).get('potential'),
+        return {'name':stockName, stockName: point, 'period' : pointDict.get(stockName).get('period'), 'potential': pointDict.get(stockName).get('potential'),
                 'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds, 'yesterday': financeResult}
 
     def getForecastResult(self, stockName, limitAt, period):
         cursor = self.connection.cursor()
         selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s ' \
-                             'WHERE i.stockId = s.id AND s.name = %s AND i.targetAt >= %s AND i.period = %s AND i.financeId IS NULL ORDER BY i.id DESC' # AND i.financeId IS NULL
+                             'WHERE i.stockId = s.id AND s.name = %s AND i.targetAt > %s AND i.period = %s AND i.financeId IS NULL ORDER BY i.id DESC' # AND i.financeId IS NULL
         cursor.execute(selectForecastSql, (stockName, limitAt, period))
         return cursor.fetchall()
     def getFilteredTarget(self, plusChanceIds, pointDict, stock, period, startAt):
@@ -960,41 +961,40 @@ class Runner:
         return cursor.fetchall()
     def filteredTarget(self, limitAt):
         targetList = list()
-        filterdList = list()
         results = list()
-        for item in self.getPeriodAll():
+        periods = self.getPeriodAll()
+        for item in periods:
             period = item.get('period')
+            filterdList = list()
             for stock in self.getStockList():
                 plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
-                filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, limitAt)
-                if len(filteredTargetList) > 0 :
-                    print(filteredTargetList)
-                    for filter in filteredTargetList :
-                        if ((filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('chance')) > 1)):# and filter.get('yesterday') < 0:
-                            filterdList.append(filter)
-                    targetList.append(filteredTargetList)
+                filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, limitAt - timedelta(days=period))
+                for filter in filteredTargetList :
+                    if ((filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('chance')) > 1)):# and filter.get('yesterday') < 0:
+                        filterdList.append(filter)
+                targetList.append(filteredTargetList)
 
             for filter in filterdList :
-                results.append({filter.get('name') + filter.get('period'):
-                                    {
-                                        filter.get(filter.get('name')),
-                                        (filter.get('chance')),
-                                        filter.get('potential')
-                                    }
-                                })
-                if (filter.get('targetAt') == limitAt.day):
+                  results.append(filter.get('name') + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get('targetAt')) + '::' + str(filter.get(filter.get('name'))))
+                  if (filter.get('targetAt') == limitAt.day):
                     targetList.append(filter)
                     print('today', filter)
         print(targetList)
-        print('print', filterdList)
         print('result', results)
-        return results
+        return self.printList(results)
+    def printList(self, results):
+        results.sort()
+        msg = 'result: '
+        for result in results :
+            msg += str(result) + "\n"
+        return msg
 
+run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
+results = run.filteredTarget(date.today()+timedelta(days=2))
+updater = Updater(TOKEN)
 
 if len(sys.argv) == 1:
     exit(1)
-run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-updater = Updater(TOKEN)
 command = sys.argv[1]
 if command == 'daily':
     run.updateAllStockFinance()
@@ -1003,10 +1003,15 @@ if command == 'daily':
     results = run.filteredTarget(date.today()+timedelta(days=2))
     updater.bot.sendMessage(chat_id=VALID_USER, text=str(results))
 elif command == 'stock':
-    run.getStocks()
+    try :
+        run.getStocks()
+    except DSStockError :
+        updater.bot.sendMessage(chat_id=VALID_USER, text=str('disconnect stock.'))
 elif command == 'migrate':
     run.migrationWork(periods=[2, 3])
 elif command == 'forecast':
-    updater.bot.sendMessage(chat_id=VALID_USER, text=str(run.filteredTarget(date.today()+timedelta(days=2))))
+    results = run.filteredTarget(date.today()+timedelta(days=2))
+    updater.bot.sendMessage(chat_id=VALID_USER, text= results)
 else :
     print('invalid command')
+

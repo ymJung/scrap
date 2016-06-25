@@ -31,7 +31,7 @@ class Miner:
         self.FINANCE_NAME = 'finance'
         self.dbm = dbmanager.DBManager()
         self.dic = dictionary.Dictionary()
-        self.THREAD_LIMIT_COUNT = 30
+        self.THREAD_LIMIT_COUNT = 4
 
     def __del__(self):
         self.dbm.commit()
