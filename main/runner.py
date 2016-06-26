@@ -437,15 +437,15 @@ class Runner:
             msg += str(result) + "\n"
         return msg
 
-run = Runner()
+#run = Runner()
 # run.updateAllStockFinance() #하루에 한번씩 15시 이후
-run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
+#run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
 # run.dailyAll(forecastAt=date.today() + timedelta(days=0)) #하루에 한번씩.
 # print(run.filteredTarget(date.today()+timedelta(days=2))) #하루에 한번씩
 
 # print(results)
 
-# run.insertNewStockScrap(stockCode='217730') #필요할때 한번씩
+# run.insertNewStockScrap(stockCode='') #필요할때 한번씩
 # run.insertDefaultItem([2,3])  #필요할때 한번씩 newstockscrap 과 짝.
 # run.targetAnalyze('', period) #필요할때 한번씩
 # run.migrationWork(periods=[2,3]) #항상 수행
