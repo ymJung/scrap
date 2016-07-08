@@ -8,16 +8,76 @@ import sys
 import configparser
 import win32com.client
 from telegram.ext import Updater
+from bs4 import BeautifulSoup
+from urllib.request import urlopen
+import urllib
+import time
+import json
 
-cf = configparser.ConfigParser()
-cf.read('config.cfg')
-DB_IP = cf.get('db', 'DB_IP')
-DB_USER = cf.get('db', 'DB_USER')
-DB_PWD = cf.get('db', 'DB_PWD')
-DB_SCH = cf.get('db', 'DB_SCH')
-VALID_USER = cf.get('TELEGRAM', 'VALID_USER')
-TOKEN = cf.get('TELEGRAM', 'TOKEN')
 
+
+class KakaoStock:
+    def __init__(self):
+        self.DATE_FORMAT = '%Y-%m-%dT%H:%M:%S' #2016-05-06T00:37:53.000+00:00
+        self.LIMIT_COUNT = 500
+        self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
+
+    def convertDate(self, param):
+        try:
+            return datetime.datetime.strptime(param[0:18], self.DATE_FORMAT)  # 2016.02.13 20:30
+        except:
+            return self.DEFAULT_DATE
+
+    def getPriceInfos(self, code, lastUseDateAt):
+        if lastUseDateAt is None :
+            lastUseDateAt = datetime.date.today() - datetime.timedelta(days=365 * 3)
+        else :
+            lastUseDateAt = lastUseDateAt.date()
+        todate = (datetime.datetime.today() + datetime.timedelta(days=1)).date()
+        limit = (todate - lastUseDateAt).days  #last 로부터 오늘까지 day 수
+        breakFlag = False
+        data = list()
+        dates = set()
+        while True :
+            if limit > self.LIMIT_COUNT :
+                nowLimit = (limit % self.LIMIT_COUNT)
+                if nowLimit == 0 :
+                    nowLimit = self.LIMIT_COUNT
+                limit = limit - nowLimit
+            else :
+                breakFlag = True
+                nowLimit = limit
+            todateStr = todate.strftime('%Y-%m-%d')#yyyy-MM-dd 형식 less
+            try :
+                print('code(' , code ,') todateStr : ' , todateStr ,' nowLimit : ' ,nowLimit)
+                url = LINK1 +code+ LINK3 + str(nowLimit) + LINK4 + todateStr
+                soup = BeautifulSoup(urllib.request.urlopen(url).read(), 'lxml')
+                jls = json.loads(soup.text)
+
+                dayCandles = jls['dayCandles']
+                for jl in dayCandles:
+                    date = self.convertDate(jl['date'])
+                    tradePrice = jl['tradePrice']
+                    changePrice = jl['changePrice']
+                    dataMap = {
+                        'date': date,
+                        'start': tradePrice - changePrice,
+                        'final': tradePrice
+                    }
+                    if date in dates:
+                        continue
+                    else:
+                        dates.add(date)
+                    data.append(dataMap)
+                if breakFlag is True:
+                    break
+            except urllib.error.URLError as e :
+                print('url error')
+                time.sleep(0.3)
+                print(e)
+            except :
+                print('some thing are wrong. will return', sys.exc_info())
+        return data
 
 class DSStockError(Exception):
     def __init__(self, msg):
@@ -173,6 +233,8 @@ class Runner:
         self.FILTER_TARGET_LIMIT = 70
         self.CHANCE_PERCENT = 0.10
         self.stocks = None
+        self.KOSPI_CODE = 'D0011001'
+        self.KOSPI_NAME = 'KOSPI'
 
     def updateFinance(self, high, low, start, final, financeId):
         cursor = self.connection.cursor()
@@ -778,7 +840,24 @@ class Runner:
                 for finance in finances :
                     print('update item finance id ', stock.get('name'), item.get('targetAt'))
                     self.updateItemFinanceId(finance.get('id'), item.get('id'))
+        self.updateKospiPrice()
         self.commit()
+    def selectLastestFinance(self, stockId):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT date FROM finance WHERE stockId =%s ORDER BY date DESC LIMIT 1", stockId)
+        result = cursor.fetchone()
+        if result is not None :
+            return result.get('date')
+        return None
+    def updateKospiPrice(self):
+        stock = self.selectStockByCode(self.KOSPI_CODE)
+        lastestDate = self.selectLastestFinance(stock.get('id'))
+        priceInfos = KakaoStock().getPriceInfos(stock.get('code'), lastestDate)
+        for each in priceInfos:
+            exist = self.selectFinanceByStockIdAndDate(stock.get('id'), each.get('date'))
+            if exist is None :
+                self.insertFinance(stock.get('id'), each.get('date'), high=0, low=0, start=each.get('start'), final=each.get('final'))
+
     def getStocks(self):
         if self.stocks is None :
             self.stocks = DSStock()
@@ -805,6 +884,10 @@ class Runner:
         if num2 == 0:
             return 0
         return int((num1 / num2) * 100)
+    def getDivideNumPercentFloat(self, num1, num2):
+        if num2 == 0:
+            return 0
+        return round(float(((num1 / num2) * 100) - 100), 2)
     def getFinanceListFromItemId(self, itemId):
         cursor = self.connection.cursor()
         financeIds = cursor.execute('SELECT distinct(financeId) FROM chart_map WHERE itemId=%s', (itemId))
@@ -865,7 +948,8 @@ class Runner:
             financeMap = self.getFinanceDataMap(financeList)
             if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
                 sumPoint.append({'name': stockName, 'result': resultPrice, 'plus_point': plusPercent, 'minus_point': minusPercent,'plus': plus, 'minus': minus, 'targetAt': str(targetAt)})
-                if resultPrice >= 0:  # plus or 0
+                flag = self.checkDefence(stockName, targetAt)
+                if (resultPrice >= 0) or flag:  # plus or 0
                     plusPoint.append({'name': stockName, 'result': resultPrice, 'point': plusPercent, 'targetAt': str(targetAt),'financeMap': financeMap})
                 else:
                     minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minusPercent, 'targetAt': str(targetAt)})
@@ -878,6 +962,14 @@ class Runner:
         trustPercent = self.getDivideNumPercent(len(plusPoint), len(sumPoint))
         pointDict = {stockName: {'name': stockName, 'period': period, 'potential': trustPercent, 'total': len(analyzedResult)}}
         return plusChanceIds, pointDict
+    def getFinancePercent(self, stockName, targetAt):
+        result = self.getFinanceDataByStockNameAndData(stockName=stockName, sliceDate=targetAt)
+        return self.getDivideNumPercentFloat(result.get('final'), result.get('start'))
+    def checkDefence(self, stockName, targetAt):
+        try :
+            return self.getFinancePercent(stockName, targetAt) > self.getFinancePercent(self.KOSPI_NAME, targetAt)
+        except:
+            return False
     def insertStockPotential(self, stockId, period, potential, count):
         cursor = self.connection.cursor()
         cursor.execute("select id from potential where stockId = %s and period = %s", (stockId, period))
@@ -992,11 +1084,23 @@ class Runner:
             msg += str(result) + "\n"
         return msg
 
+cf = configparser.ConfigParser()
+cf.read('config.cfg')
+DB_IP = cf.get('db', 'DB_IP')
+DB_USER = cf.get('db', 'DB_USER')
+DB_PWD = cf.get('db', 'DB_PWD')
+DB_SCH = cf.get('db', 'DB_SCH')
+VALID_USER = cf.get('TELEGRAM', 'VALID_USER')
+TOKEN = cf.get('TELEGRAM', 'TOKEN')
+LINK3 = cf.get('KAKAO_STOCK', 'link3')
+LINK4 = cf.get('KAKAO_STOCK', 'link4')
+LINK1 = cf.get('KAKAO_STOCK', 'link1')
+
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-results = run.filteredTarget(date.today()+timedelta(days=2))
+
 updater = Updater(TOKEN)
 # run.migrationWork(periods=[2, 3])
-
+run.getStocks()
 if len(sys.argv) == 1:
     exit(1)
 command = sys.argv[1]

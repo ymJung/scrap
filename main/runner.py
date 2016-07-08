@@ -9,7 +9,6 @@ import pythoncom
 import sys
 import dictionary
 import simulator
-import reporter
 
 class Runner:
     def __init__(self):
@@ -25,6 +24,8 @@ class Runner:
         self.analyze = analyzer.Analyzer()
         self.simul = simulator.Simulator()
         self.dic = None
+        self.KOSPI_CODE = 'D0011001'
+        self.KOSPI_NAME = 'KOSPI'
 
     def insertFinance(self, stock):
         stockCode = stock.get('code')
@@ -145,6 +146,10 @@ class Runner:
         if num2 == 0:
             return 0
         return int((num1 / num2) * 100)
+    def getDivideNumPercentFloat(self, num1, num2):
+        if num2 == 0:
+            return 0
+        return round(float(((num1 / num2) * 100) - 100), 2)
 
     def getFinanceDataMap(self, financeIdList):
         chanceIds = []
@@ -222,7 +227,8 @@ class Runner:
             financeMap = self.getFinanceDataMap(financeList)
             if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
                 sumPoint.append({'name': stockName, 'result': resultPrice, 'plus_point': plusPercent, 'minus_point': minusPercent,'plus': plus, 'minus': minus, 'targetAt': str(targetAt)})
-                if resultPrice >= 0:  # plus or 0
+                flag = self.checkDefence(stockName, targetAt)
+                if (resultPrice >= 0) or flag:  # plus or 0
                     plusPoint.append({'name': stockName, 'result': resultPrice, 'point': plusPercent, 'targetAt': str(targetAt),'financeMap': financeMap})
                 else:
                     minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minusPercent, 'targetAt': str(targetAt)})
@@ -387,12 +393,22 @@ class Runner:
                 if finance is not None :
                     print('update item finance id ', stock.get('name'), item.get('targetAt'))
                     self.dbm.updateItemFinanceId(finance.get('id'), item.get('id'))
+        self.updateKospiPrice()
+
+    def updateKospiPrice(self):
+        stock = self.dbm.selectStockByCode(self.KOSPI_CODE)
+        lastestDate = self.dbm.selectLastestFinance(stock.get('id'))
+        priceInfos = webscrap.KakaoStock().getPriceInfos(stock.get('code'), lastestDate)
+        for each in priceInfos:
+            exist = self.dbm.selectFinanceByStockIdAndDate(stock.get('id'), each.get('date'))
+            if exist is None :
+                self.dbm.insertFinance(stock.get('id'), each.get('date'), high=0, low=0, start=each.get('start'), final=each.get('final'))
     def updatePotentialStock(self, stock, period):
         r1, r2 = self.getAnalyzeExistData(stock.get('name'), period)
         pd = r2.get(stock.get('name'))
         potential = pd.get('potential')
         count = pd.get('total')
-        self.dbm.insertOrUPdateStockPotential(stock.get('id'), period, potential, count)
+        self.dbm.insertOrUpdateStockPotential(stock.get('id'), period, potential, count)
         if stock.get('much') == 0 :
             print(stock, potential, 'is done')
 
@@ -433,6 +449,7 @@ class Runner:
                     targetAt = date.today() - timedelta(days=idx)
                     if self.dbm.isNotForecastTarget(stock, targetAt, period) is False:
                         self.dbm.insertItemDefault(stock.get('id'), targetAt, period)
+        self.updateAllStockFinance()
         self.dbm.commit()
 
     def getBeforeFinanceResult(self, itemId):
@@ -445,9 +462,20 @@ class Runner:
             msg += str(result) + "\n"
         return msg
 
-#run = Runner()
+    def getFinancePercent(self, stockName, targetAt):
+        result = self.dbm.getFinanceDataByStockNameAndData(stockName=stockName, sliceDate=targetAt)
+        return self.getDivideNumPercentFloat(result.get('final'), result.get('start'))
+
+    def checkDefence(self, stockName, targetAt):
+        try :
+            return self.getFinancePercent(stockName, targetAt) > self.getFinancePercent(self.KOSPI_NAME, targetAt)
+        except:
+            return False
+
+
+run = Runner()
 # run.updateAllStockFinance() #하루에 한번씩 15시 이후
-# run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
+run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
 # run.dailyAll(forecastAt=date.today() + timedelta(days=2)) #하루에 한번씩.
 # print(run.filteredTarget(date.today()+timedelta(days=2))) #하루에 한번씩
 

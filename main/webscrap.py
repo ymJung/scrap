@@ -9,6 +9,7 @@ from dateutil.relativedelta import relativedelta
 import sys
 import configparser
 import json
+from urllib.request import Request, urlopen
 
 SEQ = "seq"
 TITLE = "title"
@@ -428,6 +429,7 @@ class KakaoStock:
         self.COMMENT_LIST = COMMENT_LIST
         self.DATE_FORMAT = '%Y-%m-%dT%H:%M:%S' #2016-05-06T00:37:53.000+00:00
         self.LIMIT = datetime.datetime.now() - relativedelta(years=1)
+        self.LIMIT_COUNT = 500
         self.DEFAULT_DATE = datetime.datetime(1970, 12, 31, 23, 59, 59)
         self.CODE_EXP = '[^0-9]'
         self.SITE = "KAKAO_STOCK"
@@ -474,11 +476,66 @@ class KakaoStock:
                 print('some thing are wrong. will return', sys.exc_info())
                 return data
         return data
+
     def convertDate(self, param):
         try:
             return datetime.datetime.strptime(param[0:18], self.DATE_FORMAT)  # 2016.02.13 20:30
         except:
             return self.DEFAULT_DATE
+
+    def getPriceInfos(self, code, lastUseDateAt):
+        if lastUseDateAt is None :
+            lastUseDateAt = datetime.date.today() - datetime.timedelta(days=365 * 3)
+        else :
+            lastUseDateAt = lastUseDateAt.date()
+        todate = (datetime.datetime.today() + datetime.timedelta(days=1)).date()
+        limit = (todate - lastUseDateAt).days  #last 로부터 오늘까지 day 수
+        breakFlag = False
+        data = list()
+        dates = set()
+        while True :
+            if limit > self.LIMIT_COUNT :
+                nowLimit = (limit % self.LIMIT_COUNT)
+                if nowLimit == 0 :
+                    nowLimit = self.LIMIT_COUNT
+                limit = limit - nowLimit
+            else :
+                breakFlag = True
+                nowLimit = limit
+            todateStr = todate.strftime('%Y-%m-%d')#yyyy-MM-dd 형식 less
+            try :
+                print('code(' , code ,') todateStr : ' , todateStr ,' nowLimit : ' ,nowLimit)
+                url = cf.get(self.SITE, 'link1') +code+ cf.get(self.SITE, 'link3') + str(nowLimit) + cf.get(self.SITE, 'link4') + todateStr
+                soup = BeautifulSoup(urllib.request.urlopen(url).read(), 'lxml')
+                jls = json.loads(soup.text)
+
+                dayCandles = jls['dayCandles']
+                for jl in dayCandles:
+                    date = self.convertDate(jl['date'])
+                    tradePrice = jl['tradePrice']
+                    changePrice = jl['changePrice']
+                    dataMap = {
+                        'date': date,
+                        'start': tradePrice - changePrice,
+                        'final': tradePrice
+                    }
+                    if date in dates:
+                        continue
+                    else:
+                        dates.add(date)
+                    data.append(dataMap)
+                if breakFlag is True:
+                    break
+            except urllib.error.URLError as e :
+                print('url error')
+                time.sleep(0.3)
+                print(e)
+            except :
+                print('some thing are wrong. will return', sys.exc_info())
+        return data
+
+
+
 
 class Holyday:
     def filterEventDay(self, limit):

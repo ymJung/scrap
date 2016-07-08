@@ -377,7 +377,10 @@ class DBManager:
     def selectLastestFinance(self, stockId):
         cursor = self.connection.cursor()
         cursor.execute("SELECT date FROM finance WHERE stockId =%s ORDER BY date DESC LIMIT 1", stockId)
-        return cursor.fetchone().get('date')
+        result = cursor.fetchone()
+        if result is not None :
+            return result.get('date')
+        return None
 
     def updateStockName(self, stockId, dsName, dsCode):
         cursor = self.connection.cursor()
@@ -413,7 +416,7 @@ class DBManager:
             return result.get('date').date()
         return None
 
-    def insertOrUPdateStockPotential(self, stockId, period, potential, count):
+    def insertOrUpdateStockPotential(self, stockId, period, potential, count):
         cursor = self.connection.cursor()
         cursor.execute("select id from potential where stockId = %s and period = %s", (stockId, period))
         result = cursor.fetchone()
