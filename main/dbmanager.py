@@ -413,7 +413,7 @@ class DBManager:
             return result.get('date').date()
         return None
 
-    def insertStockPotential(self, stockId, period, potential, count):
+    def insertOrUPdateStockPotential(self, stockId, period, potential, count):
         cursor = self.connection.cursor()
         cursor.execute("select id from potential where stockId = %s and period = %s", (stockId, period))
         result = cursor.fetchone()

@@ -908,6 +908,7 @@ class Runner:
                 if poten.get('count') > self.GUARANTEE_COUNT and poten.get('potential') < self.FILTER_LIMIT and stock.get('much') == 0 :
                     self.updateStockMuch(stock.get('id'), 1)
                     print(stock, ' set much 1. ', poten.get('potential'))
+        self.commit()
     def getFilteredForecastResult(self, each):
         plus = each.get('plus')
         minus = each.get('minus')
@@ -971,11 +972,13 @@ class Runner:
                 filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, limitAt - timedelta(days=period))
                 for filter in filteredTargetList :
                     if ((filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('chance')) > 1)):# and filter.get('yesterday') < 0:
-                        filterdList.append(filter)
+                       filterdList.append(filter)
                 targetList.append(filteredTargetList)
 
             for filter in filterdList :
-                  results.append(filter.get('name') + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get('targetAt')) + '::' + str(filter.get(filter.get('name'))))
+                  name = filter.get('name') + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get('targetAt'))
+                  per = '::' + str(filter.get(filter.get('name'))) + '::' + str(len(filter.get('chance')))
+                  results.append( name + per)
                   if (filter.get('targetAt') == limitAt.day):
                     targetList.append(filter)
                     print('today', filter)
@@ -992,6 +995,7 @@ class Runner:
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 results = run.filteredTarget(date.today()+timedelta(days=2))
 updater = Updater(TOKEN)
+# run.migrationWork(periods=[2, 3])
 
 if len(sys.argv) == 1:
     exit(1)

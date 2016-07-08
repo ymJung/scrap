@@ -170,8 +170,15 @@ class Runner:
         if stock is None :
             stocks = self.getStocks()
             stocks.insertNewStock(stockCode)
+            stock = self.dbm.selectStockByCode(stockCode)
         else :
             self.dbm.updateStockMuch(stock.get('id'), 0)
+        #insert
+        self.insertPaxnetResult(stock)
+        self.insertNaverResult(stock)
+        self.insertDaumResult(stock)
+        self.insertKakaoResult(stock)
+
         self.dbm.commit()
 
     def filteredTarget(self, limitAt):
@@ -189,7 +196,7 @@ class Runner:
                         filterdList.append(filter)
                 targetList.append(filteredTargetList)
             for filter in filterdList :
-                  results.append(filter.get('name') + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get('targetAt')) + '::' + str(filter.get(filter.get('name'))))
+                  results.append(filter.get('name') + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get('targetAt')) + '::' + str(filter.get(filter.get('name')))) + str(len(filter.get('chance')))
                   if (filter.get('targetAt') == limitAt.day):
                     targetList.append(filter)
                     print('today', filter)
@@ -274,6 +281,7 @@ class Runner:
                 if poten.get('count') > self.GUARANTEE_COUNT and poten.get('potential') < self.FILTER_LIMIT and stock.get('much') == 0 :
                     self.dbm.updateStockMuch(stock.get('id'), 1)
                     print(stock, ' set much 1. ', poten.get('potential'))
+        self.dbm.commit()
     def insertDefaultItemList(self, forecastAt, period):
         for stock in self.dbm.getUsefulStockList(forecastAt, period) :
             if self.dbm.isNotForecastTarget(stock, forecastAt, period) :
@@ -384,7 +392,7 @@ class Runner:
         pd = r2.get(stock.get('name'))
         potential = pd.get('potential')
         count = pd.get('total')
-        self.dbm.insertStockPotential(stock.get('id'), period, potential, count)
+        self.dbm.insertOrUPdateStockPotential(stock.get('id'), period, potential, count)
         if stock.get('much') == 0 :
             print(stock, potential, 'is done')
 
@@ -439,14 +447,16 @@ class Runner:
 
 #run = Runner()
 # run.updateAllStockFinance() #하루에 한번씩 15시 이후
-#run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
-# run.dailyAll(forecastAt=date.today() + timedelta(days=0)) #하루에 한번씩.
+# run.filterPotentialStock(periods=[2,3]) #하루에 한번씩.
+# run.dailyAll(forecastAt=date.today() + timedelta(days=2)) #하루에 한번씩.
 # print(run.filteredTarget(date.today()+timedelta(days=2))) #하루에 한번씩
 
 # print(results)
 
 # run.insertNewStockScrap(stockCode='') #필요할때 한번씩
 # run.insertDefaultItem([2,3])  #필요할때 한번씩 newstockscrap 과 짝.
+
+
 # run.targetAnalyze('', period) #필요할때 한번씩
 # run.migrationWork(periods=[2,3]) #항상 수행
 
