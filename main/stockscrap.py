@@ -67,8 +67,8 @@ class DSStock:
 
             raise DSStockError('not found stock')
         else:
-            hit = int(stock.get('hit')) + 1
-            self.dbm.updateStockHit(hit, stock.get('id'))
+            # hit = int(stock.get('hit')) + 1
+            # self.dbm.updateStockHit(hit, stock.get('id'))
             return self.dbm.selectStockByCode(stockCode)
     def getChartDataList(self, code, count):
         self.chart.SetInputValue(0, code)  # 대신증권 종목 코드

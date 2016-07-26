@@ -34,7 +34,7 @@ class KakaoStock:
         else :
             lastUseDateAt = lastUseDateAt.date()
         todate = (datetime.datetime.today() + datetime.timedelta(days=1)).date()
-        limit = (todate - lastUseDateAt).days  #last 로부터 오늘까지 day 수
+        limit = (todate - lastUseDateAt).days
         breakFlag = False
         data = list()
         dates = set()
@@ -47,7 +47,7 @@ class KakaoStock:
             else :
                 breakFlag = True
                 nowLimit = limit
-            todateStr = todate.strftime('%Y-%m-%d')#yyyy-MM-dd 형식 less
+            todateStr = todate.strftime('%Y-%m-%d')
             try :
                 print('code(' , code ,') todateStr : ' , todateStr ,' nowLimit : ' ,nowLimit)
                 url = LINK1 +code+ LINK3 + str(nowLimit) + LINK4 + todateStr
@@ -822,13 +822,17 @@ class Runner:
         cursor = self.connection.cursor()
         cursor.execute("SELECT id, contentData, yet FROM content WHERE id=%s", (contentId))
         return cursor.fetchone()
-    def dailyAll(self, forecastAt):
-        for item in self.getPeriodAll() :
-            self.dailyRun(forecastAt, item.get('period'))
+    def dailyAll(self):
+        for period in self.getPeriodAll():
+            forecastAt = date.today() + timedelta(days=period)
+            self.dailyRun(forecastAt, period)
     def getPeriodAll(self):
         cursor = self.connection.cursor()
         cursor.execute("SELECT distinct(period) FROM item")
-        return cursor.fetchall()
+        results = list()
+        for each in cursor.fetchall():
+            results.append(each.get('period'))
+        return results
 
     def updateAllStockFinance(self):
         stocks = self.getStocks()
@@ -947,12 +951,15 @@ class Runner:
             financeList = self.getFinanceListFromItemId(itemId)
             financeMap = self.getFinanceDataMap(financeList)
             if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
+                if resultPrice < 0:
+                    if self.checkDefence(stockName, targetAt):
+                        continue
+                    else :
+                        minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minusPercent, 'targetAt': str(targetAt)})
                 sumPoint.append({'name': stockName, 'result': resultPrice, 'plus_point': plusPercent, 'minus_point': minusPercent,'plus': plus, 'minus': minus, 'targetAt': str(targetAt)})
-                flag = self.checkDefence(stockName, targetAt)
-                if (resultPrice >= 0) or flag:  # plus or 0
+                if (resultPrice >= 0) :  # plus or 0
                     plusPoint.append({'name': stockName, 'result': resultPrice, 'point': plusPercent, 'targetAt': str(targetAt),'financeMap': financeMap})
-                else:
-                    minusPoint.append({'name': stockName, 'result': resultPrice, 'point': minusPercent, 'targetAt': str(targetAt)})
+
         plusChanceIds = []
         for point in plusPoint:
             chanceIds = point.get('financeMap').get('chance')
@@ -1055,31 +1062,31 @@ class Runner:
     def filteredTarget(self, limitAt):
         targetList = list()
         results = list()
-        periods = self.getPeriodAll()
-        for item in periods:
-            period = item.get('period')
+        for period in self.getPeriodAll():
             filterdList = list()
             for stock in self.getStockList():
                 plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
                 filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, limitAt - timedelta(days=period))
                 for filter in filteredTargetList :
-                    if ((filter.get(stock.get('name')) > self.FILTER_LIMIT and filter.get('potential') > self.FILTER_LIMIT) or (len(filter.get('chance')) > 1)):# and filter.get('yesterday') < 0:
-                       filterdList.append(filter)
+                    percentCheck = filter.get(stock.get('name')) > self.FILTER_LIMIT
+                    potentialCheck = filter.get('potential') > self.FILTER_LIMIT
+                    chanceCheck = len(filter.get('chance')) > 1
+                    countCheck = filter.get('total') > self.GUARANTEE_COUNT
+                    if (countCheck and potentialCheck) and (percentCheck or chanceCheck):# and filter.get('yesterday') < 0:
+                        filterdList.append(filter)
                 targetList.append(filteredTargetList)
-
             for filter in filterdList :
-                  name = filter.get('name') + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get('targetAt'))
-                  per = '::' + str(filter.get(filter.get('name'))) + '::' + str(len(filter.get('chance')))
-                  results.append( name + per)
+                  result = filter.get('name') + str(filter.get('targetAt')) + '::' + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get(filter.get('name'))) + '::' + str(len(filter.get('chance')))
+                  results.append(result)
                   if (filter.get('targetAt') == limitAt.day):
                     targetList.append(filter)
                     print('today', filter)
-        print(targetList)
+        print('print', targetList)
         print('result', results)
         return self.printList(results)
     def printList(self, results):
         results.sort()
-        msg = 'result: '
+        msg = 'targetAt period potential per chance\n'
         for result in results :
             msg += str(result) + "\n"
         return msg
@@ -1099,26 +1106,22 @@ LINK1 = cf.get('KAKAO_STOCK', 'link1')
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 
 updater = Updater(TOKEN)
-# run.migrationWork(periods=[2, 3])
-run.getStocks()
 if len(sys.argv) == 1:
     exit(1)
 command = sys.argv[1]
 if command == 'daily':
     run.updateAllStockFinance()
-    run.filterPotentialStock(periods=[2, 3])
-    run.dailyAll(forecastAt=date.today() + timedelta(days=2))
-    results = run.filteredTarget(date.today()+timedelta(days=2))
-    updater.bot.sendMessage(chat_id=VALID_USER, text=str(results))
+    run.filterPotentialStock(periods=run.getPeriodAll())
+    run.dailyAll()
 elif command == 'stock':
     try :
         run.getStocks()
     except DSStockError :
         updater.bot.sendMessage(chat_id=VALID_USER, text=str('disconnect stock.'))
 elif command == 'migrate':
-    run.migrationWork(periods=[2, 3])
+    run.migrationWork(periods=run.getPeriodAll())
 elif command == 'forecast':
-    results = run.filteredTarget(date.today()+timedelta(days=2))
+    results = run.filteredTarget(date.today()+timedelta(days=max(run.getPeriodAll())))
     updater.bot.sendMessage(chat_id=VALID_USER, text= results)
 else :
     print('invalid command')

@@ -197,7 +197,7 @@ class DBManager:
 
     def analyzedSql(self, stockName, period):
         cursor = self.connection.cursor()
-        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s AND i.period = %s group by i.targetAt order by i.targetAt desc'
+        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s AND i.period = %s AND i.yet = 0 GROUP BY i.targetAt ORDER BY i.targetAt desc'
         cursor.execute(selectAnalyzedSql, (stockName, period))
         analyzedResult = cursor.fetchall()
 
@@ -534,7 +534,10 @@ class DBManager:
     def getPeriodAll(self):
         cursor = self.connection.cursor()
         cursor.execute("SELECT distinct(period) FROM item")
-        return cursor.fetchall()
+        results = list()
+        for each in cursor.fetchall():
+            results.append(each.get('period'))
+        return results
 
     def deleteItemDefault(self, stockId, forecastAt, period):
         cursor = self.connection.cursor()
@@ -567,3 +570,8 @@ class DBManager:
         cursor = self.connection.cursor()
         cursor.execute("select i.id, i.stockId, i.financeId, i.targetAt from item i where i.id = %s", (itemId))
         return cursor.fetchone()
+
+    def selectItemList(self, stockId):
+        cursor = self.connection.cursor()
+        cursor.execute("select * from data.item where stockId = %s", (stockId))
+        return cursor.fetchall()
