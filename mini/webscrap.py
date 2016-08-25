@@ -1,6 +1,4 @@
-﻿import datetime
-import sys
-import configparser
+﻿import configparser
 cf = configparser.ConfigParser()
 cf.read('config.cfg')
 DB_IP = cf.get('db', 'DB_IP')
@@ -28,6 +26,8 @@ from urllib.request import urlopen
 import urllib
 import random
 import re
+import datetime
+import sys
 
 
 class Paxnet:
@@ -478,6 +478,8 @@ class DBManager:
 class Runner:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
         self.dbm = DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
+        self.RETRY_LIMIT = None
+        self.RETRY_LIMIT_CNT = 5
 
     def insertPaxnetResult(self, stock):
         lastScrapAt = stock.get('lastScrapAt')
@@ -520,15 +522,35 @@ class Runner:
         self.dbm.updateLastUseDate(stock)
         self.dbm.commit()
 
+    def isBreak(self):
+        retryCnt = self.getDateRetryLimit(datetime.date.today())
+        if retryCnt < 0:
+            return True
+        return False
+    def getDateRetryLimit(self, date):
+        dateStr = str(date)
+        if self.RETRY_LIMIT is None:
+            self.RETRY_LIMIT = {dateStr: self.RETRY_LIMIT_CNT}
+        elif dateStr in self.RETRY_LIMIT:
+            print('reduce today limit ', dateStr, self.RETRY_LIMIT[dateStr])
+            self.RETRY_LIMIT[dateStr] -= 1
+        else:
+            print('make today limit ', dateStr)
+            self.RETRY_LIMIT.update({dateStr: self.RETRY_LIMIT_CNT})
+        return self.RETRY_LIMIT[dateStr]
+
 print('start')
-while True :
-    try :
-        run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
+run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
+while True:
+    try:
         stock = run.dbm.getUsefulStock()
         print(stock.get('name'), 'is start')
         run.run(stock)
         print(stock.get('name'), 'is done')
-        run.dbm.close()
-    except :
+    except:
         print("unexpect error.", sys.exc_info())
-        break
+        time.sleep(3)
+        if run.isBreak():
+            run.dbm.close()
+            break
+        continue

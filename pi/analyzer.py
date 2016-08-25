@@ -1,4 +1,4 @@
-import pymysql
+
 import configparser
 cf = configparser.ConfigParser()
 cf.read('config/config.cfg')
@@ -7,6 +7,10 @@ DB_USER = cf.get('db', 'DB_USER')
 DB_PWD = cf.get('db', 'DB_PWD')
 DB_SCH = cf.get('db', 'DB_SCH')
 URL = cf.get('url', 'dic')
+
+import pymysql
+import sys
+import datetime
 
 class DBManager:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
@@ -60,6 +64,7 @@ class Analyzer:
         self.DB_SCH = DB_SCH
         self.dbm = DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
         self.dic = Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        self.RETRY_LIMIT_CNT = 5
 
 
     def commit(self):
@@ -112,6 +117,22 @@ class Analyzer:
             print('uncaught except')
         finally:
             self.dic.commit()
+    def isBreak(self):
+        retryCnt = self.getDateRetryLimit(datetime.date.today())
+        if retryCnt < 0:
+            return True
+        return False
+    def getDateRetryLimit(self, date):
+        dateStr = str(date)
+        if self.RETRY_LIMIT is None:
+            self.RETRY_LIMIT = {dateStr: self.RETRY_LIMIT_CNT}
+        elif dateStr in self.RETRY_LIMIT:
+            print('reduce today limit ', dateStr, self.RETRY_LIMIT[dateStr])
+            self.RETRY_LIMIT[dateStr] -= 1
+        else:
+            print('make today limit ', dateStr)
+            self.RETRY_LIMIT.update({dateStr: self.RETRY_LIMIT_CNT})
+        return self.RETRY_LIMIT[dateStr]
 
 import re
 from bs4 import BeautifulSoup
@@ -214,4 +235,21 @@ class Dictionary:
         return False
 
 analyzer = Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH)
-analyzer.analyze()
+while True:
+    try :
+        target = analyzer.dbm.selectAnalyze('N')
+        if target is None:
+            time.sleep(60) # sleep 1min
+            continue
+        analyzer.dbm.updateContentAnalyzeFlag('Y', target.get('id'))
+        analyzer.commit()
+        print('start : ' + str(target.get('id')))
+        analyzer.analyzeDictionary(target.get('contentData'), target.get('id'), 0)
+        analyzer.commit()
+        print('fin : ' + str(target.get('id')))
+    except:
+        print("unexpect error.", sys.exc_info())
+        time.sleep(3)
+        if analyzer.isBreak():
+            break
+        continue

@@ -228,7 +228,7 @@ class Runner:
         self.DATE_NAME = 'date'
         self.WORK_DONE = 0
         self.WORK_YET = 1
-        self.GUARANTEE_COUNT = 150
+        self.GUARANTEE_COUNT = 100
         self.FILTER_LIMIT = 50
         self.FILTER_TARGET_LIMIT = 70
         self.CHANCE_PERCENT = 0.10
@@ -903,7 +903,7 @@ class Runner:
         return results
     def analyzedSql(self, stockName, period):
         cursor = self.connection.cursor()
-        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s AND i.period = %s group by i.targetAt order by i.targetAt desc'
+        selectAnalyzedSql = 'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt, i.financeId, f.start, f.final FROM item i, stock s, finance f WHERE i.stockId = s.id AND f.id = i.financeId AND s.name = %s AND i.period = %s GROUP BY i.targetAt ORDER BY i.targetAt DESC'
         cursor.execute(selectAnalyzedSql, (stockName, period))
         analyzedResult = cursor.fetchall()
         return analyzedResult
@@ -1044,7 +1044,7 @@ class Runner:
     def getForecastResult(self, stockName, limitAt, period):
         cursor = self.connection.cursor()
         selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s ' \
-                             'WHERE i.stockId = s.id AND s.name = %s AND i.targetAt > %s AND i.period = %s AND i.financeId IS NULL ORDER BY i.id DESC' # AND i.financeId IS NULL
+                             'WHERE i.stockId = s.id AND s.name = %s AND i.targetAt >= %s AND i.period = %s AND i.financeId IS NULL ORDER BY i.id DESC' # AND i.financeId IS NULL
         cursor.execute(selectForecastSql, (stockName, limitAt, period))
         return cursor.fetchall()
     def getFilteredTarget(self, plusChanceIds, pointDict, stock, period, startAt):
@@ -1066,7 +1066,7 @@ class Runner:
             filterdList = list()
             for stock in self.getStockList():
                 plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
-                filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, limitAt - timedelta(days=period))
+                filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, date.today())
                 for filter in filteredTargetList :
                     percentCheck = filter.get(stock.get('name')) > self.FILTER_LIMIT
                     potentialCheck = filter.get('potential') > self.FILTER_LIMIT

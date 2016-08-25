@@ -1,4 +1,3 @@
-import pymysql
 import configparser
 cf = configparser.ConfigParser()
 cf.read('config.cfg')
@@ -7,6 +6,10 @@ DB_USER = cf.get('db', 'DB_USER')
 DB_PWD = cf.get('db', 'DB_PWD')
 DB_SCH = cf.get('db', 'DB_SCH')
 URL = cf.get('url', 'dic')
+
+import pymysql
+import sys
+import datetime
 
 class DBManager:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
@@ -51,68 +54,6 @@ class DBManager:
         cursor = self.connection.cursor()
         cursor.execute("SELECT `id` FROM `garbage` WHERE `word`=%s", (word))
         return cursor.fetchone()
-
-class Analyzer:
-    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
-        self.DB_IP = DB_IP
-        self.DB_USER = DB_USER
-        self.DB_PWD = DB_PWD
-        self.DB_SCH = DB_SCH
-        self.dbm = DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
-        self.dic = Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
-
-
-    def commit(self):
-        self.dbm.commit()
-        self.dic.commit()
-
-    def __del__(self):
-        self.dbm.commit()
-        self.dbm.close()
-        self.dic.dbm.close()
-
-    def analyze(self):
-        while True:
-            target = self.dbm.selectAnalyze('N')
-            if target is None:
-                time.sleep(60) # sleep 1min 
-                continue
-            self.dbm.updateContentAnalyzeFlag('Y', target.get('id'))
-            self.commit()
-            print('start : ' + str(target.get('id')))
-            self.analyzeDictionary(target.get('contentData'), target.get('id'), 0)
-            self.commit()
-            print('fin : ' + str(target.get('id')))
-
-    def analyzeDictionary(self, data, contentId, idx):
-        try:
-            splitStrings = self.dic.splitStr(data)
-            for i in range(len(splitStrings)):
-                if idx > i:
-                    print('start in middle ' + str(idx))
-                    i = idx
-                splitString = self.dic.getRegularExpression(splitStrings[i])
-                if self.dic.existSplitWord(splitString) is False:
-                    findWord = False
-                    for j in range(len(splitString)):
-                        subStr = splitString[0:len(splitString) - j]
-                        if self.dic.isTargetWord(subStr) and self.dic.isInsertTarget(subStr) is True:
-                            self.dic.insertWord(subStr)
-                            findWord = True
-
-                    if findWord is False and self.dic.existWord(splitString) is False:
-                        self.dic.insertGarbageWord(splitString, contentId)
-                    idx = i
-            idx = 0
-        except urllib.error.URLError as e:
-            print(e)
-            print('retry analyzeDictionary ' + str(idx))
-            self.analyzeDictionary(data, contentId, idx)
-        except:
-            print('uncaught except')
-        finally:
-            self.dic.commit()
-
 import re
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
@@ -213,5 +154,89 @@ class Dictionary:
                     continue
         return False
 
+class Analyzer:
+    def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
+        self.DB_IP = DB_IP
+        self.DB_USER = DB_USER
+        self.DB_PWD = DB_PWD
+        self.DB_SCH = DB_SCH
+        self.dbm = DBManager(DB_IP, DB_USER, DB_PWD, DB_SCH)
+        self.dic = Dictionary(self.DB_IP, self.DB_USER, self.DB_PWD, self.DB_SCH)
+        self.RETRY_LIMIT = None
+        self.RETRY_LIMIT_CNT = 5
+
+    def commit(self):
+        self.dbm.commit()
+        self.dic.commit()
+
+    def __del__(self):
+        self.dbm.commit()
+        self.dbm.close()
+        self.dic.dbm.close()
+
+
+    def analyzeDictionary(self, data, contentId, idx):
+        try:
+            splitStrings = self.dic.splitStr(data)
+            for i in range(len(splitStrings)):
+                if idx > i:
+                    print('start in middle ' + str(idx))
+                    i = idx
+                splitString = self.dic.getRegularExpression(splitStrings[i])
+                if self.dic.existSplitWord(splitString) is False:
+                    findWord = False
+                    for j in range(len(splitString)):
+                        subStr = splitString[0:len(splitString) - j]
+                        if self.dic.isTargetWord(subStr) and self.dic.isInsertTarget(subStr) is True:
+                            self.dic.insertWord(subStr)
+                            findWord = True
+
+                    if findWord is False and self.dic.existWord(splitString) is False:
+                        self.dic.insertGarbageWord(splitString, contentId)
+                    idx = i
+            idx = 0
+        except urllib.error.URLError as e:
+            print(e)
+            print('retry analyzeDictionary ' + str(idx))
+            self.analyzeDictionary(data, contentId, idx)
+        except:
+            print('uncaught except')
+        finally:
+            self.dic.commit()
+
+    def isBreak(self):
+        retryCnt = self.getDateRetryLimit(datetime.date.today())
+        if retryCnt < 0:
+            return True
+        return False
+    def getDateRetryLimit(self, date):
+        dateStr = str(date)
+        if self.RETRY_LIMIT is None:
+            self.RETRY_LIMIT = {dateStr: self.RETRY_LIMIT_CNT}
+        elif dateStr in self.RETRY_LIMIT:
+            print('reduce today limit ', dateStr, self.RETRY_LIMIT[dateStr])
+            self.RETRY_LIMIT[dateStr] -= 1
+        else:
+            print('make today limit ', dateStr)
+            self.RETRY_LIMIT.update({dateStr: self.RETRY_LIMIT_CNT})
+        return self.RETRY_LIMIT[dateStr]
+
 analyzer = Analyzer(DB_IP, DB_USER, DB_PWD, DB_SCH)
-analyzer.analyze()
+while True:
+    try :
+        target = analyzer.dbm.selectAnalyze('N')
+        if target is None:
+            time.sleep(60) # sleep 1min
+            continue
+        analyzer.dbm.updateContentAnalyzeFlag('Y', target.get('id'))
+        analyzer.commit()
+        print('start : ' + str(target.get('id')))
+        analyzer.analyzeDictionary(target.get('contentData'), target.get('id'), 0)
+        analyzer.commit()
+        print('fin : ' + str(target.get('id')))
+    except:
+        print("unexpect error.", sys.exc_info())
+        time.sleep(3)
+        if analyzer.isBreak():
+            break
+        continue

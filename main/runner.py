@@ -12,7 +12,7 @@ import simulator
 
 class Runner:
     def __init__(self):
-        self.GUARANTEE_COUNT = 150
+        self.GUARANTEE_COUNT = 100
         self.FILTER_LIMIT = 50
         self.FILTER_TARGET_LIMIT = 70
         self.CHANCE_PERCENT = 0.10
@@ -193,7 +193,7 @@ class Runner:
             filterdList = list()
             for stock in self.dbm.getStockList():
                 plusChanceIds, pointDict = self.getAnalyzeExistData(stock.get('name'), period)
-                filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, limitAt - timedelta(days=period))
+                filteredTargetList = self.getFilteredTarget(plusChanceIds, pointDict, stock, period, date.today())
                 for filter in filteredTargetList :
                     percentCheck = filter.get(stock.get('name')) > self.FILTER_LIMIT
                     potentialCheck = filter.get('potential') > self.FILTER_LIMIT
@@ -481,14 +481,16 @@ class Runner:
         except:
             return False
     def updateItemYet(self, stockCode):
+        if len(stockCode) == 0:
+            return
         stock = self.dbm.selectStockByCode(stockCode=stockCode)
         itemList = self.dbm.selectItemList(stockId=stock.get("id"))
         for item in itemList:
             self.dbm.updateItemYet(item.get('id'), self.dbm.WORK_YET)
         self.dbm.commit()
-
 run = Runner()
-run.updateAllStockFinance() #하루에 한번씩 15시 이후
+
+# run.updateAllStockFinance() #하루에 한번씩 15시 이후
 # run.filterPotentialStock(run.dbm.getPeriodAll()) #하루에 한번씩.
 # run.dailyAll() #하루에 한번씩.
 # print(run.filteredTarget(date.today()+timedelta(days=max(run.dbm.getPeriodAll())))) #하루에 한번씩
@@ -496,7 +498,7 @@ run.updateAllStockFinance() #하루에 한번씩 15시 이후
 # print(results)
 
 # run.insertNewStockScrap(stockCode='') #필요할때 한번씩
-# run.insertDefaultItem([5])
+# run.insertDefaultItem(run.dbm.getPeriodAll())
 # run.updateItemYet(stockCode='')  #필요할때 한번씩
 
 

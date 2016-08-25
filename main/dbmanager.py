@@ -251,11 +251,11 @@ class DBManager:
         cursor.execute(selectFinanceQuery, financeIdList)
         return cursor.fetchall()
 
-    def getForecastResult(self, stockName, limitAt, period):
+    def getForecastResult(self, stockName, startAt, period):
         cursor = self.connection.cursor()
         selectForecastSql =  'SELECT i.id, s.name,i.plus,i.minus, i.totalPlus, i.totalMinus, i.targetAt,i.createdAt FROM item i, stock s ' \
                              'WHERE i.stockId = s.id AND s.name = %s AND i.targetAt >= %s AND i.period = %s AND i.financeId IS NULL ORDER BY i.id DESC' # AND i.financeId IS NULL
-        cursor.execute(selectForecastSql, (stockName, limitAt, period))
+        cursor.execute(selectForecastSql, (stockName, startAt, period))
         return cursor.fetchall()
 
     def getUnfilterdGarbageWord(self):
