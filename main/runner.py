@@ -189,6 +189,7 @@ class Runner:
     def filteredTarget(self, limitAt):
         targetList = list()
         results = list()
+        results.append(str(self.dbm.selectSitePerCount(date.today(), limitAt)))
         for period in self.dbm.getPeriodAll():
             filterdList = list()
             for stock in self.dbm.getStockList():
@@ -228,6 +229,8 @@ class Runner:
             itemId = each.get('id')
             financeList = self.dbm.getFinanceListFromItemId(itemId)
             financeMap = self.getFinanceDataMap(financeList)
+            self.insertEventWord(itemId, financeMap.get('chance'))
+            self.insertEventWord(itemId, financeMap.get('danger'))
             if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
                 if resultPrice < 0:
                     if self.checkDefence(stockName, targetAt):
@@ -488,20 +491,27 @@ class Runner:
         for item in itemList:
             self.dbm.updateItemYet(item.get('id'), self.dbm.WORK_YET)
         self.dbm.commit()
+
+    def insertEventWord(self, itemId, wordIds):
+        for wordId in wordIds:
+            if self.dbm.hasEventWord(itemId, wordId):
+                self.dbm.insertEvent(itemId, wordId)
+
+
 run = Runner()
 
-# run.updateAllStockFinance() #하루에 한번씩 15시 이후
+run.updateAllStockFinance() #하루에 한번씩 15시 이후
 # run.filterPotentialStock(run.dbm.getPeriodAll()) #하루에 한번씩.
 # run.dailyAll() #하루에 한번씩.
 # print(run.filteredTarget(date.today()+timedelta(days=max(run.dbm.getPeriodAll())))) #하루에 한번씩
 
 # print(results)
 
-# run.insertNewStockScrap(stockCode='') #필요할때 한번씩
+# run.insertNewStockScrap(stockCode='029780') #필요할때 한번씩
 # run.insertDefaultItem(run.dbm.getPeriodAll())
-# run.updateItemYet(stockCode='')  #필요할때 한번씩
+#run.updateItemYet(stockCode='')  #필요할때 한번씩
 
 
-# run.targetAnalyze('', period) #필요할때 한번씩
+# run.targetAnalyze('', 3) #필요할때 한번씩
 # run.migrationWork(run.dbm.getPeriodAll()) #항상 수행
 

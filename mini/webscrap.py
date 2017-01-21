@@ -13,6 +13,8 @@ DAUM_URL = cf.get('DAUM_STOCK', 'list')
 DAUM_LINK = cf.get('DAUM_STOCK', 'link')
 KAKAO_LINK1 = cf.get('KAKAO_STOCK', 'link1')
 KAKAO_LINK2 = cf.get('KAKAO_STOCK', 'link2')
+TOKEN = cf.get('TELEGRAM', 'TOKEN')
+VALID_USER = cf.get('TELEGRAM', 'VALID_USER')
 
 SEQ = "seq"
 TITLE = "title"
@@ -21,6 +23,7 @@ DATE = "date"
 WRITER = "writer"
 COMMENT_LIST = "commentList"
 
+from telegram.ext import Updater
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
 import urllib
@@ -552,5 +555,7 @@ while True:
         time.sleep(3)
         if run.isBreak():
             run.dbm.close()
+            updater = Updater(TOKEN)
+            updater.bot.sendMessage(chat_id=VALID_USER, text= 'webscraper is doesnt work.')
             break
         continue

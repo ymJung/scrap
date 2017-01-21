@@ -3,7 +3,7 @@ import pymysql.cursors
 import sys
 import re
 import configparser
-import os
+
 
 class DBManagerError(Exception):
     def __init__(self, msg):
@@ -574,4 +574,19 @@ class DBManager:
     def selectItemList(self, stockId):
         cursor = self.connection.cursor()
         cursor.execute("select * from data.item where stockId = %s", (stockId))
+        return cursor.fetchall()
+
+    def hasEventWord(self, itemId, wordId):
+        cursor = self.connection.cursor()
+        cursor.execute("select count(id) as c from data.event where itemId = %s and wordId = %s", (itemId, wordId))
+        cnt = cursor.fetchone().get('c')
+        return cnt == 0
+
+    def insertEvent(self, itemId, wordId):
+        cursor = self.connection.cursor()
+        cursor.execute("INSERT INTO `data`.`event` (`itemId`, `wordId`) VALUES (%s, %s)", (itemId, wordId))
+
+    def selectSitePerCount(self, startAt, endAt):
+        cursor = self.connection.cursor()
+        cursor.execute("select site, count(id) from content where date between %s and date %s group by site", (startAt, endAt))
         return cursor.fetchall()

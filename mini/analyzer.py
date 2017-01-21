@@ -6,10 +6,13 @@ DB_USER = cf.get('db', 'DB_USER')
 DB_PWD = cf.get('db', 'DB_PWD')
 DB_SCH = cf.get('db', 'DB_SCH')
 URL = cf.get('url', 'dic')
+TOKEN = cf.get('TELEGRAM', 'TOKEN')
+VALID_USER = cf.get('TELEGRAM', 'VALID_USER')
 
 import pymysql
 import sys
 import datetime
+from telegram.ext import Updater
 
 class DBManager:
     def __init__(self, DB_IP, DB_USER, DB_PWD, DB_SCH):
@@ -238,5 +241,7 @@ while True:
         print("unexpect error.", sys.exc_info())
         time.sleep(3)
         if analyzer.isBreak():
+            updater = Updater(TOKEN)
+            updater.bot.sendMessage(chat_id=VALID_USER, text= 'analyzer is doesnt work.')
             break
         continue

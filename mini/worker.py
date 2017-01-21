@@ -950,6 +950,8 @@ class Runner:
             itemId = each.get('id')
             financeList = self.getFinanceListFromItemId(itemId)
             financeMap = self.getFinanceDataMap(financeList)
+            self.insertEventWord(itemId, financeMap.get('chance'))
+            self.insertEventWord(itemId, financeMap.get('danger'))
             if (total > 0 and resultPrice != 0) and not (plusPercent == 0 or minusPercent == 0):
                 if resultPrice < 0:
                     if self.checkDefence(stockName, targetAt):
@@ -1062,6 +1064,7 @@ class Runner:
     def filteredTarget(self, limitAt):
         targetList = list()
         results = list()
+        results.append(str(self.selectSitePerCount(date.today(), limitAt)))
         for period in self.getPeriodAll():
             filterdList = list()
             for stock in self.getStockList():
@@ -1090,6 +1093,27 @@ class Runner:
         for result in results :
             msg += str(result) + "\n"
         return msg
+
+    def insertEventWord(self, itemId, wordIds):
+        for wordId in wordIds:
+            if self.hasEventWord(itemId, wordId):
+                self.insertEvent(itemId, wordId)
+
+    def hasEventWord(self, itemId, wordId):
+        cursor = self.connection.cursor()
+        cursor.execute("select count(id) as c from data.event where itemId = %s and wordId = %s", (itemId, wordId))
+        cnt = cursor.fetchone().get('c')
+        return cnt == 0
+
+    def insertEvent(self, itemId, wordId):
+        cursor = self.connection.cursor()
+        cursor.execute("INSERT INTO `data`.`event` (`itemId`, `wordId`) VALUES (%s, %s)", (itemId, wordId))
+
+    def selectSitePerCount(self, startAt, endAt):
+        cursor = self.connection.cursor()
+        cursor.execute("select site, count(id) from content where date between %s and date %s group by site", (startAt, endAt))
+        return cursor.fetchall()
+
 
 cf = configparser.ConfigParser()
 cf.read('config.cfg')
