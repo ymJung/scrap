@@ -83,5 +83,3 @@ class Store:
                 if self.is_invalid_status():
                     continue
                 self.save_stocks(code, self.stock_chart)
-
-Store().run()
