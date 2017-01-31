@@ -26,7 +26,6 @@ import time
 import random
 import re
 
-
 class Paxnet:
     def __init__(self):
         self.SEQ = SEQ
