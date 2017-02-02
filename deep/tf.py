@@ -24,7 +24,8 @@ import configparser
 # configuration variables
 class TFStockStudy:
     def __init__(self):
-        self.input_vec_size = lstm_size = 7
+        self.input_vec_size = 7
+        self.lstm_size = 7
         self.time_step_size = 60
         self.label_size = 3
         self.evaluate_size = 3
