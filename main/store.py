@@ -59,7 +59,7 @@ class Store:
         last_date = cursor.fetchone()
         if last_date is None:
             return self.DEFAULT_FIRST_DATE
-        after_day = datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S") + timedelta(days=1)
+        after_day = last_date.get('date') + timedelta(days=1)
         return after_day.year * 10000 + after_day.month * 100 + after_day.day
 
     def is_invalid_status(self):
@@ -83,3 +83,4 @@ class Store:
                 if self.is_invalid_status():
                     continue
                 self.save_stocks(code, self.stock_chart)
+Store().run()
