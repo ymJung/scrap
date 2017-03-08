@@ -15,7 +15,6 @@ import time
 import json
 
 
-
 class KakaoStock:
     def __init__(self):
         self.DATE_FORMAT = '%Y-%m-%dT%H:%M:%S' #2016-05-06T00:37:53.000+00:00
@@ -277,7 +276,7 @@ class Runner:
                     print('all clean')
                     break
     def migration(self, period, stockCode):
-        stock = self.getStock(stockCode) 
+        stock = self.getStock(stockCode)
         if stock is not None :
             targetDate = self.getLastItemDate(stock.get('id'), period)
             limitDate = self.getFirstContentDate(stock.get('id'))
@@ -1033,7 +1032,7 @@ class Runner:
     def getBeforeFinanceResult(self, itemId):
         financeId = self.getBeforeFinanceId(itemId)
         return self.getFinancePrice(financeId)
-    def getAnalyzedTarget(self, itemId, plusChanceIds, point, pointDict, stockName, targetAt):
+    def getAnalyzedTarget(self, itemId, plusChanceIds, point, pointDict, stockName, targetAt, stockCode):
         financeList = self.getFinanceListFromItemId(itemId)
         chanceIds = []
         for chanceId in plusChanceIds:
@@ -1041,7 +1040,7 @@ class Runner:
                 chanceIds.append(chanceId)
         financeResult = self.getBeforeFinanceResult(itemId)
         return {'name':stockName, stockName: point, 'period' : pointDict.get(stockName).get('period'), 'potential': pointDict.get(stockName).get('potential'),
-                'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds, 'yesterday': financeResult}
+                'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds, 'yesterday': financeResult, 'code':stockCode}
 
     def getForecastResult(self, stockName, limitAt, period):
         cursor = self.connection.cursor()
@@ -1054,7 +1053,7 @@ class Runner:
         forecastResults = self.getForecastResult(stock.get('name'), startAt, period)
         for each in forecastResults:
             itemId, point, stockName, targetAt = self.getFilteredForecastResult(each)
-            analyzedTargetData = self.getAnalyzedTarget(itemId, plusChanceIds, point, pointDict, stockName, targetAt)
+            analyzedTargetData = self.getAnalyzedTarget(itemId, plusChanceIds, point, pointDict, stockName, targetAt, stock.get('code'))
             filteredTargets.append(analyzedTargetData)
         return filteredTargets
     def selectItemByFinanceIsNull(self, stockId):
@@ -1079,7 +1078,7 @@ class Runner:
                         filterdList.append(filter)
                 targetList.append(filteredTargetList)
             for filter in filterdList :
-                  result = filter.get('name') + str(filter.get('targetAt')) + '::' + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get(filter.get('name'))) + '::' + str(len(filter.get('chance')))
+                  result = filter.get('name') + str(filter.get('targetAt')) + '::' + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get(filter.get('name'))) + '::' + str(len(filter.get('chance'))) + str(filter.get('code'))
                   results.append(result)
                   if (filter.get('targetAt') == limitAt.day):
                     targetList.append(filter)
@@ -1128,20 +1127,18 @@ LINK4 = cf.get('KAKAO_STOCK', 'link4')
 LINK1 = cf.get('KAKAO_STOCK', 'link1')
 
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-
 updater = Updater(TOKEN)
-if len(sys.argv) == 1:
-    exit(1)
 command = sys.argv[1]
+
 if command == 'daily':
-    run.updateAllStockFinance()
     run.filterPotentialStock(periods=run.getPeriodAll())
     run.dailyAll()
 elif command == 'stock':
     try :
         run.getStocks()
     except DSStockError :
-        updater.bot.sendMessage(chat_id=VALID_USER, text=str('disconnect stock.'))
+#        updater.bot.sendMessage(chat_id=VALID_USER, text=str('disconnect stock.'))
+        print('disconnect')
 elif command == 'migrate':
     run.migrationWork(periods=run.getPeriodAll())
 elif command == 'forecast':
@@ -1149,4 +1146,3 @@ elif command == 'forecast':
     updater.bot.sendMessage(chat_id=VALID_USER, text= results)
 else :
     print('invalid command')
-

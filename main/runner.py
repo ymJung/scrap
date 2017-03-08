@@ -204,7 +204,7 @@ class Runner:
                         filterdList.append(filter)
                 targetList.append(filteredTargetList)
             for filter in filterdList :
-                  result = filter.get('name') + str(filter.get('targetAt')) + '::' + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get(filter.get('name'))) + '::' + str(len(filter.get('chance')))
+                  result = filter.get('name') + str(filter.get('targetAt')) + '::' + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get(filter.get('name'))) + '::' + str(len(filter.get('chance'))) + str(filter.get('code'))
                   results.append(result)
                   if (filter.get('targetAt') == limitAt.day):
                     targetList.append(filter)
@@ -258,7 +258,7 @@ class Runner:
         forecastResults = self.dbm.getForecastResult(stock.get('name'), startAt, period)
         for each in forecastResults:
             itemId, point, stockName, targetAt = self.getFilteredForecastResult(each)
-            analyzedTargetData = self.getAnalyzedTarget(itemId, plusChanceIds, point, pointDict, stockName, targetAt)
+            analyzedTargetData = self.getAnalyzedTarget(itemId, plusChanceIds, point, pointDict, stockName, targetAt, stock.get('code'))
             filteredTargets.append(analyzedTargetData)
         return filteredTargets
 
@@ -267,12 +267,12 @@ class Runner:
         forecastResults = self.dbm.getForecastResult(stock.get('name'), date.today(), period)
         for forecastResult in forecastResults:
             itemId, point, stockName, targetAt = self.getFilteredForecastResult(forecastResult)
-            analyzedTargetData = self.getAnalyzedTarget(itemId, plusChanceIds, point, pointDict, stockName, targetAt)
+            analyzedTargetData = self.getAnalyzedTarget(itemId, plusChanceIds, point, pointDict, stockName, targetAt, stock.get('code'))
             results.append(analyzedTargetData)
         return results
 
 
-    def getAnalyzedTarget(self, itemId, plusChanceIds, point, pointDict, stockName, targetAt):
+    def getAnalyzedTarget(self, itemId, plusChanceIds, point, pointDict, stockName, targetAt, stockCode):
         financeList = self.dbm.getFinanceListFromItemId(itemId)
         chanceIds = []
         for chanceId in plusChanceIds:
@@ -280,7 +280,7 @@ class Runner:
                 chanceIds.append(chanceId)
         financeResult = self.getBeforeFinanceResult(itemId)
         return {'name':stockName, stockName: point, 'period' : pointDict.get(stockName).get('period'), 'potential': pointDict.get(stockName).get('potential'),
-                'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds, 'yesterday': financeResult}
+                'total': pointDict.get(stockName).get('total'), 'targetAt': targetAt.day,'chance': chanceIds, 'yesterday': financeResult, 'code':stockCode}
 
     def getFilteredForecastResult(self, each):
         plus = each.get('plus')
@@ -501,7 +501,7 @@ class Runner:
 run = Runner()
 
 run.updateAllStockFinance() #하루에 한번씩 15시 이후
-# run.filterPotentialStock(run.dbm.getPeriodAll()) #하루에 한번씩.
+#run.filterPotentialStock(run.dbm.getPeriodAll()) #하루에 한번씩.
 # run.dailyAll() #하루에 한번씩.
 # print(run.filteredTarget(date.today()+timedelta(days=max(run.dbm.getPeriodAll())))) #하루에 한번씩
 
