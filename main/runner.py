@@ -15,6 +15,7 @@ class Runner:
         self.GUARANTEE_COUNT = 100
         self.FILTER_LIMIT = 50
         self.FILTER_TARGET_LIMIT = 70
+        self.LIMIT_RATE = 0.70
         self.CHANCE_PERCENT = 0.10
         self.PPOMPPU_ID = ''
         self.PPOMPPU_PWD = ''
@@ -204,7 +205,12 @@ class Runner:
                         filterdList.append(filter)
                 targetList.append(filteredTargetList)
             for filter in filterdList :
-                  result = filter.get('name') + str(filter.get('targetAt')) + '::' + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get(filter.get('name'))) + '::' + str(len(filter.get('chance'))) + str(filter.get('code'))
+                  result = "[" + str(filter.get('targetAt')) \
+                           + "] [" + str(filter.get('period')) \
+                           + "] [" + str(filter.get('code') + "," + filter.get('name')) \
+                           + '] [' + str(filter.get('potential')) \
+                           + '] [' + str(filter.get(filter.get('name'))) \
+                           + '] [' + str(len(filter.get('chance'))) + "]"
                   results.append(result)
                   if (filter.get('targetAt') == limitAt.day):
                     targetList.append(filter)
@@ -496,14 +502,21 @@ class Runner:
         for wordId in wordIds:
             if self.dbm.hasEventWord(itemId, wordId):
                 self.dbm.insertEvent(itemId, wordId)
-
+    def getPotential(self):
+        datas = self.dbm.getPotentialDatas(self.LIMIT_RATE)
+        msg = ''
+        for data in datas:
+            msg += (data.get('analyzeAt').strftime("%Y-%m-%d") + ' [' + str(data.get('code')) + '] [' + str(data.get('potential')) + '] [' + str(data.get('volume')) + ']\n')
+        return msg
 
 run = Runner()
 
 run.updateAllStockFinance() #하루에 한번씩 15시 이후
 #run.filterPotentialStock(run.dbm.getPeriodAll()) #하루에 한번씩.
-# run.dailyAll() #하루에 한번씩.
+#run.dailyAll() #하루에 한번씩.
 # print(run.filteredTarget(date.today()+timedelta(days=max(run.dbm.getPeriodAll())))) #하루에 한번씩
+# print(run.getPotential())
+
 
 # print(results)
 

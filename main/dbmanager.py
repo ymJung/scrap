@@ -3,6 +3,7 @@ import pymysql.cursors
 import sys
 import re
 import configparser
+from datetime import timedelta
 
 
 class DBManagerError(Exception):
@@ -589,4 +590,13 @@ class DBManager:
     def selectSitePerCount(self, startAt, endAt):
         cursor = self.connection.cursor()
         cursor.execute("select site, count(id) from content where date between %s and date %s group by site", (startAt, endAt))
+        return cursor.fetchall()
+
+    def getPotentialDatas(self, limitRate):
+        cursor = self.connection.cursor()
+        cursor.execute("select max(analyzeAt) as analyzeMax, max(evaluate) as evaluateMax from data.forecast")
+        result = cursor.fetchone()
+        target_at = result.get('analyzeMax') - timedelta(days=result.get('evaluateMax'))
+        query = "select type, code, analyzeAt, potential, volume from data.forecast where analyzeAt > %s and potential > %s order by analyzeAt, code asc"
+        cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
