@@ -600,3 +600,11 @@ class DBManager:
         query = "select type, code, analyzeAt, potential, volume from data.forecast where analyzeAt > %s and potential > %s order by analyzeAt, code asc"
         cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
+
+    def updateDailyStocksByCode(self, code, name):
+        cursor = self.connection.cursor()
+        cursor.execute("select id from data.daily_stock where code = %s", (code))
+        results = cursor.fetchall()
+        for result in results:
+            cursor.execute("UPDATE `data`.`daily_stock` SET `name`=%s WHERE `id`=%s", (name, result.get('id')))
+

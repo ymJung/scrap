@@ -42,6 +42,8 @@ class DSStock:
         for i in range(0, totalCount):
             dsCode = self.ins.GetData(0, i)
             dsName = self.ins.getData(1, i)
+
+            self.dbm.updateDailyStocksByCode(dsCode, dsName)
             stock = self.dbm.selectStockByCode(dsCode)
             if stock is not None :
                 if stock.get('name') != dsName :
@@ -51,6 +53,8 @@ class DSStock:
                     for contentId in contentIdList :
                         self.dbm.updateContentQuery(contentId.get('id'), stock.get('id'))
                     self.dbm.commit()
+
+
     def getStock(self, stockCode):
         stock = self.dbm.selectStockByCode(stockCode)
         if stock is None:
