@@ -603,8 +603,9 @@ class DBManager:
 
     def updateDailyStocksByCode(self, code, name):
         cursor = self.connection.cursor()
-        cursor.execute("select id from data.daily_stock where code = %s", (code))
+        cursor.execute("select id, name from data.daily_stock where code = %s", (code))
         results = cursor.fetchall()
         for result in results:
-            cursor.execute("UPDATE `data`.`daily_stock` SET `name`=%s WHERE `id`=%s", (name, result.get('id')))
+            if result.get('name') != name :
+                cursor.execute("UPDATE `data`.`daily_stock` SET `name`=%s WHERE `id`=%s", (name, result.get('id')))
 
