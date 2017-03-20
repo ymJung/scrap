@@ -81,7 +81,6 @@ class DSStock:
         self.chart.SetInputValue(5, [0, 2, 3, 4, 5])  # 날짜, 시가, 고가, 저가, 종가
         self.chart.SetInputValue(6, ord('D'))  # 차트 구분 (일)
 
-        ## 데이터 호출
         self.chart.BlockRequest()
         num = self.chart.GetHeaderValue(3)
         data = []
