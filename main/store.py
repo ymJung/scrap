@@ -48,7 +48,7 @@ class Store:
 
             if exist.get('cnt') > 0:
                 cursor.execute("select id from data.daily_stock where date = %s and code = %s", (date, code))
-                upd_id = cursor.fetchone().get('id')
+                upd_id = cursor.fetchone()
                 cursor.execute("UPDATE data.daily_stock SET "
                                "code = %s, date = %s, open = %s, high = %s, low= %s, close= %s, volume= %s, hold_foreign= %s, st_purchase_inst= %s"
                                " WHERE `id`=%s", (code, s_date, open, high, low, close, volume, hold_foreign, st_purchase_inst, upd_id))
