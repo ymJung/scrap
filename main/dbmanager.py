@@ -594,9 +594,9 @@ class DBManager:
 
     def getPotentialDatas(self, limitRate):
         cursor = self.connection.cursor()
-        cursor.execute("select max(analyzeAt) as analyzeMax, max(evaluate) as evaluateMax from data.forecast")
+        cursor.execute("select max(evaluate) as evaluateMax from data.forecast")
         result = cursor.fetchone()
-        target_at = result.get('analyzeMax') - timedelta(days=result.get('evaluateMax'))
+        target_at = datetime.date.today() - timedelta(days=result.get('evaluateMax'))
         query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
         cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
