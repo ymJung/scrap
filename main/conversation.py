@@ -28,9 +28,10 @@ class DBManager:
         #         if code is None:
         #             return None
         cursor = self.conn.cursor()
-        cursor.execute("select max(evaluate) as maxEval from data.forecast")
-        max_evaluate = cursor.fetchone()
-        target_at = date.today() - timedelta(days=max_evaluate)
+        cursor.execute("select max(evaluate) as maxEv, max(analyzeAt) as maxAt from data.forecast")
+        result = cursor.fetchone()
+        max_evaluate = result.get('maxEv')
+        target_at = result.get('maxAt') - timedelta(days=max_evaluate)
         cursor.execute(
             "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND f.analyzeAt > %s AND f.code = %s GROUP BY f.id ORDER BY f.analyzeAt, f.code ASC",
             (target_at, code))
@@ -53,11 +54,11 @@ class DBManager:
         cursor.execute("SELECT distinct(code) FROM data.daily_stock WHERE name = %s", (param))
         result = cursor.fetchone()
         if result is not None:
-            return result
+            return result.get('code')
         cursor.execute("SELECT distinct(code) FROM data.daily_stock WHERE code = %s", (param))
         result = cursor.fetchone()
         if result is not None:
-            return result
+            return result.get('code')
         return None
 
 
@@ -86,7 +87,7 @@ def conversation(bot, update):
 
 
 def guide(bot, update):
-    bot.sendMessage(chat_id=update.message.chat_id, text='hello')
+    bot.sendMessage(chat_id=update.message.chat_id, text='stock code or name')
 
 
 tb = telegram.Bot(token=ORA_TOKEN)
