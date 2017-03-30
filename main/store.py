@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import pymysql
 import win32com.client as com
 import configparser
@@ -23,6 +23,8 @@ class Store:
         self.stock_chart.SetInputValue(6, ord('D'))  # 일간데이터
         self.stock_chart.SetInputValue(9, ord('1'))  # 수정주가 요청
         self.code_mgr = com.Dispatch("CpUtil.CpCodeMgr")
+        self.ins = com.Dispatch("CpUtil.CpStockCode")
+
 
     def __del__(self):
         self.connection.close()
@@ -34,8 +36,6 @@ class Store:
         cursor = self.connection.cursor()
         for i in range(ds_stock_chart.GetHeaderValue(3)):
             date = ds_stock_chart.GetDataValue(0, i)
-            cursor.execute("select count(date) as cnt from data.daily_stock where date = %s", (date))
-            exist = cursor.fetchone()
 
             s_date = datetime(date // 10000, date // 100 % 100, date % 100)
             open = ds_stock_chart.GetDataValue(1, i)
@@ -46,9 +46,11 @@ class Store:
             hold_foreign = float(ds_stock_chart.GetDataValue(6, i))
             st_purchase_inst = float(ds_stock_chart.GetDataValue(7, i))
 
+            cursor.execute("select count(date) as cnt from data.daily_stock where date = %s and code = %s", (date, code))
+            exist = cursor.fetchone()
             if exist.get('cnt') > 0:
                 cursor.execute("select id from data.daily_stock where date = %s and code = %s", (date, code))
-                upd_id = cursor.fetchone()
+                upd_id = cursor.fetchone().get('id')
                 cursor.execute("UPDATE data.daily_stock SET "
                                "code = %s, date = %s, open = %s, high = %s, low= %s, close= %s, volume= %s, hold_foreign= %s, st_purchase_inst= %s"
                                " WHERE `id`=%s", (code, s_date, open, high, low, close, volume, hold_foreign, st_purchase_inst, upd_id))
@@ -70,6 +72,8 @@ class Store:
         if last_date is None:
             return self.DEFAULT_FIRST_DATE
         after_day = last_date.get('date') + timedelta(days=1)
+        if after_day.date() == date.today() and datetime.today().hour < 16:
+            after_day = after_day - timedelta(days=1)
         return after_day.year * 10000 + after_day.month * 100 + after_day.day
 
     def is_invalid_status(self):
@@ -79,6 +83,25 @@ class Store:
         return False
 
     def run(self):
+        self.insert_kospi_stocks()
+        self.update_stock_name()
+
+    def update_stock_name(self):
+        totalCount = self.ins.GetCount()
+        for i in range(0, totalCount):
+            dsCode = self.ins.GetData(0, i)
+            dsName = self.ins.getData(1, i)
+            self.update_daily_stocks_code(dsCode, dsName)
+
+    def update_daily_stocks_code(self, code, name):
+        cursor = self.connection.cursor()
+        cursor.execute("select id, name from data.daily_stock where code = %s", (code))
+        results = cursor.fetchall()
+        for result in results:
+            if result.get('name') != name:
+                cursor.execute("UPDATE `data`.`daily_stock` SET `name`=%s WHERE `id`=%s", (name, result.get('id')))
+
+    def insert_kospi_stocks(self):
         for code in self.code_mgr.GetGroupCodeList(self.KOSPI_200):
             possible_store_date = self.get_possible_store_date(code)
             self.stock_chart.SetInputValue(0, code)
@@ -93,4 +116,6 @@ class Store:
                 if self.is_invalid_status():
                     continue
                 self.save_stocks(code, self.stock_chart)
+
+
 Store().run()
