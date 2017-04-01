@@ -36,18 +36,7 @@ class DBManager:
             "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND f.analyzeAt > %s AND f.code = %s GROUP BY f.id ORDER BY f.analyzeAt, f.code ASC",
             (target_at, code))
         results = cursor.fetchall()
-        return self.get_result_msg(results)
-
-    def get_result_msg(self, results):
-        msg = ''
-        for data in results:
-            msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
-                    + ' [' + data.get('name')
-                    + '] [' + data.get('code')
-                    + '] [' + str(data.get('type'))
-                    + '] ['+ str(data.get('potential'))
-                    + '] [' + str(data.get('volume')) + ']\n')
-        return msg
+        return results
 
     def get_code(self, param):
         cursor = self.conn.cursor()
@@ -82,18 +71,56 @@ def conversation(bot, update):
     if code is None:
         send_message(bot, chat_id, 'not found.')
         return
-    poten_data = dbm.get_target_forecast(code)
-    send_message(bot, chat_id, poten_data)
-
+    poten_datas = dbm.get_target_forecast(code)
+    forecast_msg = get_forecast_msg(poten_datas)
+    send_message(bot, chat_id, forecast_msg)
+def get_forecast_msg(poten_datas):
+    msg = ''
+    for data in poten_datas:
+        msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
+                + ' [' + data.get('name')
+                + '] [' + data.get('code')
+                + '] [' + str(data.get('type'))
+                + '] [' + str(data.get('potential'))
+                + '] [' + str(data.get('volume')) + ']\n')
+    return msg
 
 def guide(bot, update):
     bot.sendMessage(chat_id=update.message.chat_id, text='stock code or name')
 
 
-tb = telegram.Bot(token=ORA_TOKEN)
-updater = Updater(ORA_TOKEN)
+import datetime
+import sys
 
-updater.dispatcher.addTelegramCommandHandler('help', guide)
-updater.dispatcher.addTelegramMessageHandler(conversation)
-send_message(tb, VALID_USER, 'hello')
-updater.start_polling()
+RETRY_LIMIT_CNT = 5
+RETRY_LIMIT = {datetime.date.today(): RETRY_LIMIT_CNT}
+
+
+def is_break():
+    retry_cnt = get_date_retry_limit(datetime.date.today())
+    if retry_cnt < 0:
+        return True
+    return False
+
+
+def get_date_retry_limit(date):
+    date_str = str(date)
+    if date_str in RETRY_LIMIT:
+        print('reduce today limit ', date_str, RETRY_LIMIT[date_str])
+        RETRY_LIMIT[date_str] -= 1
+    else:
+        print('make today limit ', date_str)
+        RETRY_LIMIT.update({date_str: RETRY_LIMIT_CNT})
+    return RETRY_LIMIT[date_str]
+
+tb = telegram.Bot(token=ORA_TOKEN)
+try:
+    updater = Updater(ORA_TOKEN)
+    updater.dispatcher.addTelegramCommandHandler('help', guide)
+    updater.dispatcher.addTelegramMessageHandler(conversation)
+    send_message(tb, VALID_USER, 'hello telegram bot conversation')
+    updater.start_polling()
+except:
+    send_message(tb, VALID_USER, 'unexpected error telegram bot conversation')
+    print('unexpected error', sys.exc_info()[0])
+    print('Error on line {}'.format(sys.exc_info()[-1].tb_lineno))

@@ -601,11 +601,3 @@ class DBManager:
         cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
 
-    def updateDailyStocksByCode(self, code, name):
-        cursor = self.connection.cursor()
-        cursor.execute("select id, name from data.daily_stock where code = %s", (code))
-        results = cursor.fetchall()
-        for result in results:
-            if result.get('name') != name :
-                cursor.execute("UPDATE `data`.`daily_stock` SET `name`=%s WHERE `id`=%s", (name, result.get('id')))
-

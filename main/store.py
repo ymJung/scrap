@@ -82,16 +82,13 @@ class Store:
             return True
         return False
 
-    def run(self):
-        self.insert_kospi_stocks()
-        self.update_stock_name()
 
     def update_stock_name(self):
-        totalCount = self.ins.GetCount()
-        for i in range(0, totalCount):
-            dsCode = self.ins.GetData(0, i)
-            dsName = self.ins.getData(1, i)
-            self.update_daily_stocks_code(dsCode, dsName)
+        total_count = self.ins.GetCount()
+        for i in range(0, total_count):
+            ds_code = self.ins.GetData(0, i)
+            ds_name = self.ins.getData(1, i)
+            self.update_daily_stocks_code(ds_code, ds_name)
 
     def update_daily_stocks_code(self, code, name):
         cursor = self.connection.cursor()
@@ -99,6 +96,7 @@ class Store:
         results = cursor.fetchall()
         for result in results:
             if result.get('name') != name:
+                print('update name', name, code)
                 cursor.execute("UPDATE `data`.`daily_stock` SET `name`=%s WHERE `id`=%s", (name, result.get('id')))
 
     def insert_kospi_stocks(self):
@@ -117,5 +115,8 @@ class Store:
                     continue
                 self.save_stocks(code, self.stock_chart)
 
+    def run(self):
+        self.insert_kospi_stocks()
+        self.update_stock_name()
 
 Store().run()
