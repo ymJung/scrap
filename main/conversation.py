@@ -2,7 +2,6 @@ import pymysql
 from datetime import date, timedelta
 import configparser
 
-LIMIT = 0.70
 cf = configparser.ConfigParser()
 cf.read('config/config.cfg')
 
@@ -33,7 +32,7 @@ class DBManager:
         max_evaluate = result.get('maxEv')
         target_at = result.get('maxAt') - timedelta(days=max_evaluate)
         cursor.execute(
-            "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND f.analyzeAt > %s AND f.code = %s GROUP BY f.id ORDER BY f.analyzeAt, f.code ASC",
+            "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume, f.evaluate FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND f.analyzeAt > %s AND f.code = %s GROUP BY f.id ORDER BY f.analyzeAt, f.code ASC",
             (target_at, code))
         results = cursor.fetchall()
         return results
@@ -72,21 +71,26 @@ def conversation(bot, update):
         send_message(bot, chat_id, 'not found.')
         return
     poten_datas = dbm.get_target_forecast(code)
-    forecast_msg = get_forecast_msg(poten_datas)
+    forecast_msg = get_forecast_explain(poten_datas)
     send_message(bot, chat_id, forecast_msg)
-def get_forecast_msg(poten_datas):
+
+
+TYPE_MAP = {3: '마감', 6: '기관'}
+def get_forecast_explain(poten_datas):
     msg = ''
     for data in poten_datas:
-        msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
-                + ' [' + data.get('name')
-                + '] [' + data.get('code')
-                + '] [' + str(data.get('type'))
-                + '] [' + str(data.get('potential'))
-                + '] [' + str(data.get('volume')) + ']\n')
+        today = date.today()
+        forecast_at = (data.get('analyzeAt') + timedelta(days=data.get('evaluate'))).date()
+        compare = (today - forecast_at).days + 1  # 계산날짜 포함
+        forecast_type = TYPE_MAP[data.get('type')]
+        if compare >= 0:
+            msg += '[' + data.get('name') + ']는 [' + forecast_type + '] 이 [' + str(compare)
+            msg += '] 일 뒤 [' + str(data.get('potential')) + '] 입니다.\n '
     return msg
 
+
 def guide(bot, update):
-    bot.sendMessage(chat_id=update.message.chat_id, text='stock code or name')
+    bot.sendMessage(chat_id=update.message.chat_id, text='stock code or name. (exact)')
 
 
 import datetime
@@ -112,6 +116,7 @@ def get_date_retry_limit(date):
         print('make today limit ', date_str)
         RETRY_LIMIT.update({date_str: RETRY_LIMIT_CNT})
     return RETRY_LIMIT[date_str]
+
 
 tb = telegram.Bot(token=ORA_TOKEN)
 try:
