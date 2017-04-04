@@ -43,7 +43,6 @@ class DSStock:
             dsCode = self.ins.GetData(0, i)
             dsName = self.ins.getData(1, i)
 
-            self.dbm.updateDailyStocksByCode(dsCode, dsName)
             stock = self.dbm.selectStockByCode(dsCode)
             if stock is not None :
                 if stock.get('name') != dsName :
