@@ -98,6 +98,7 @@ class Store:
             if result.get('name') != name:
                 print('update name', name, code)
                 cursor.execute("UPDATE `data`.`daily_stock` SET `name`=%s WHERE `id`=%s", (name, result.get('id')))
+        self.commit()
 
     def insert_kospi_stocks(self):
         for code in self.code_mgr.GetGroupCodeList(self.KOSPI_200):

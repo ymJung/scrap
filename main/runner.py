@@ -535,8 +535,9 @@ class Runner:
         for data in datas:
             print(data)
             msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
-                    + ' [' + data.get('name')
+                    + ' [' + str(data.get('evaluate'))
                     + '] [' + data.get('code')
+                    + '] [' + data.get('name')
                     + '] [' + str(data.get('type'))
                     + '] [' + str(data.get('potential'))
                     + '] [' + str(data.get('volume')) + ']\n')
