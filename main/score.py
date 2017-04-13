@@ -1,5 +1,6 @@
 import pymysql
 import configparser
+from datetime import timedelta
 
 cf = configparser.ConfigParser()
 cf.read('config.cfg')
@@ -22,7 +23,7 @@ class DBManager:
 
     def select_forecast(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, type, code, evaluate, analyzeAt, potential FROM data.forecast")
+        cursor.execute("SELECT id, type, code, evaluate, analyzeAt, potential FROM data.forecast WHERE correct = 0")
         return cursor.fetchall()
 
     def select_stock_data(self, stock_id):
@@ -52,6 +53,15 @@ class DBManager:
         cursor = self.conn.cursor()
         cursor.execute('UPDATE `data`.`forecast` SET `correct`=%s WHERE `id`= %s', (correct, forecast_id))
         self.conn.commit()
+
+    def getPotentialDatas(self, limitRate):
+        cursor = self.conn.cursor()
+        cursor.execute("select max(evaluate) as evaluateMax, max(analyzeAt) as analyzeAtMax from data.forecast")
+        result = cursor.fetchone()
+        target_at = result.get('analyzeAtMax') - timedelta(days=result.get('evaluateMax'))
+        query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.correct, f.evaluate FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
+        cursor.execute(query, (target_at, str(limitRate)))
+        return cursor.fetchall()
 
 
 TYPE_MAP = {3: 'close', 6: 'st_purchase_inst'}
@@ -83,4 +93,20 @@ for data in datas:
         dbm.update_forecast_correct(forecast_id, 1)
     else:
         dbm.update_forecast_correct(forecast_id, -3)
+
+LIMIT_RATE = 0.70
+
+def getPotential():
+    datas = dbm.getPotentialDatas(LIMIT_RATE)
+    msg = ''
+    for data in datas:
+        print(data)
+        msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
+                + ' [' + str(data.get('evaluate'))
+                + '] [' + data.get('code')
+                + '] [' + data.get('name')
+                + '] [' + str(data.get('type'))
+                + '] [' + str(data.get('potential'))
+                + '] [' + str(data.get('volume')) + ']\n')
+    return msg
 print('done')

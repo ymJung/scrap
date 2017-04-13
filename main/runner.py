@@ -546,11 +546,11 @@ class Runner:
 
 run = Runner()
 
-# run.updateAllStockFinance()  # 하루에 한번씩 15시 이후
+run.updateAllStockFinance()  # 하루에 한번씩 15시 이후
 # run.filterPotentialStock(run.dbm.getPeriodAll()) #하루에 한번씩.
 # run.dailyAll() #하루에 한번씩.
 # print(run.filteredTarget(date.today()+timedelta(days=max(run.dbm.getPeriodAll())))) #하루에 한번씩
-print(run.getPotential())
+# print(run.getPotential())
 
 
 # print(results)

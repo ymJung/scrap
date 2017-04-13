@@ -82,7 +82,6 @@ class Store:
             return True
         return False
 
-
     def update_stock_name(self):
         total_count = self.ins.GetCount()
         for i in range(0, total_count):
