@@ -3,7 +3,7 @@ import configparser
 from datetime import timedelta
 
 cf = configparser.ConfigParser()
-cf.read('config.cfg')
+cf.read('config/config.cfg')
 
 DB_IP = cf.get('db', 'DB_IP')
 DB_USER = cf.get('db', 'DB_USER')
