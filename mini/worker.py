@@ -5,7 +5,6 @@ import threading
 import queue
 import numpy
 import sys
-import configparser
 import win32com.client
 from telegram.ext import Updater
 from bs4 import BeautifulSoup
@@ -234,6 +233,8 @@ class Runner:
         self.stocks = None
         self.KOSPI_CODE = 'D0011001'
         self.KOSPI_NAME = 'KOSPI'
+        self.LIMIT_RATE = 0.70
+
 
     def updateFinance(self, high, low, start, final, financeId):
         cursor = self.connection.cursor()
@@ -1078,7 +1079,12 @@ class Runner:
                         filterdList.append(filter)
                 targetList.append(filteredTargetList)
             for filter in filterdList :
-                  result = filter.get('name') + str(filter.get('targetAt')) + '::' + str(filter.get('period')) + '::' + str(filter.get('potential')) + '::' + str(filter.get(filter.get('name'))) + '::' + str(len(filter.get('chance'))) + str(filter.get('code'))
+                  result = "[" + str(filter.get('targetAt')) \
+                           + "] [" + str(filter.get('period')) \
+                           + "] [" + str(filter.get('code') + "," + filter.get('name')) \
+                           + '] [' + str(filter.get('potential')) \
+                           + '] [' + str(filter.get(filter.get('name'))) \
+                           + '] [' + str(len(filter.get('chance'))) + "]"
                   results.append(result)
                   if (filter.get('targetAt') == limitAt.day):
                     targetList.append(filter)
@@ -1114,18 +1120,45 @@ class Runner:
         return cursor.fetchall()
 
 
+    def getPotentialDatas(self, limitRate):
+        cursor = self.connection.cursor()
+        cursor.execute("select max(evaluate) as evaluateMax, max(analyzeAt) as analyzeAtMax from data.forecast")
+        result = cursor.fetchone()
+        target_at = result.get('analyzeAtMax') - timedelta(days=result.get('evaluateMax'))
+        query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.correct, f.evaluate FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
+        cursor.execute(query, (target_at, str(limitRate)))
+        return cursor.fetchall()
+
+    def getPotential(self):
+        datas = self.getPotentialDatas(self.LIMIT_RATE)
+        msg = ''
+        for data in datas:
+            print(data)
+            msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
+                    + ' [' + str(data.get('evaluate'))
+                    + '] [' + data.get('code')
+                    + '] [' + data.get('name')
+                    + '] [' + str(data.get('type'))
+                    + '] [' + str(data.get('potential'))
+                    + '] [' + str(data.get('volume')) + ']\n')
+        return msg
+
+
+import configparser
+
 cf = configparser.ConfigParser()
 cf.read('config.cfg')
+
 DB_IP = cf.get('db', 'DB_IP')
 DB_USER = cf.get('db', 'DB_USER')
 DB_PWD = cf.get('db', 'DB_PWD')
 DB_SCH = cf.get('db', 'DB_SCH')
-VALID_USER = cf.get('TELEGRAM', 'VALID_USER')
-TOKEN = cf.get('TELEGRAM', 'TOKEN')
-LINK3 = cf.get('KAKAO_STOCK', 'link3')
-LINK4 = cf.get('KAKAO_STOCK', 'link4')
-LINK1 = cf.get('KAKAO_STOCK', 'link1')
+VALID_USER = 60403284
 
+TOKEN = cf.get('telegram', 'TOKEN')
+LINK3 = '/day_candles.json?limit='
+LINK4 = '&to='
+LINK1 = cf.get('KAKAO_STOCK', 'link1')
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 updater = Updater(TOKEN)
 command = sys.argv[1]
@@ -1144,5 +1177,13 @@ elif command == 'migrate':
 elif command == 'forecast':
     results = run.filteredTarget(date.today()+timedelta(days=max(run.getPeriodAll())))
     updater.bot.sendMessage(chat_id=VALID_USER, text= results)
+    updater.bot.sendMessage(chat_id=VALID_USER, text= run.getPotential())
 else :
     print('invalid command')
+
+
+
+
+
+
+

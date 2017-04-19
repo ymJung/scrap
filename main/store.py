@@ -25,7 +25,6 @@ class Store:
         self.code_mgr = com.Dispatch("CpUtil.CpCodeMgr")
         self.ins = com.Dispatch("CpUtil.CpStockCode")
 
-
     def __del__(self):
         self.connection.close()
 
@@ -46,14 +45,16 @@ class Store:
             hold_foreign = float(ds_stock_chart.GetDataValue(6, i))
             st_purchase_inst = float(ds_stock_chart.GetDataValue(7, i))
 
-            cursor.execute("select count(date) as cnt from data.daily_stock where date = %s and code = %s", (date, code))
+            cursor.execute("select count(date) as cnt from data.daily_stock where date = %s and code = %s",
+                           (date, code))
             exist = cursor.fetchone()
             if exist.get('cnt') > 0:
                 cursor.execute("select id from data.daily_stock where date = %s and code = %s", (date, code))
                 upd_id = cursor.fetchone().get('id')
                 cursor.execute("UPDATE data.daily_stock SET "
                                "code = %s, date = %s, open = %s, high = %s, low= %s, close= %s, volume= %s, hold_foreign= %s, st_purchase_inst= %s"
-                               " WHERE `id`=%s", (code, s_date, open, high, low, close, volume, hold_foreign, st_purchase_inst, upd_id))
+                               " WHERE `id`=%s",
+                               (code, s_date, open, high, low, close, volume, hold_foreign, st_purchase_inst, upd_id))
                 print('updated stocks code ', code, ' date', date)
             else:
                 cursor.execute(
@@ -118,5 +119,6 @@ class Store:
     def run(self):
         self.insert_kospi_stocks()
         self.update_stock_name()
+
 
 Store().run()
