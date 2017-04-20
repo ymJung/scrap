@@ -533,24 +533,25 @@ class Runner:
         datas = self.dbm.getPotentialDatas(self.LIMIT_RATE)
         msg = ''
         for data in datas:
-            print(data)
-            msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
-                    + ' [' + str(data.get('evaluate'))
-                    + '] [' + data.get('code')
-                    + '] [' + data.get('name')
-                    + '] [' + str(data.get('type'))
-                    + '] [' + str(data.get('potential'))
-                    + '] [' + str(data.get('volume')) + ']\n')
+            compare = self.dbm.compare_yesterday(data.get('analyzeAt'))
+            if compare.get('compare') < 0:
+                msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
+                        + ' [' + str(data.get('evaluate'))
+                        + '] [' + data.get('code')
+                        + '] [' + data.get('name')
+                        + '] [' + str(data.get('type'))
+                        + '] [' + str(data.get('potential'))
+                        + '] [' + str(data.get('volume')) + ']\n')
         return msg
 
 
 run = Runner()
 
-run.updateAllStockFinance()  # 하루에 한번씩 15시 이후
+# run.updateAllStockFinance()  # 하루에 한번씩 15시 이후
 # run.filterPotentialStock(run.dbm.getPeriodAll()) #하루에 한번씩.
 # run.dailyAll() #하루에 한번씩.
 # print(run.filteredTarget(date.today()+timedelta(days=max(run.dbm.getPeriodAll())))) #하루에 한번씩
-# print(run.getPotential())
+print(run.getPotential())
 
 
 # print(results)

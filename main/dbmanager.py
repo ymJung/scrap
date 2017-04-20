@@ -601,3 +601,8 @@ class DBManager:
         cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
 
+    def compare_yesterday(self, code, analyze_at):
+        cursor = self.connection.cursor()
+        cursor.execute("select id, (close-open) as compare from data.daily_stock ds where code = %s and date < %s order by 1 desc limit 1", code, analyze_at)
+        return cursor.fetchone()
+

@@ -1,11 +1,12 @@
-import numpy
-from datetime import timedelta
 import datetime
-import dictionary
+import queue
 import sys
 import threading
-import queue
+from datetime import timedelta
+import numpy
+
 import dbmanager
+import dictionary
 
 
 class MinerError(Exception):
