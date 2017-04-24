@@ -285,5 +285,3 @@ class Miner:
         for contentWordId in self.dbm.getContentWordIds(contentId):
             wordIds.append(contentWordId.get('wordId'))
         return wordIds
-
-

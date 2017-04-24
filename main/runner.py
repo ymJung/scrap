@@ -533,7 +533,7 @@ class Runner:
         datas = self.dbm.getPotentialDatas(self.LIMIT_RATE)
         msg = ''
         for data in datas:
-            compare = self.dbm.compare_yesterday(data.get('analyzeAt'))
+            compare = self.dbm.compare_yesterday(data.get('code'), data.get('analyzeAt'))
             if compare.get('compare') < 0:
                 msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
                         + ' [' + str(data.get('evaluate'))
