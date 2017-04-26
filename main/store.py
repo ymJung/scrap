@@ -73,7 +73,7 @@ class Store:
         if last_date is None:
             return self.DEFAULT_FIRST_DATE
         after_day = last_date.get('date') + timedelta(days=1)
-        if after_day.date() == date.today() and (datetime.today().hour >= 15 and datetime.today().minute > 30):
+        if (after_day.date() == date.today()) == (datetime.today().hour >= 15 and datetime.today().minute > 30):
             after_day = after_day - timedelta(days=1)
         return after_day.year * 10000 + after_day.month * 100 + after_day.day
 

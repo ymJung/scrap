@@ -1129,18 +1129,24 @@ class Runner:
         cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
 
+    def compare_yesterday(self, code, analyze_at):
+        cursor = self.connection.cursor()
+        cursor.execute("select ds.id as id, (ds.close-ds.open) as compare from data.daily_stock ds where ds.code = %s and ds.date < %s order by ds.id desc limit 1", (code, analyze_at))
+        return cursor.fetchone()
+
     def getPotential(self):
         datas = self.getPotentialDatas(self.LIMIT_RATE)
         msg = ''
         for data in datas:
-            print(data)
-            msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
-                    + ' [' + str(data.get('evaluate'))
-                    + '] [' + data.get('code')
-                    + '] [' + data.get('name')
-                    + '] [' + str(data.get('type'))
-                    + '] [' + str(data.get('potential'))
-                    + '] [' + str(data.get('volume')) + ']\n')
+            compare = self.compare_yesterday(data.get('code'), data.get('analyzeAt'))
+            if compare.get('compare') < 0:
+                msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
+                        + ' [' + str(data.get('evaluate'))
+                        + '] [' + data.get('code')
+                        + '] [' + data.get('name')
+                        + '] [' + str(data.get('type'))
+                        + '] [' + str(data.get('potential'))
+                        + '] [' + str(data.get('volume')) + ']\n')
         return msg
 
 
