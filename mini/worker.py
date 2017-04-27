@@ -1181,8 +1181,7 @@ elif command == 'stock':
 elif command == 'migrate':
     run.migrationWork(periods=run.getPeriodAll())
 elif command == 'forecast':
-    results = run.filteredTarget(date.today()+timedelta(days=max(run.getPeriodAll())))
-    updater.bot.sendMessage(chat_id=VALID_USER, text= results)
+    updater.bot.sendMessage(chat_id=VALID_USER, text= run.filteredTarget(date.today()+timedelta(days=max(run.getPeriodAll()))))
     updater.bot.sendMessage(chat_id=VALID_USER, text= run.getPotential())
 else :
     print('invalid command')
