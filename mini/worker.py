@@ -1122,9 +1122,13 @@ class Runner:
 
     def getPotentialDatas(self, limitRate):
         cursor = self.connection.cursor()
-        cursor.execute("select max(evaluate) as evaluateMax, max(analyzeAt) as analyzeAtMax from data.forecast")
-        result = cursor.fetchone()
-        target_at = result.get('analyzeAtMax') - timedelta(days=result.get('evaluateMax'))
+        cursor.execute("select max(evaluate) as evaluateMax from data.forecast")
+        evaluateMax = cursor.fetchone().get('evaluateMax')
+        cursor.execute("select analyzeAt from data.forecast group by analyzeAt order by analyzeAt desc limit %s", (evaluateMax))
+        results = cursor.fetchall()
+        target_at = datetime.date.today()
+        if len(results) >= evaluateMax:
+            target_at = results[evaluateMax-1].get('analyzeAt')
         query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.correct, f.evaluate FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
         cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
@@ -1181,7 +1185,7 @@ elif command == 'stock':
 elif command == 'migrate':
     run.migrationWork(periods=run.getPeriodAll())
 elif command == 'forecast':
-    updater.bot.sendMessage(chat_id=VALID_USER, text= run.filteredTarget(date.today()+timedelta(days=max(run.getPeriodAll()))))
+#    updater.bot.sendMessage(chat_id=VALID_USER, text= run.filteredTarget(date.today()+timedelta(days=max(run.getPeriodAll()))))
     updater.bot.sendMessage(chat_id=VALID_USER, text= run.getPotential())
 else :
     print('invalid command')
