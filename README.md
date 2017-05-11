@@ -1,59 +1,9 @@
 # scrap
 
-python 개인 공부
+python 개인 공부 (종료-중단)
 
-날짜별로 비교
+게시글을 스크랩하여 단어를 추출 종목별로 해당 단어가 나타났을때 며칠 뒤 결과를 종합 하는 프로그램
 
-'content', 'CREATE TABLE `content` (
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `title` varchar(512) DEFAULT NULL,
-  `contentData` longtext,
-  `authorId` bigint(20) NOT NULL,
-  `date` datetime DEFAULT NULL,
-  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8 COMMENT=''content data'''
+종료(중단)이유: 게시글이 원하는만큼 모이지 않고, db insert, select, for each 등 단순한 방법으로 추출하였으나
+딥러닝이 등장한 이후 더 좋은 방법으로 해당 기능을 수행할 수 있게 됨을 판단하여 종료하게 됨.
 
-'comment', 'CREATE TABLE `comment` (
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `contentId` bigint(20) NOT NULL,
-  `authorId` bigint(20) NOT NULL,
-  `commentData` varchar(1024) DEFAULT NULL,
-  `date` datetime DEFAULT NULL,
-  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `author` (`authorId`),
-  KEY `content` (`contentId`),
-  CONSTRAINT `author` FOREIGN KEY (`authorId`) REFERENCES `author` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
-  CONSTRAINT `content` FOREIGN KEY (`contentId`) REFERENCES `content` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
-) ENGINE=InnoDB AUTO_INCREMENT=65 DEFAULT CHARSET=utf8 COMMENT=''comment '''
-
-'author', 'CREATE TABLE `author` (
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) NOT NULL,
-  `population` int(11) DEFAULT ''0'',
-  `believe` int(11) DEFAULT ''0'',
-  `good` int(11) DEFAULT ''0'',
-  `bad` int(11) DEFAULT ''0'',
-  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=64 DEFAULT CHARSET=utf8'
-
-
-CREATE TABLE `word` (
-   `id` bigint(20) NOT NULL AUTO_INCREMENT,
-   `word` varchar(50) NOT NULL,
-   `good` int(11) DEFAULT '0',
-   `bad` int(11) DEFAULT '0',
-   PRIMARY KEY (`id`),
-   UNIQUE KEY `word_UNIQUE` (`word`)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-
-CREATE TABLE `delimiter` (
-   `id` bigint(20) NOT NULL AUTO_INCREMENT,
-   `delimiter` varchar(10) NOT NULL,
-   `good` int(11) DEFAULT '0',
-   `bad` int(11) DEFAULT '0',
-   PRIMARY KEY (`id`),
-   UNIQUE KEY `delimiter_UNIQUE` (`delimiter`)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8
