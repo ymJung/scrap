@@ -49,9 +49,9 @@ class DBManager:
             stock_ids.append(data.get('stock_id'))
         return stock_ids
 
-    def update_forecast_correct(self, forecast_id, correct):
+    def update_forecast_percent(self, forecast_id, percent):
         cursor = self.conn.cursor()
-        cursor.execute('UPDATE `data`.`forecast` SET `correct`=%s WHERE `id`= %s', (correct, forecast_id))
+        cursor.execute('UPDATE `data`.`forecast` SET `percent`=%s WHERE `id`= %s', (percent, forecast_id))
         self.conn.commit()
 
     def getPotentialDatas(self, limitRate):
@@ -85,28 +85,6 @@ for data in datas:
     changed = end_data.get(select) - start_data.get(select)
     percent = round((changed / start_data.get(select)) * 100, 2)
     # print(TYPE_MAP[data.get('type')], start_data.get(select), changed, percent)
-    if percent > UP_PER:
-        dbm.update_forecast_correct(forecast_id, 2)
-    elif percent < 0:
-        dbm.update_forecast_correct(forecast_id, -1)
-    elif percent > 0:
-        dbm.update_forecast_correct(forecast_id, 1)
-    else:
-        dbm.update_forecast_correct(forecast_id, -3)
+    dbm.update_forecast_percent(forecast_id, percent)
 
-LIMIT_RATE = 0.70
-
-def getPotential():
-    datas = dbm.getPotentialDatas(LIMIT_RATE)
-    msg = ''
-    for data in datas:
-        print(data)
-        msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
-                + ' [' + str(data.get('evaluate'))
-                + '] [' + data.get('code')
-                + '] [' + data.get('name')
-                + '] [' + str(data.get('type'))
-                + '] [' + str(data.get('potential'))
-                + '] [' + str(data.get('volume')) + ']\n')
-    return msg
 print('done')
