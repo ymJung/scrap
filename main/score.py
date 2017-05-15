@@ -23,13 +23,12 @@ class DBManager:
 
     def select_forecast(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, type, code, evaluate, analyzeAt, potential FROM data.forecast WHERE correct = 0")
+        cursor.execute("SELECT id, type, code, evaluate, analyzeAt, potential FROM data.forecast where percent=0")
         return cursor.fetchall()
 
     def select_stock_data(self, stock_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, code, date, open, close, st_purchase_inst FROM data.daily_stock WHERE id = %s",
-                       (stock_id))
+        cursor.execute("SELECT id, code, date, open, close, st_purchase_inst FROM data.daily_stock WHERE id = %s", (stock_id))
         return cursor.fetchone()
 
     def select_stock_datas(self, code, date, evaluate):
@@ -65,7 +64,7 @@ class DBManager:
 
 
 TYPE_MAP = {3: 'close', 6: 'st_purchase_inst'}
-UP_PER = 3
+
 dbm = DBManager()
 datas = dbm.select_forecast()
 for data in datas:
