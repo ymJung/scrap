@@ -21,9 +21,9 @@ class DBManager:
     def __del__(self):
         self.conn.close()
 
-    def select_forecast(self):
+    def select_forecast(self, forecast_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, type, code, evaluate, analyzeAt, potential FROM data.forecast where percent=0")
+        cursor.execute("SELECT id, type, code, evaluate, analyzeAt, potential FROM data.forecast where id > %s", (forecast_id))
         return cursor.fetchall()
 
     def select_stock_data(self, stock_id):
@@ -50,7 +50,7 @@ class DBManager:
 
     def update_forecast_percent(self, forecast_id, percent):
         cursor = self.conn.cursor()
-        cursor.execute('UPDATE `data`.`forecast` SET `percent`=%s WHERE `id`= %s', (percent, forecast_id))
+        cursor.execute('UPDATE `data`.`forecast` SET `percent`=%s, `calculated=1 WHERE `id`= %s', (percent, forecast_id))
         self.conn.commit()
 
     def getPotentialDatas(self, limitRate):
@@ -62,11 +62,17 @@ class DBManager:
         cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
 
+    def select_last_calculated_id(self):
+        cursor = self.conn.cursor()
+        cursor.execute("select max(id) from forecast where calculated = 0 order by id asc")
+        return cursor.fetchone().get('id')
+
 
 TYPE_MAP = {3: 'close', 6: 'st_purchase_inst'}
 
 dbm = DBManager()
-datas = dbm.select_forecast()
+last_calculated_id = dbm.select_last_calculated_id()
+datas = dbm.select_forecast(last_calculated_id)
 for data in datas:
     select = TYPE_MAP[data.get('type')]
     analyze_at = data.get('analyzeAt')
@@ -83,7 +89,7 @@ for data in datas:
     end_data = dbm.select_stock_data(stock_ids[evaluate - 1])
     changed = end_data.get(select) - start_data.get(select)
     percent = round((changed / start_data.get(select)) * 100, 2)
-    # print(TYPE_MAP[data.get('type')], start_data.get(select), changed, percent)
+    print(TYPE_MAP[data.get('type')], start_data.get(select), changed, percent)
     dbm.update_forecast_percent(forecast_id, percent)
 
 print('done')
