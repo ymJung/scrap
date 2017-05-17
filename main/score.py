@@ -58,7 +58,7 @@ class DBManager:
         cursor.execute("select max(evaluate) as evaluateMax, max(analyzeAt) as analyzeAtMax from data.forecast")
         result = cursor.fetchone()
         target_at = result.get('analyzeAtMax') - timedelta(days=result.get('evaluateMax'))
-        query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.correct, f.evaluate FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
+        query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.percent, f.evaluate FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
         cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
 
