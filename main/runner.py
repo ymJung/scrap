@@ -541,7 +541,9 @@ class Runner:
                         + '] [' + data.get('name')
                         + '] [' + str(data.get('type'))
                         + '] [' + str(data.get('potential'))
-                        + '] [' + str(data.get('volume')) + ']\n')
+                        + '] [' + str(data.get('volume'))
+                        + '] [' + str(data.get('percent'))
+                        + ']\n')
         return msg
 
 

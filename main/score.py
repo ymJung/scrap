@@ -23,12 +23,14 @@ class DBManager:
 
     def select_forecast(self, forecast_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, type, code, evaluate, analyzeAt, potential FROM data.forecast where id > %s", (forecast_id))
+        cursor.execute("SELECT id, type, code, evaluate, analyzeAt, potential FROM data.forecast where id > %s",
+                       (forecast_id))
         return cursor.fetchall()
 
     def select_stock_data(self, stock_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, code, date, open, close, st_purchase_inst FROM data.daily_stock WHERE id = %s", (stock_id))
+        cursor.execute("SELECT id, code, date, open, close, st_purchase_inst FROM data.daily_stock WHERE id = %s",
+                       (stock_id))
         return cursor.fetchone()
 
     def select_stock_datas(self, code, date, evaluate):
@@ -50,7 +52,8 @@ class DBManager:
 
     def update_forecast_percent(self, forecast_id, percent):
         cursor = self.conn.cursor()
-        cursor.execute('UPDATE `data`.`forecast` SET `percent`=%s, `calculated=1 WHERE `id`= %s', (percent, forecast_id))
+        cursor.execute('UPDATE `data`.`forecast` SET `percent`=%s, `calculated`=1 WHERE `id`= %s',
+                       (percent, forecast_id))
         self.conn.commit()
 
     def getPotentialDatas(self, limitRate):
@@ -72,6 +75,9 @@ TYPE_MAP = {3: 'close', 6: 'st_purchase_inst'}
 
 dbm = DBManager()
 last_calculated_id = dbm.select_last_calculated_id()
+if last_calculated_id is None:
+    last_calculated_id = 0
+
 datas = dbm.select_forecast(last_calculated_id)
 for data in datas:
     select = TYPE_MAP[data.get('type')]

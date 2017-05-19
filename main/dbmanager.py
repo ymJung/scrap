@@ -607,6 +607,9 @@ class DBManager:
 
     def compare_yesterday(self, code, analyze_at):
         cursor = self.connection.cursor()
-        cursor.execute("select ds.id as id, (ds.close-ds.open) as compare from data.daily_stock ds where ds.code = %s and ds.date < %s order by ds.id desc limit 1", (code, analyze_at))
+        cursor.execute(
+            "select ds.id as id, (ds.close-ds.open) as compare from data.daily_stock ds "
+            "where ds.code = %s and ds.date < %s order by ds.id desc limit 1",
+            (code, analyze_at))
         return cursor.fetchone()
 
