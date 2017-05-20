@@ -605,11 +605,31 @@ class DBManager:
         cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
 
-    def compare_yesterday(self, code, analyze_at):
+    def is_compare_chain_minus(self, code, analyze_at, day_cnt):
         cursor = self.connection.cursor()
+        cursor.execute("select date from data.daily_stock ds "
+        "where ds.code = %s and ds.date < %s order by ds.id desc limit %s", (code, analyze_at, day_cnt))
+        dates = cursor.fetchall()
+
+        result = True
+        for date in dates:
+            compare = cursor.execute("select ds.close-ds.open as compare from data.daily_stock ds where ds.code = %s and ds.date > %s",
+                (code, date.get('date')))
+            if compare.get('compare') > 0:
+                result = False
+        return result
+
+
+    def compare_day_data(self, code, analyze_at, day_cnt):
+        cursor = self.connection.cursor()
+        cursor.execute("select date from data.daily_stock ds "
+        "where ds.code = %s and ds.date < %s order by ds.id desc limit %s", (code, analyze_at, day_cnt))
+        dates = cursor.fetchall()
+        selects = list()
+        for date in dates:
+            selects.append(date.get('date'))
         cursor.execute(
-            "select ds.id as id, (ds.close-ds.open) as compare from data.daily_stock ds "
-            "where ds.code = %s and ds.date < %s order by ds.id desc limit 1",
-            (code, analyze_at))
+            "select sum(ds.close-ds.open) as compare from data.daily_stock ds where ds.code = %s and ds.date in %s",
+            (code, selects))
         return cursor.fetchone()
 

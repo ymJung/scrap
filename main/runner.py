@@ -529,12 +529,12 @@ class Runner:
             if self.dbm.hasEventWord(itemId, wordId):
                 self.dbm.insertEvent(itemId, wordId)
 
-    def getPotential(self):
+    def getPotential(self, chan_minus):
         datas = self.dbm.getPotentialDatas(self.LIMIT_RATE)
         msg = ''
         for data in datas:
-            compare = self.dbm.compare_yesterday(data.get('code'), data.get('analyzeAt'))
-            if compare.get('compare') < 0:
+            compare = self.dbm.is_compare_chain_minus(data.get('code'), data.get('analyzeAt'), chan_minus)
+            if compare:
                 msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
                         + ' [' + str(data.get('evaluate'))
                         + '] [' + data.get('code')
@@ -553,7 +553,7 @@ run = Runner()
 # run.filterPotentialStock(run.dbm.getPeriodAll()) #하루에 한번씩.
 # run.dailyAll() #하루에 한번씩.
 # print(run.filteredTarget(date.today()+timedelta(days=max(run.dbm.getPeriodAll())))) #하루에 한번씩
-print(run.getPotential())
+print(run.getPotential(2))
 #
 
 # print(results)
