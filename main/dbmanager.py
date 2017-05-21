@@ -613,9 +613,10 @@ class DBManager:
 
         result = True
         for date in dates:
-            compare = cursor.execute("select ds.close-ds.open as compare from data.daily_stock ds where ds.code = %s and ds.date > %s",
+            cursor.execute("select (ds.close-ds.open) as compare from data.daily_stock ds where ds.code = %s and ds.date = %s",
                 (code, date.get('date')))
-            if compare.get('compare') > 0:
+            compare = cursor.fetchone().get('compare')
+            if compare > 0:
                 result = False
         return result
 

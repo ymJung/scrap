@@ -553,7 +553,7 @@ run = Runner()
 # run.filterPotentialStock(run.dbm.getPeriodAll()) #하루에 한번씩.
 # run.dailyAll() #하루에 한번씩.
 # print(run.filteredTarget(date.today()+timedelta(days=max(run.dbm.getPeriodAll())))) #하루에 한번씩
-print(run.getPotential(2))
+print(run.getPotential(chan_minus=2))
 #
 
 # print(results)
