@@ -1138,19 +1138,36 @@ class Runner:
         cursor.execute("select ds.id as id, (ds.close-ds.open) as compare from data.daily_stock ds where ds.code = %s and ds.date < %s order by ds.id desc limit 1", (code, analyze_at))
         return cursor.fetchone()
 
-    def getPotential(self):
+    def is_compare_chain_minus(self, code, analyze_at, day_cnt):
+        cursor = self.connection.cursor()
+        cursor.execute("select date from data.daily_stock ds "
+        "where ds.code = %s and ds.date < %s order by ds.id desc limit %s", (code, analyze_at, day_cnt))
+        dates = cursor.fetchall()
+
+        result = True
+        for date in dates:
+            cursor.execute("select (ds.close-ds.open) as compare from data.daily_stock ds where ds.code = %s and ds.date = %s",
+                (code, date.get('date')))
+            compare = cursor.fetchone().get('compare')
+            if compare > 0:
+                result = False
+        return result
+
+    def getPotential(self, chan_minus):
         datas = self.getPotentialDatas(self.LIMIT_RATE)
         msg = ''
         for data in datas:
-            compare = self.compare_yesterday(data.get('code'), data.get('analyzeAt'))
-            if compare.get('compare') < 0:
+            compare = self.is_compare_chain_minus(data.get('code'), data.get('analyzeAt'), chan_minus)
+            if compare:
                 msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
                         + ' [' + str(data.get('evaluate'))
                         + '] [' + data.get('code')
                         + '] [' + data.get('name')
                         + '] [' + str(data.get('type'))
                         + '] [' + str(data.get('potential'))
-                        + '] [' + str(data.get('volume')) + ']\n')
+                        + '] [' + str(data.get('volume'))
+                        + '] [' + str(data.get('percent'))
+                        + ']\n')
         return msg
 
 
@@ -1171,7 +1188,11 @@ LINK4 = '&to='
 LINK1 = cf.get('KAKAO_STOCK', 'link1')
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
 updater = Updater(TOKEN)
-command = sys.argv[1]
+
+command = 'forecast'
+if len(sys.argv) > 1:
+    command = sys.argv[1]
+
 
 if command == 'daily':
     run.filterPotentialStock(periods=run.getPeriodAll())
@@ -1186,7 +1207,7 @@ elif command == 'migrate':
     run.migrationWork(periods=run.getPeriodAll())
 elif command == 'forecast':
 #    updater.bot.sendMessage(chat_id=VALID_USER, text= run.filteredTarget(date.today()+timedelta(days=max(run.getPeriodAll()))))
-    updater.bot.sendMessage(chat_id=VALID_USER, text= run.getPotential())
+    updater.bot.sendMessage(chat_id=VALID_USER, text= run.getPotential(2))
 else :
     print('invalid command')
 
