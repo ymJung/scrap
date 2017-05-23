@@ -592,16 +592,21 @@ class DBManager:
         cursor.execute("select site, count(id) from content where date between %s and date %s group by site", (startAt, endAt))
         return cursor.fetchall()
 
-    def getPotentialDatas(self, limitRate):
+    def get_max_target_at(self):
         cursor = self.connection.cursor()
         cursor.execute("select max(evaluate) as evaluateMax from data.forecast")
         evaluateMax = cursor.fetchone().get('evaluateMax')
-        cursor.execute("select analyzeAt from data.forecast group by analyzeAt order by analyzeAt desc limit %s", (evaluateMax))
+        cursor.execute("select analyzeAt from data.forecast group by analyzeAt order by analyzeAt desc limit %s",
+                       (evaluateMax))
         results = cursor.fetchall()
-        target_at = datetime.date.today()
         if len(results) >= evaluateMax:
-            target_at = results[evaluateMax-1].get('analyzeAt')
-        query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.percent, f.evaluate FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
+            return results[evaluateMax-1].get('analyzeAt')
+        return datetime.date.today()
+
+    def getPotentialDatas(self, target_at, limitRate):
+        cursor = self.connection.cursor()
+        query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.percent, f.evaluate FROM data.forecast f, data.daily_stock ds " \
+                "WHERE f.type = 3 AND ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
         cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
 
