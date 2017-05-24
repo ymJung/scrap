@@ -1120,16 +1120,10 @@ class Runner:
         return cursor.fetchall()
 
 
-    def getPotentialDatas(self, limitRate):
+    def getPotentialDatas(self, target_at, limitRate):
         cursor = self.connection.cursor()
-        cursor.execute("select max(evaluate) as evaluateMax from data.forecast")
-        evaluateMax = cursor.fetchone().get('evaluateMax')
-        cursor.execute("select analyzeAt from data.forecast group by analyzeAt order by analyzeAt desc limit %s", (evaluateMax))
-        results = cursor.fetchall()
-        target_at = datetime.date.today()
-        if len(results) >= evaluateMax:
-            target_at = results[evaluateMax-1].get('analyzeAt')
-        query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.percent, f.evaluate FROM data.forecast f, data.daily_stock ds WHERE ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
+        query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.percent, f.evaluate FROM data.forecast f, data.daily_stock ds " \
+                "WHERE f.type = 3 AND ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
         cursor.execute(query, (target_at, str(limitRate)))
         return cursor.fetchall()
 
@@ -1152,9 +1146,18 @@ class Runner:
             if compare > 0:
                 result = False
         return result
-
-    def getPotential(self, chan_minus):
-        datas = self.getPotentialDatas(self.LIMIT_RATE)
+    def get_max_target_at(self):
+        cursor = self.connection.cursor()
+        cursor.execute("select max(evaluate) as evaluateMax from data.forecast")
+        evaluateMax = cursor.fetchone().get('evaluateMax')
+        cursor.execute("select analyzeAt from data.forecast group by analyzeAt order by analyzeAt desc limit %s",
+                       (evaluateMax))
+        results = cursor.fetchall()
+        if len(results) >= evaluateMax:
+            return results[evaluateMax-1].get('analyzeAt')
+        return datetime.date.today()
+    def getPotential(self, target_at, chan_minus):
+        datas = self.getPotentialDatas(target_at, self.LIMIT_RATE)
         msg = ''
         for data in datas:
             compare = self.is_compare_chain_minus(data.get('code'), data.get('analyzeAt'), chan_minus)
@@ -1207,7 +1210,7 @@ elif command == 'migrate':
     run.migrationWork(periods=run.getPeriodAll())
 elif command == 'forecast':
 #    updater.bot.sendMessage(chat_id=VALID_USER, text= run.filteredTarget(date.today()+timedelta(days=max(run.getPeriodAll()))))
-    updater.bot.sendMessage(chat_id=VALID_USER, text= run.getPotential(2))
+    updater.bot.sendMessage(chat_id=VALID_USER, text= run.getPotential(target_at= run.get_max_target_at() - timedelta(days=1), chan_minus=2))
 else :
     print('invalid command')
 
