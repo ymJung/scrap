@@ -1210,7 +1210,7 @@ elif command == 'migrate':
     run.migrationWork(periods=run.getPeriodAll())
 elif command == 'forecast':
 #    updater.bot.sendMessage(chat_id=VALID_USER, text= run.filteredTarget(date.today()+timedelta(days=max(run.getPeriodAll()))))
-    updater.bot.sendMessage(chat_id=VALID_USER, text= run.getPotential(target_at= run.get_max_target_at() - timedelta(days=1), chan_minus=2))
+    updater.bot.sendMessage(chat_id=VALID_USER, text= run.getPotential(target_at= run.get_max_target_at() - timedelta(days=1), chan_minus=1))
 else :
     print('invalid command')
 
