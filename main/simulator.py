@@ -17,11 +17,8 @@ connection = pymysql.connect(host=DB_IP,
 
 def select_distinct_stocks():
     cursor = connection.cursor()
-    cursor.execute("select distinct(code) from daily_stock")
-    results = list()
-    for code in cursor.fetchall():
-        results.append(code.get('code'))
-    return results
+    cursor.execute("select name, code from daily_stock group by code")
+    return cursor.fetchall()
 
 def get_potential_datas(limit_rate, code):
     cursor = connection.cursor()
@@ -47,14 +44,17 @@ def is_compare_chain_minus(code, analyze_at, day_cnt):
             result = False
     return result
 
+def forecast_result(code, name):
+    use_val = 100
+    datas = get_potential_datas(0.70, code)
+    for data in datas:
+        if is_compare_chain_minus(code=code, analyze_at=data.get('analyzeAt'), day_cnt=1):
+            percent = data.get('percent')
+            use_val = use_val + (use_val * percent)
+    return code, name, use_val
 
-use_val = 100
-datas = get_potential_datas(0.70, 'A000050')
-for data in datas:
-    if is_compare_chain_minus(code=data.get('code'), analyze_at=data.get('analyzeAt'), day_cnt=1):
-        percent = data.get('percent')
-        use_val = use_val + (use_val * percent)
-        print(use_val)
-print(use_val)
 
-#코드에 해당하는 forecast 의 시작일부터 종료일까지
+for stock in select_distinct_stocks():
+    print(forecast_result(stock.get('code'), stock.get('name')))
+
+
