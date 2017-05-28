@@ -1,60 +1,60 @@
-# percent 비율로 자금을 투입해서 period 뒤에 파는 방식으로 1년치 계산했을때 자금 결과를 시뮬레이션
-import datetime
 import pymysql
-from datetime import timedelta
-import dbmanager
+import configparser
+
+cf = configparser.ConfigParser()
+cf.read('config/config.cfg')
+DB_IP = cf.get('db', 'DB_IP')
+DB_USER = cf.get('db', 'DB_USER')
+DB_PWD = cf.get('db', 'DB_PWD')
+DB_SCH = cf.get('db', 'DB_SCH')
+
+connection = pymysql.connect(host=DB_IP,
+                             user=DB_USER,
+                             password=DB_PWD,
+                             db=DB_SCH,
+                             charset='utf8mb4',
+                             cursorclass=pymysql.cursors.DictCursor)
+
+def select_distinct_stocks():
+    cursor = connection.cursor()
+    cursor.execute("select distinct(code) from daily_stock")
+    results = list()
+    for code in cursor.fetchall():
+        results.append(code.get('code'))
+    return results
+
+def get_potential_datas(limit_rate, code):
+    cursor = connection.cursor()
+    query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.percent, f.evaluate FROM data.forecast f, data.daily_stock ds " \
+            "WHERE f.type = 3 AND ds.code = f.code AND potential > %s AND f.code = %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
+    cursor.execute(query, (str(limit_rate), code))
+    return cursor.fetchall()
 
 
-class Simulator :
-    def __init__(self):
-        self.dbm = dbmanager.DBManager()
-        self.TRUST_LIMIT = 0.90
-        self.LEAVE_LIMIT = 0.60
+def is_compare_chain_minus(code, analyze_at, day_cnt):
+    cursor = connection.cursor()
+    cursor.execute("select date from data.daily_stock ds "
+                   "where ds.code = %s and ds.date < %s order by ds.id desc limit %s", (code, analyze_at, day_cnt))
+    dates = cursor.fetchall()
 
-    def getPercent(self, start, final) :
-        return round((final / start) - 1, 5)
-    def isTargetPercent(self, percent):
-        return percent > self.TRUST_LIMIT
-    def isLeavePercent(self, percent):
-        return percent < self.LEAVE_LIMIT
-    def simulate(self, stockName, dayLimit, period):
-        today = datetime.date.today()
-        seed = 100
-        investFlag = False
-        plusForecasts = list()
-        for day in range (dayLimit) :
-            minusDayCnt = dayLimit - day
-            pastDate = today - timedelta(days=minusDayCnt)
-            analyzedData = self.dbm.analyzedSqlTargetAt(stockName, pastDate, period)
-            if analyzedData is None :
-                continue
-            forecastPercent = self.getDivideNumPercent(analyzedData.get('plus'), (analyzedData.get('plus') + analyzedData.get('minus')))
-            if forecastPercent == 0 :
-                continue
-            movedPercent = self.getPercent(analyzedData.get('start'), analyzedData.get('final'))
-
-            if investFlag :
-                if self.isLeavePercent(forecastPercent) is False :
-                    seed = self.keepSeed(movedPercent, forecastPercent, seed)
-                    continue
-                else :
-                    investFlag = False
-            if self.isTargetPercent(forecastPercent) :
-                investFlag = True
-                seed = self.keepSeed(movedPercent, forecastPercent, seed)
-        return {'name': stockName, 'seed': seed, 'percents': plusForecasts}
-    def getDivideNumPercent(self, num1, num2):
-        if num2 == 0:
-            return 0
-        return int((num1 / num2) * 100)
-    def keepSeed(self, movedPercent, forecastPercent, seed):
-        seed = self.calculate(0, movedPercent, seed)
-        print('target percent', forecastPercent, movedPercent, seed)
-        return seed
-
-    def calculate(self, startPercent, endPercent, price):
-        percent = endPercent - startPercent
-        # return price + (price * (percent * 0.01))
-        return price + (price * percent)
+    result = True
+    for date in dates:
+        cursor.execute(
+            "select (ds.close-ds.open) as compare from data.daily_stock ds where ds.code = %s and ds.date = %s",
+            (code, date.get('date')))
+        compare = cursor.fetchone().get('compare')
+        if compare > 0:
+            result = False
+    return result
 
 
+use_val = 100
+datas = get_potential_datas(0.70, 'A000050')
+for data in datas:
+    if is_compare_chain_minus(code=data.get('code'), analyze_at=data.get('analyzeAt'), day_cnt=1):
+        percent = data.get('percent')
+        use_val = use_val + (use_val * percent)
+        print(use_val)
+print(use_val)
+
+#코드에 해당하는 forecast 의 시작일부터 종료일까지
