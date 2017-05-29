@@ -40,7 +40,7 @@ def is_compare_chain_minus(code, analyze_at, day_cnt):
             "select (ds.close-ds.open) as compare from data.daily_stock ds where ds.code = %s and ds.date = %s",
             (code, date.get('date')))
         compare = cursor.fetchone().get('compare')
-        if compare > 0:
+        if compare > 0 and result is True:
             result = False
     return result
 
