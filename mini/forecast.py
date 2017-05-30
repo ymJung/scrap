@@ -9,8 +9,7 @@ DB_IP = cf.get('db', 'DB_IP')
 DB_USER = cf.get('db', 'DB_USER')
 DB_PWD = cf.get('db', 'DB_PWD')
 DB_SCH = cf.get('db', 'DB_SCH')
-VALID_USER = 60403284
-
+VALID_USER = cf.get('telegram', 'VALID_USER')
 TOKEN = cf.get('telegram', 'TOKEN')
 LINK3 = '/day_candles.json?limit='
 LINK4 = '&to='

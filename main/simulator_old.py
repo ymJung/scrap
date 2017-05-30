@@ -1,6 +1,5 @@
 # percent 비율로 자금을 투입해서 period 뒤에 파는 방식으로 1년치 계산했을때 자금 결과를 시뮬레이션
 import datetime
-import pymysql
 from datetime import timedelta
 import dbmanager
 

@@ -1,5 +1,8 @@
 import pymysql
 import configparser
+from telegram.ext import Updater
+import telegram
+import sys
 
 cf = configparser.ConfigParser()
 cf.read('config/config.cfg')
@@ -7,6 +10,8 @@ DB_IP = cf.get('db', 'DB_IP')
 DB_USER = cf.get('db', 'DB_USER')
 DB_PWD = cf.get('db', 'DB_PWD')
 DB_SCH = cf.get('db', 'DB_SCH')
+VALID_USER = cf.get('telegram', 'VALID_USER')
+TOKEN = cf.get('telegram', 'TOKEN')
 
 connection = pymysql.connect(host=DB_IP,
                              user=DB_USER,
@@ -57,4 +62,30 @@ def forecast_result(code, name):
 for stock in select_distinct_stocks():
     print(forecast_result(stock.get('code'), stock.get('name')))
 
+def simulator(bot, update):
+    input_text = update.message.text
+    chat_id = update.message.chat_id
+    print(chat_id, input_text)
+    if input_text == 'exit':
+        tb.sendMessage(chat_id=VALID_USER, text='hello telegram bot simulator')(bot, chat_id, 'bye')
+        return
+    dbm = DBManager()
+    code = dbm.get_code(input_text)
+    if code is None:
+        tb.sendMessage(chat_id=VALID_USER, text='hello telegram bot simulator')(bot, chat_id, 'not found.')
+        return
+    poten_datas = dbm.get_target_forecast(code)
+    forecast_msg = get_forecast_explain(poten_datas)
+    tb.sendMessage(chat_id=VALID_USER, text='hello telegram bot simulator')(bot, chat_id, forecast_msg)
 
+
+tb = telegram.Bot(token=TOKEN)
+try:
+    updater = Updater(TOKEN)
+    updater.dispatcher.addTelegramMessageHandler(simulator)
+    tb.sendMessage(chat_id=VALID_USER, text='hello telegram bot simulator')
+    updater.start_polling()
+except:
+    tb.sendMessage(chat_id=VALID_USER, text='unexpected error telegram bot conversation')
+    print('unexpected error', sys.exc_info()[0])
+    print('Error on line {}'.format(sys.exc_info()[-1].tb_lineno))
