@@ -62,21 +62,32 @@ def forecast_result(code, name):
 for stock in select_distinct_stocks():
     print(forecast_result(stock.get('code'), stock.get('name')))
 
+def get_code(param):
+    param = param.strip()
+    cursor = connection.cursor()
+    cursor.execute("SELECT distinct(code) FROM data.daily_stock WHERE name = %s", (param))
+    result = cursor.fetchone()
+    if result is not None:
+        return result.get('code')
+    cursor.execute("SELECT distinct(code) FROM data.daily_stock WHERE code = %s", (param))
+    result = cursor.fetchone()
+    if result is not None:
+        return result.get('code')
+    return None
+
 def simulator(bot, update):
     input_text = update.message.text
     chat_id = update.message.chat_id
     print(chat_id, input_text)
     if input_text == 'exit':
-        tb.sendMessage(chat_id=VALID_USER, text='hello telegram bot simulator')(bot, chat_id, 'bye')
+        bot.sendMessage(chat_id=VALID_USER, text='bye')
         return
-    dbm = DBManager()
-    code = dbm.get_code(input_text)
+    code, name = get_code(input_text)
     if code is None:
-        tb.sendMessage(chat_id=VALID_USER, text='hello telegram bot simulator')(bot, chat_id, 'not found.')
+        bot.sendMessage(chat_id=VALID_USER, text='not found.')
         return
-    poten_datas = dbm.get_target_forecast(code)
-    forecast_msg = get_forecast_explain(poten_datas)
-    tb.sendMessage(chat_id=VALID_USER, text='hello telegram bot simulator')(bot, chat_id, forecast_msg)
+    code, name, use_val = forecast_result(code, name)
+    bot.sendMessage(chat_id=VALID_USER, text=('[' + code + '][' + name + '] ['+ str(use_val) + ']'))
 
 
 tb = telegram.Bot(token=TOKEN)

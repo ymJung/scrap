@@ -38,6 +38,7 @@ class DBManager:
         return results
 
     def get_code(self, param):
+        param = param.strip()
         cursor = self.conn.cursor()
         cursor.execute("SELECT distinct(code) FROM data.daily_stock WHERE name = %s", (param))
         result = cursor.fetchone()
