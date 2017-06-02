@@ -65,14 +65,14 @@ for stock in select_distinct_stocks():
 def get_code(param):
     param = param.strip()
     cursor = connection.cursor()
-    cursor.execute("SELECT distinct(code) FROM data.daily_stock WHERE name = %s", (param))
+    cursor.execute("SELECT distinct(code), name FROM data.daily_stock WHERE name = %s", (param))
     result = cursor.fetchone()
     if result is not None:
-        return result.get('code')
-    cursor.execute("SELECT distinct(code) FROM data.daily_stock WHERE code = %s", (param))
+        return result.get('code'), result.get('name')
+    cursor.execute("SELECT distinct(code), name FROM data.daily_stock WHERE code = %s", (param))
     result = cursor.fetchone()
     if result is not None:
-        return result.get('code')
+        return result.get('code'), result.get('name')
     return None
 
 def simulator(bot, update):
