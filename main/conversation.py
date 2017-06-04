@@ -59,6 +59,8 @@ def send_message(bot, chat_id, message):
     bot.sendMessage(chat_id=chat_id, text=message)
 
 
+import simulator
+
 def conversation(bot, update):
     input_text = update.message.text
     chat_id = update.message.chat_id
@@ -66,6 +68,7 @@ def conversation(bot, update):
     if input_text == 'exit':
         send_message(bot, chat_id, 'bye')
         return
+
     dbm = DBManager()
     code = dbm.get_code(input_text)
     if code is None:
@@ -73,10 +76,12 @@ def conversation(bot, update):
         return
     poten_datas = dbm.get_target_forecast(code)
     forecast_msg = get_forecast_explain(poten_datas)
+    simul_msg = simulator.simulator(code=code)
     send_message(bot, chat_id, forecast_msg)
+    send_message(bot, chat_id, simul_msg)
 
 
-TYPE_MAP = {3: '마감', 6: '기관'}
+TYPE_MAP = {3: '마감'}
 def get_forecast_explain(poten_datas):
     msg = ''
     for data in poten_datas:

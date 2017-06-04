@@ -1,8 +1,5 @@
 import pymysql
 import configparser
-from telegram.ext import Updater
-import telegram
-import sys
 
 cf = configparser.ConfigParser()
 cf.read('config/config.cfg')
@@ -10,8 +7,6 @@ DB_IP = cf.get('db', 'DB_IP')
 DB_USER = cf.get('db', 'DB_USER')
 DB_PWD = cf.get('db', 'DB_PWD')
 DB_SCH = cf.get('db', 'DB_SCH')
-VALID_USER = cf.get('telegram', 'VALID_USER')
-TOKEN = cf.get('telegram', 'TOKEN')
 
 connection = pymysql.connect(host=DB_IP,
                              user=DB_USER,
@@ -75,28 +70,9 @@ def get_code(param):
         return result.get('code'), result.get('name')
     return None
 
-def simulator(bot, update):
-    input_text = update.message.text
-    chat_id = update.message.chat_id
-    print(chat_id, input_text)
-    if input_text == 'exit':
-        bot.sendMessage(chat_id=VALID_USER, text='bye')
-        return
-    code, name = get_code(input_text)
+def simulator(code):
+    code, name = get_code(code)
     if code is None:
-        bot.sendMessage(chat_id=VALID_USER, text='not found.')
-        return
+        return None
     code, name, use_val = forecast_result(code, name)
-    bot.sendMessage(chat_id=VALID_USER, text=('[' + code + '][' + name + '] ['+ str(use_val) + ']'))
-
-
-tb = telegram.Bot(token=TOKEN)
-try:
-    updater = Updater(TOKEN)
-    updater.dispatcher.addTelegramMessageHandler(simulator)
-    tb.sendMessage(chat_id=VALID_USER, text='hello telegram bot simulator')
-    updater.start_polling()
-except:
-    tb.sendMessage(chat_id=VALID_USER, text='unexpected error telegram bot conversation')
-    print('unexpected error', sys.exc_info()[0])
-    print('Error on line {}'.format(sys.exc_info()[-1].tb_lineno))
+    return '[' + code + '][' + name + '] ['+ str(use_val) + ']'
