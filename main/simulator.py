@@ -54,9 +54,6 @@ def forecast_result(code, name):
     return code, name, use_val
 
 
-for stock in select_distinct_stocks():
-    print(forecast_result(stock.get('code'), stock.get('name')))
-
 def get_code(param):
     param = param.strip()
     cursor = connection.cursor()

@@ -77,6 +77,8 @@ def conversation(bot, update):
     poten_datas = dbm.get_target_forecast(code)
     forecast_msg = get_forecast_explain(poten_datas)
     simul_msg = simulator.simulator(code=code)
+    print(forecast_msg)
+    print(simul_msg)
     send_message(bot, chat_id, forecast_msg)
     send_message(bot, chat_id, simul_msg)
 
