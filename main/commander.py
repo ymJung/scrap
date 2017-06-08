@@ -36,29 +36,7 @@ def guide(bot, update):
     bot.sendMessage(chat_id=update.message.chat_id, text='')
 
 
-import datetime
 import sys
-
-RETRY_LIMIT_CNT = 5
-RETRY_LIMIT = {datetime.date.today(): RETRY_LIMIT_CNT}
-
-
-def is_break():
-    retry_cnt = get_date_retry_limit(datetime.date.today())
-    if retry_cnt < 0:
-        return True
-    return False
-
-
-def get_date_retry_limit(date):
-    date_str = str(date)
-    if date_str in RETRY_LIMIT:
-        print('reduce today limit ', date_str, RETRY_LIMIT[date_str])
-        RETRY_LIMIT[date_str] -= 1
-    else:
-        print('make today limit ', date_str)
-        RETRY_LIMIT.update({date_str: RETRY_LIMIT_CNT})
-    return RETRY_LIMIT[date_str]
 
 
 tb = telegram.Bot(token=ORA_TOKEN)
