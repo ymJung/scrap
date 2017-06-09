@@ -16,7 +16,7 @@ ORA_TOKEN = cf.get('telegram', 'ORA_TOKEN')
 
 import telegram
 from telegram.ext import Updater
-
+import os
 
 def send_message(bot, chat_id, message):
     bot.sendMessage(chat_id=chat_id, text=message)
@@ -30,6 +30,11 @@ def command_execute(bot, update):
     if input_text == 'exit':
         send_message(bot, chat_id, 'bye')
         return
+    if COMMAND_LIST not in input_text:
+        return
+    else:
+        os.system(input_text)
+
 
 
 def guide(bot, update):
@@ -38,6 +43,8 @@ def guide(bot, update):
 
 import sys
 
+COMMAND_LIST = ['',
+                '']
 
 tb = telegram.Bot(token=ORA_TOKEN)
 try:
