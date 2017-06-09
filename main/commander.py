@@ -42,9 +42,9 @@ def guide(bot, update):
 
 
 import sys
-
-COMMAND_LIST = ['',
-                '']
+command1 = cf.get('commander', 'COMMAND1')
+command2 = cf.get('commander', 'COMMAND2')
+COMMAND_LIST = [command1]
 
 tb = telegram.Bot(token=ORA_TOKEN)
 try:
