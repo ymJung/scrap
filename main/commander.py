@@ -34,6 +34,7 @@ def command_execute(bot, update):
         return
     else:
         os.system(input_text)
+        print('ok', input_text)
 
 
 
@@ -44,7 +45,7 @@ def guide(bot, update):
 import sys
 command1 = cf.get('commander', 'COMMAND1')
 command2 = cf.get('commander', 'COMMAND2')
-COMMAND_LIST = [command1]
+COMMAND_LIST = [command1, command2]
 
 tb = telegram.Bot(token=ORA_TOKEN)
 try:
