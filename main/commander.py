@@ -30,22 +30,23 @@ def command_execute(bot, update):
     if input_text == 'exit':
         send_message(bot, chat_id, 'bye')
         return
-    if COMMAND_LIST not in input_text:
+    if COMMAND_MAP not in input_text:
         return
     else:
         os.system(input_text)
         print('ok', input_text)
 
-
-
 def guide(bot, update):
     bot.sendMessage(chat_id=update.message.chat_id, text='')
 
+def split(map, command):
+    map[command.split(',')[0]] = command.split(',')[1]
 
 import sys
-command1 = cf.get('commander', 'COMMAND1')
-command2 = cf.get('commander', 'COMMAND2')
-COMMAND_LIST = [command1, command2]
+COMMAND_MAP = {}
+split(COMMAND_MAP, cf.get('commander', 'COMMAND1'))
+split(COMMAND_MAP, cf.get('commander', 'COMMAND2'))
+
 
 tb = telegram.Bot(token=ORA_TOKEN)
 try:
