@@ -15,10 +15,12 @@ connection = pymysql.connect(host=DB_IP,
                              charset='utf8mb4',
                              cursorclass=pymysql.cursors.DictCursor)
 
+
 def select_distinct_stocks():
     cursor = connection.cursor()
     cursor.execute("select name, code from daily_stock group by code")
     return cursor.fetchall()
+
 
 def get_potential_datas(limit_rate, code):
     cursor = connection.cursor()
@@ -44,6 +46,7 @@ def is_compare_chain_minus(code, analyze_at, day_cnt):
             result = False
     return result
 
+
 def forecast_result(code, name):
     use_val = 100
     datas = get_potential_datas(0.70, code)
@@ -67,9 +70,30 @@ def get_code(param):
         return result.get('code'), result.get('name')
     return None
 
+
 def simulator(code):
     code, name = get_code(code)
     if code is None:
         return None
     code, name, use_val = forecast_result(code, name)
-    return '[' + code + '][' + name + '] ['+ str(use_val) + ']'
+    return '[' + code + '][' + name + '] [' + str(use_val) + ']'
+
+import runner
+import datetime
+
+run = runner.Runner()
+
+cursor = connection.cursor()
+cursor.execute("select analyzeAt from forecast order by analyzeAt asc limit 1")
+startAnalyzeAt = cursor.fetchone().get('analyzeAt')
+cursor.execute("select analyzeAt from forecast order by analyzeAt desc limit 1")
+endAnalyzeAt = cursor.fetchone().get('analyzeAt')
+CHAIN_MINUS = 2
+results = list()
+while (startAnalyzeAt > endAnalyzeAt):
+    datas = run.getPotential(target_at=startAnalyzeAt, chan_minus=CHAIN_MINUS)
+    results.extend(datas)
+    startAnalyzeAt = startAnalyzeAt + datetime.timedelta(days=1)
+
+# calculate
+
