@@ -71,7 +71,7 @@ class DBManager:
         return cursor.fetchone().get('id')
 
 
-TYPE_MAP = {3: 'close', 6: 'st_purchase_inst'}
+TYPE_MAP = {3: 'close'}
 
 dbm = DBManager()
 last_calculated_id = dbm.select_last_calculated_id()
