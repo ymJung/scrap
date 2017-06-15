@@ -67,7 +67,7 @@ class DBManager:
 
     def select_last_calculated_id(self):
         cursor = self.conn.cursor()
-        cursor.execute("select max(id) from forecast where calculated = 0 order by id asc")
+        cursor.execute("select id from forecast where calculated is null order by id asc limit 1")
         return cursor.fetchone().get('id')
 
 class Score:
@@ -93,13 +93,14 @@ class Score:
             dbm.update_forecast_percent(forecast_id, percent)
 
         print('done')
-TYPE_MAP = {3: 'close'}
+TYPE_MAP = {3: 'close', 6:'st_purchase_inst'}
 
 dbm = DBManager()
 last_calculated_id = dbm.select_last_calculated_id()
 if last_calculated_id is None:
     last_calculated_id = 0
 else:
+    print('none')
     Score().run_score()
 
 
