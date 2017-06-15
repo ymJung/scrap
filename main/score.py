@@ -70,32 +70,37 @@ class DBManager:
         cursor.execute("select max(id) from forecast where calculated = 0 order by id asc")
         return cursor.fetchone().get('id')
 
+class Score:
+    def run_score(self):
+        datas = dbm.select_forecast(last_calculated_id)
+        for data in datas:
+            select = TYPE_MAP[data.get('type')]
+            analyze_at = data.get('analyzeAt')
+            code = data.get('code')
+            evaluate = data.get('evaluate')
+            forecast_id = data.get('id')
 
+            stock_ids = dbm.select_stock_ids(code, analyze_at, evaluate)
+            if len(stock_ids) < evaluate:
+                print('not yet', code, analyze_at, evaluate)
+                continue
+
+            start_data = dbm.select_stock_data(stock_ids[0])
+            end_data = dbm.select_stock_data(stock_ids[evaluate - 1])
+            changed = end_data.get(select) - start_data.get(select)
+            percent = round((changed / start_data.get(select)) * 100, 2)
+            print(TYPE_MAP[data.get('type')], start_data.get(select), changed, percent)
+            dbm.update_forecast_percent(forecast_id, percent)
+
+        print('done')
 TYPE_MAP = {3: 'close'}
 
 dbm = DBManager()
 last_calculated_id = dbm.select_last_calculated_id()
 if last_calculated_id is None:
     last_calculated_id = 0
+else:
+    Score().run_score()
 
-datas = dbm.select_forecast(last_calculated_id)
-for data in datas:
-    select = TYPE_MAP[data.get('type')]
-    analyze_at = data.get('analyzeAt')
-    code = data.get('code')
-    evaluate = data.get('evaluate')
-    forecast_id = data.get('id')
 
-    stock_ids = dbm.select_stock_ids(code, analyze_at, evaluate)
-    if len(stock_ids) < evaluate:
-        print('not yet', code, analyze_at, evaluate)
-        continue
 
-    start_data = dbm.select_stock_data(stock_ids[0])
-    end_data = dbm.select_stock_data(stock_ids[evaluate - 1])
-    changed = end_data.get(select) - start_data.get(select)
-    percent = round((changed / start_data.get(select)) * 100, 2)
-    print(TYPE_MAP[data.get('type')], start_data.get(select), changed, percent)
-    dbm.update_forecast_percent(forecast_id, percent)
-
-print('done')
