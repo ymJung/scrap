@@ -8,7 +8,6 @@ from datetime import date, timedelta
 import pythoncom
 import sys
 import dictionary
-import simulator
 
 
 class Runner:
@@ -24,8 +23,6 @@ class Runner:
         self.stocks = None
         self.dbm = dbmanager.DBManager()
         self.analyze = analyzer.Analyzer()
-        self.simul = simulator.Simulator()
-        self.dic = None
         self.KOSPI_CODE = 'D0011001'
         self.KOSPI_NAME = 'KOSPI'
 
@@ -408,8 +405,6 @@ class Runner:
             return self.dbm.insertWord(usefulWord)
         return False
 
-    def simulate(self, stockName, limit, period):
-        self.simul.simulate(stockName, limit, period)
 
     def getTargetDate(self, stockId, period):
         targetAt = self.dbm.selectLastestItem(stockId, period)
