@@ -78,10 +78,7 @@ def simulator(code):
     code, name, use_val = forecast_result(code, name)
     return '[' + code + '][' + name + '] [' + str(use_val) + ']'
 
-import runner
 import datetime
-
-run = runner.Runner()
 
 cursor = connection.cursor()
 cursor.execute("select analyzeAt from forecast order by analyzeAt asc limit 1")
@@ -89,10 +86,7 @@ startAnalyzeAt = cursor.fetchone().get('analyzeAt')
 cursor.execute("select analyzeAt from forecast order by analyzeAt desc limit 1")
 endAnalyzeAt = cursor.fetchone().get('analyzeAt')
 CHAIN_MINUS = 2
-results = list()
 while (startAnalyzeAt > endAnalyzeAt):
-    datas = run.getPotential(target_at=startAnalyzeAt, chan_minus=CHAIN_MINUS)
-    results.extend(datas)
     startAnalyzeAt = startAnalyzeAt + datetime.timedelta(days=1)
 
 # calculate
