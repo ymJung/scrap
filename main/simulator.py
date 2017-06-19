@@ -78,16 +78,7 @@ def simulator(code):
     code, name, use_val = forecast_result(code, name)
     return '[' + code + '][' + name + '] [' + str(use_val) + ']'
 
-import datetime
 
-cursor = connection.cursor()
-cursor.execute("select analyzeAt from forecast order by analyzeAt asc limit 1")
-startAnalyzeAt = cursor.fetchone().get('analyzeAt')
-cursor.execute("select analyzeAt from forecast order by analyzeAt desc limit 1")
-endAnalyzeAt = cursor.fetchone().get('analyzeAt')
-CHAIN_MINUS = 2
-while (startAnalyzeAt > endAnalyzeAt):
-    startAnalyzeAt = startAnalyzeAt + datetime.timedelta(days=1)
-
+simulator('')
 # calculate
 
