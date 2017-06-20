@@ -80,5 +80,4 @@ def simulator(code):
 
 
 simulator('')
-# calculate
 
