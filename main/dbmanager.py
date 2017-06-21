@@ -639,3 +639,13 @@ class DBManager:
             (code, selects))
         return cursor.fetchone()
 
+    def get_daily_stock_count(self, date):
+        cursor = self.connection.cursor()
+        cursor.execute('select count(*) as cnt from daily_stock where date = %s', date)
+        return cursor.fetchone().get('cnt')
+
+    def get_calculated_forecast_count(self, date):
+        cursor = self.connection.cursor()
+        cursor.execute('select count(*) as cnt from forecast where analyzeAt = %s', date)
+        return cursor.fetchone().get('cnt')
+

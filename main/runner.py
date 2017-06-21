@@ -547,6 +547,10 @@ class Runner:
                 potens.append(data)
         return potens
 
+    def now_progress(self):
+        daily_cnt = self.dbm.get_daily_stock_count(date.today())
+        forecast_cnt = self.dbm.get_calculated_forecast_count(date.today())
+        return {'daily_cnt': daily_cnt, 'forecast_cnt': forecast_cnt}
 
 run = Runner()
 
@@ -556,6 +560,7 @@ run = Runner()
 # print(run.filteredTarget(date.today()+timedelta(days=max(run.dbm.getPeriodAll())))) #하루에 한번씩
 datas = run.getPotential(target_at= run.dbm.get_max_target_at() - timedelta(days=1), chan_minus=1)
 print(run.get_data_msg(datas))
+print(run.now_progress())
 
 
 
