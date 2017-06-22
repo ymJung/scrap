@@ -1173,6 +1173,21 @@ class Runner:
                         + ']\n')
         return msg
 
+    def now_progress(self):
+        daily_cnt = self.get_daily_stock_count(date.today())
+        forecast_cnt = self.get_calculated_forecast_count(date.today())
+        return {'daily_cnt': daily_cnt, 'forecast_cnt': forecast_cnt}
+
+    def get_daily_stock_count(self, date):
+        cursor = self.connection.cursor()
+        cursor.execute('select count(*) as cnt from daily_stock where date = %s', date)
+        return cursor.fetchone().get('cnt')
+
+    def get_calculated_forecast_count(self, date):
+        cursor = self.connection.cursor()
+        cursor.execute('select count(*) as cnt from forecast where analyzeAt = %s', date)
+        return cursor.fetchone().get('cnt')
+
 
 import configparser
 
