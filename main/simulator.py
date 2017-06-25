@@ -116,4 +116,5 @@ LIMIT_RATE = 0.70
 datas = get_potential(target_at=get_max_target_at() - datetime.timedelta(days=1), chan_minus=1)
 
 for data in datas:
-    simulator(data.get('code'))
+    result = simulator(data.get('code'))
+    print(result)
