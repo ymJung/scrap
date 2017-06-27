@@ -551,7 +551,7 @@ class Runner:
         daily_cnt = self.dbm.get_daily_stock_count(date.today())
         forecast_cnt = self.dbm.get_calculated_forecast_count(date.today())
         # {'daily_cnt': daily_cnt, 'forecast_cnt': forecast_cnt}
-        return str(forecast_cnt / daily_cnt * 100) + '%'
+        return 'today percent is : ' + str(forecast_cnt / daily_cnt * 100) + '%'
 
 run = Runner()
 
