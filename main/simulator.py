@@ -117,4 +117,4 @@ datas = get_potential(target_at=get_max_target_at() - datetime.timedelta(days=1)
 
 for data in datas:
     result = simulator(data.get('code'))
-    print(result)
+    print(data.get('analyzeAt'), result)
