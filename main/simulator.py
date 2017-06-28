@@ -91,16 +91,16 @@ def get_max_target_at():
     return datetime.date.today()
 
 
-def get_potential_data_results(target_at):
+def get_potential_data_results(target_at, limit_rate):
     cursor = connection.cursor()
     query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.percent, f.evaluate FROM data.forecast f, data.daily_stock ds " \
             "WHERE f.type = 3 AND ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
-    cursor.execute(query, (target_at, str(LIMIT_RATE)))
+    cursor.execute(query, (target_at, str(limit_rate)))
     return cursor.fetchall()
 
 
-def get_potential(target_at, chan_minus):
-    datas = get_potential_data_results(target_at)
+def get_potential(target_at, chan_minus, limit_rate):
+    datas = get_potential_data_results(target_at, limit_rate)
     potens = list()
     for data in datas:
         compare = is_compare_chain_minus(data.get('code'), data.get('analyzeAt'), chan_minus)
@@ -113,7 +113,7 @@ import datetime
 
 LIMIT_RATE = 0.70
 
-datas = get_potential(target_at=get_max_target_at() - datetime.timedelta(days=1), chan_minus=1)
+datas = get_potential(target_at=get_max_target_at() - datetime.timedelta(days=1), chan_minus=1, limit_rate=LIMIT_RATE)
 
 for data in datas:
     result = simulator(data.get('code'))
