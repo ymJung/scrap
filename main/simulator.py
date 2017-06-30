@@ -108,13 +108,25 @@ def get_potential(target_at, chan_minus, limit_rate):
             potens.append(data)
     return potens
 
+def print_potentials(datas):
+    msg = ''
+    for data in datas:
+        result = simulator(data.get('code'))
+        msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
+                + ' [' + str(data.get('evaluate'))
+                + '] [' + str(data.get('percent'))
+                + '] ' + result
+                + '] [' + str(data.get('type'))
+                + '] [' + str(data.get('potential'))
+                + '] [' + str(data.get('volume'))
+
+                + ']\n')
+    print(msg)
+    return msg
+
 
 import datetime
 
-LIMIT_RATE = 0.70
 
-datas = get_potential(target_at=get_max_target_at() - datetime.timedelta(days=1), chan_minus=1, limit_rate=LIMIT_RATE)
-
-for data in datas:
-    result = simulator(data.get('code'))
-    print(data.get('analyzeAt'), result)
+datas = get_potential(target_at=get_max_target_at() - datetime.timedelta(days=1), chan_minus=1, limit_rate=0.70)
+print_potentials(datas)
