@@ -1120,13 +1120,6 @@ class Runner:
         return cursor.fetchall()
 
 
-    def getPotentialDatas(self, target_at, limitRate):
-        cursor = self.connection.cursor()
-        query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.percent, f.evaluate FROM data.forecast f, data.daily_stock ds " \
-                "WHERE f.type = 3 AND ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
-        cursor.execute(query, (target_at, str(limitRate)))
-        return cursor.fetchall()
-
     def compare_yesterday(self, code, analyze_at):
         cursor = self.connection.cursor()
         cursor.execute("select ds.id as id, (ds.close-ds.open) as compare from data.daily_stock ds where ds.code = %s and ds.date < %s order by ds.id desc limit 1", (code, analyze_at))
@@ -1156,22 +1149,15 @@ class Runner:
         if len(results) >= evaluateMax:
             return results[evaluateMax-1].get('analyzeAt')
         return datetime.date.today()
-    def getPotential(self, target_at, chan_minus):
-        datas = self.getPotentialDatas(target_at, self.LIMIT_RATE)
-        msg = ''
+
+    def get_potential(self, target_at, chan_minus):
+        datas = self.get_potential_data_results(target_at, self.LIMIT_RATE)
+        potens = list()
         for data in datas:
             compare = self.is_compare_chain_minus(data.get('code'), data.get('analyzeAt'), chan_minus)
             if compare:
-                msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
-                        + ' [' + str(data.get('evaluate'))
-                        + '] [' + data.get('code')
-                        + '] [' + data.get('name')
-                        + '] [' + str(data.get('type'))
-                        + '] [' + str(data.get('potential'))
-                        + '] [' + str(data.get('volume'))
-                        + '] [' + str(data.get('percent'))
-                        + ']\n')
-        return msg
+                potens.append(data)
+        return potens
 
     def now_progress(self):
         daily_cnt = self.get_daily_stock_count(date.today())
@@ -1187,6 +1173,65 @@ class Runner:
         cursor = self.connection.cursor()
         cursor.execute('select count(*) as cnt from forecast where analyzeAt = %s', date)
         return cursor.fetchone().get('cnt')
+
+    def get_potential_data_results(self, target_at, limit_rate):
+        cursor = self.connection.cursor()
+        query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.percent, f.evaluate FROM data.forecast f, data.daily_stock ds " \
+                "WHERE f.type = 3 AND ds.code = f.code AND analyzeAt > %s and potential > %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
+        cursor.execute(query, (target_at, str(limit_rate)))
+        return cursor.fetchall()
+
+    def get_code(self, param):
+        param = param.strip()
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT distinct(code), name FROM data.daily_stock WHERE name = %s", (param))
+        result = cursor.fetchone()
+        if result is not None:
+            return result.get('code'), result.get('name')
+        cursor.execute("SELECT distinct(code), name FROM data.daily_stock WHERE code = %s", (param))
+        result = cursor.fetchone()
+        if result is not None:
+            return result.get('code'), result.get('name')
+        return None
+
+    def simulator(self, code):
+        code, name = self.get_code(code)
+        if code is None:
+            return None
+        code, name, forecast_val = self.forecast_result(code, name)
+        return '[' + code + '][' + name + '] [' + str(forecast_val) + ']'
+
+    def print_potentials(self, datas):
+        msg = ''
+        for data in datas:
+            result = self.simulator(data.get('code'))
+            msg += (data.get('analyzeAt').strftime("%Y-%m-%d")
+                    + ' [' + str(data.get('evaluate'))
+                    + '] [' + str(data.get('percent'))
+                    + '] ' + result
+                    + '] [' + str(data.get('type'))
+                    + '] [' + str(data.get('potential'))
+                    + '] [' + str(data.get('volume'))
+
+                    + ']\n')
+        print(msg)
+        return msg
+
+    def forecast_result(self, code, name):
+        foreacast_rate = 100
+        datas = self.get_potential_datas(self.LIMIT_RATE, code)
+        for data in datas:
+            if self.is_compare_chain_minus(code=code, analyze_at=data.get('analyzeAt'), day_cnt=1):
+                percent = data.get('percent')
+                foreacast_rate = foreacast_rate + (foreacast_rate * percent)
+        return code, name, round(foreacast_rate, 1)
+
+    def get_potential_datas(self, limit_rate, code):
+        cursor = self.connection.cursor()
+        query = "SELECT ds.name, f.type, f.code, f.analyzeAt, f.potential, f.volume , f.percent, f.evaluate FROM data.forecast f, data.daily_stock ds " \
+                "WHERE f.type = 3 AND ds.code = f.code AND potential > %s AND f.code = %s group by f.id ORDER BY f.analyzeAt, f.code ASC"
+        cursor.execute(query, (str(limit_rate), code))
+        return cursor.fetchall()
 
 
 import configparser
@@ -1225,7 +1270,8 @@ elif command == 'migrate':
     run.migrationWork(periods=run.getPeriodAll())
 elif command == 'forecast':
 #    updater.bot.sendMessage(chat_id=VALID_USER, text= run.filteredTarget(date.today()+timedelta(days=max(run.getPeriodAll()))))
-    updater.bot.sendMessage(chat_id=VALID_USER, text= run.getPotential(target_at= run.get_max_target_at() - timedelta(days=1), chan_minus=1))
+    datas = run.get_potential(target_at= run.get_max_target_at() - timedelta(days=1), chan_minus=1)
+    updater.bot.sendMessage(chat_id=VALID_USER, text= run.print_potentials(datas))
 else :
     print('invalid command')
 
