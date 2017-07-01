@@ -48,14 +48,13 @@ def is_compare_chain_minus(code, analyze_at, day_cnt):
 
 
 def forecast_result(code, name):
-    use_val = 100
+    foreacast_rate = 100
     datas = get_potential_datas(0.70, code)
     for data in datas:
         if is_compare_chain_minus(code=code, analyze_at=data.get('analyzeAt'), day_cnt=1):
             percent = data.get('percent')
-            use_val = use_val + (use_val * percent)
-    return code, name, use_val
-
+            foreacast_rate = foreacast_rate + (foreacast_rate * percent)
+    return code, name, round(foreacast_rate,  1)
 
 def get_code(param):
     param = param.strip()
@@ -75,8 +74,8 @@ def simulator(code):
     code, name = get_code(code)
     if code is None:
         return None
-    code, name, use_val = forecast_result(code, name)
-    return '[' + code + '][' + name + '] [' + str(use_val) + ']'
+    code, name, forecast_val = forecast_result(code, name)
+    return '[' + code + '][' + name + '] [' + str(forecast_val) + ']'
 
 
 def get_max_target_at():
