@@ -6,7 +6,6 @@ import queue
 import numpy
 import sys
 import win32com.client
-from telegram.ext import Updater
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
 import urllib
@@ -1234,6 +1233,9 @@ class Runner:
         return cursor.fetchall()
 
 
+
+
+
 import configparser
 
 cf = configparser.ConfigParser()
@@ -1250,7 +1252,9 @@ LINK3 = '/day_candles.json?limit='
 LINK4 = '&to='
 LINK1 = cf.get('KAKAO_STOCK', 'link1')
 run = Runner(DB_IP, DB_USER, DB_PWD, DB_SCH)
-updater = Updater(TOKEN)
+
+import telegram
+bot = telegram.Bot(token=TOKEN)
 
 command = 'forecast'
 if len(sys.argv) > 1:
@@ -1271,7 +1275,7 @@ elif command == 'migrate':
 elif command == 'forecast':
 #    updater.bot.sendMessage(chat_id=VALID_USER, text= run.filteredTarget(date.today()+timedelta(days=max(run.getPeriodAll()))))
     datas = run.get_potential(target_at= run.get_max_target_at() - timedelta(days=1), chan_minus=1)
-    updater.bot.sendMessage(chat_id=VALID_USER, text= run.print_potentials(datas))
+    bot.sendMessage(chat_id=VALID_USER, text= run.print_potentials(datas))
 else :
     print('invalid command')
 
